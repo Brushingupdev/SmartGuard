@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { verifyValue } from "@/utils/cookie-signing";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // UserContext — extracted from Supabase auth user metadata
@@ -44,32 +45,41 @@ export async function getUserContext(): Promise<UserContext | null> {
   const impersonateCookie = cookieStore.get("sg_impersonate");
 
   if (impersonateCookie?.value && realIsAdmin) {
-    // Validate target company exists
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-    const { data: target } = await admin.from("companies")
-      .select("id")
-      .eq("id", impersonateCookie.value)
-      .maybeSingle();
+    const secret = process.env.IMPERSONATE_COOKIE_SECRET;
+    const companyId = secret ? verifyValue(impersonateCookie.value, secret) : null;
 
-    if (!target) {
-      // Target deleted — clear cookie and return normal admin context
-      cookieStore.set("sg_impersonate", "", {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 0,
-      });
+    const clearCookie = () => cookieStore.set("sg_impersonate", "", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 0,
+    });
+
+    if (!companyId) {
+      // Signature invalid or secret not configured — clear and fall through
+      clearCookie();
     } else {
-      return {
-        userId: user.id,
-        role: "supervisor",
-        companyId: impersonateCookie.value,
-        isAdmin: false,
-        plant: "",
-        isImpersonating: true,
-        isReadOnly: true,
-      };
+      // Validate target company exists
+      const { createAdminClient } = await import("@/utils/supabase/admin");
+      const admin = createAdminClient();
+      const { data: target } = await admin.from("companies")
+        .select("id")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      if (!target) {
+        clearCookie();
+      } else {
+        return {
+          userId: user.id,
+          role: "supervisor",
+          companyId,
+          isAdmin: false,
+          plant: "",
+          isImpersonating: true,
+          isReadOnly: true,
+        };
+      }
     }
   }
 

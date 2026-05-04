@@ -2,8 +2,7 @@
 // Con hora_cita: alerta al llegar la cita, luego cada 15 min.
 // Sin hora_cita: alerta al superar umbral de empresa, luego cada alertaMinutos.
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,7 +28,7 @@ function toMin(t: string): number {
   return hh * 60 + mm;
 }
 
-serve(async () => {
+Deno.serve(async (_req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const today    = limaToday();
   const { totalMin: nowMin } = limaNow();

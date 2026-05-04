@@ -3,8 +3,7 @@
 // Ejecutar con: supabase functions deploy process_alert_queue
 // Cron: configurar pg_cron para ejecutar cada 1 minuto
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -18,7 +17,7 @@ const RESEND_FROM_EMAIL  = Deno.env.get("RESEND_FROM_EMAIL") ?? "SmartGuard <onb
 
 const BATCH_SIZE = 5;
 
-serve(async () => {
+Deno.serve(async (_req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   // 1. Tomar alertas pendientes y marcarlas "processing" en la misma transacción

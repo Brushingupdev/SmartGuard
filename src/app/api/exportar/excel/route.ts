@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Dynamic import to avoid edge-runtime issues
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const wb   = XLSX.utils.book_new();
   const ts   = new Date().toLocaleDateString("en-CA");

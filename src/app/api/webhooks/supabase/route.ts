@@ -1,32 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { z } from "zod";
+import { uuidSchema } from "@/lib/validations";
 
-/**
- * POST /api/webhooks/supabase
- *
- * Webhook receiver para eventos de Supabase Auth.
- * Configurar en: Supabase Dashboard → Authentication → Webhooks
- *
- * Eventos soportados:
- * - user.deleted: Limpia datos asociados al usuario
- * - user.updated: Sincroniza cambios de metadata
- */
+const webhookRecordSchema = z.object({
+  id: uuidSchema,
+  email: z.string().optional(),
+  raw_user_meta_data: z.record(z.string(), z.unknown()).optional(),
+});
 
-interface SupabaseWebhookEvent {
-  type: string;
-  table: string;
-  record: {
-    id: string;
-    email?: string;
-    raw_user_meta_data?: Record<string, unknown>;
-  };
-  old_record?: {
-    id: string;
-  };
-}
+const webhookEventSchema = z.object({
+  type: z.string(),
+  table: z.string().optional(),
+  record: webhookRecordSchema,
+  old_record: z.object({ id: uuidSchema }).optional(),
+});
+
+type WebhookEvent = z.infer<typeof webhookEventSchema>;
 
 export async function POST(request: NextRequest) {
-  // Verificar webhook secret
   const authHeader = request.headers.get("authorization");
   const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET;
 
@@ -39,20 +31,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let event: WebhookEvent;
   try {
-    const event: SupabaseWebhookEvent = await request.json();
+    const body = await request.json();
+    const parsed = webhookEventSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+    event = parsed.data;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
+  try {
     switch (event.type) {
       case "user.deleted":
         await handleUserDeleted(event.record.id);
         break;
-
       case "user.updated":
         await handleUserUpdated(event.record);
         break;
-
       default:
-        // Ignorar eventos no soportados
         break;
     }
 
@@ -79,20 +78,27 @@ async function handleUserDeleted(userId: string) {
 /**
  * Sincroniza cambios de metadata del usuario.
  */
-async function handleUserUpdated(record: { id: string; raw_user_meta_data?: Record<string, unknown> }) {
+async function handleUserUpdated(record: z.infer<typeof webhookRecordSchema>) {
   const admin = createAdminClient();
   const meta = record.raw_user_meta_data;
 
   if (!meta) return;
 
-  // Actualizar user_profiles si cambió role, company_id, o plant
+  const roleRaw      = typeof meta.role       === "string" ? meta.role       : "guardia";
+  const companyRaw   = typeof meta.company_id === "string" ? meta.company_id : null;
+  const plantRaw     = typeof meta.plant      === "string" ? meta.plant      : "";
+
+  const role      = ["administrador", "supervisor", "guardia"].includes(roleRaw) ? roleRaw : "guardia";
+  const companyId = companyRaw && uuidSchema.safeParse(companyRaw).success ? companyRaw : null;
+  const plant     = plantRaw.slice(0, 100);
+
   const { error } = await admin
     .from("user_profiles")
     .upsert({
       id: record.id,
-      role: (meta.role as string) ?? "guardia",
-      company_id: (meta.company_id as string) ?? null,
-      plant: (meta.plant as string) ?? "",
+      role,
+      company_id: companyId,
+      plant,
       updated_at: new Date().toISOString(),
     })
     .eq("id", record.id);

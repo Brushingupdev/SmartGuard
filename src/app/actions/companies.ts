@@ -9,6 +9,7 @@ import {
   validated,
 } from "@/lib/validations";
 import { nowLima, daysAgoLima, requireAdmin, checkWriteAccess } from "./_helpers";
+import { signValue } from "@/utils/cookie-signing";
 
 // Helper: fetch all auth users with pagination (max 10 páginas × 100 = 1000 usuarios)
 async function fetchAllAuthUsers(): Promise<{ email?: string; user_metadata?: Record<string, unknown> }[]> {
@@ -399,8 +400,11 @@ export async function startImpersonation(companyId: string): Promise<{ ok: boole
   const isAdmin = await requireAdmin();
   if (!isAdmin) return { ok: false };
 
+  const secret = process.env.IMPERSONATE_COOKIE_SECRET;
+  if (!secret) throw new Error("IMPERSONATE_COOKIE_SECRET is not configured");
+
   const cookieStore = await cookies();
-  cookieStore.set("sg_impersonate", companyId, {
+  cookieStore.set("sg_impersonate", signValue(companyId, secret), {
     path: "/",
     httpOnly: true,
     sameSite: "lax",

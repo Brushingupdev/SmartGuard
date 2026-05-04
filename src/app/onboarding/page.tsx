@@ -404,7 +404,7 @@ export default function OnboardingPage() {
     if (!file) return;
     setExcelParsing(true);
     try {
-      const XLSX = await import("xlsx");
+      const XLSX = await import("@e965/xlsx");
       const buffer = await file.arrayBuffer();
       const wb    = XLSX.read(buffer, { type: "array", cellDates: false });
       const ws    = wb.Sheets[wb.SheetNames[0]];

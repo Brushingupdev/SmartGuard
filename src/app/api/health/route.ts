@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 interface HealthStatus {
@@ -14,7 +14,11 @@ interface HealthStatus {
 
 const startTime = Date.now();
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth  = req.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const secret = process.env.CRON_SECRET;
+  const isAuthenticated = secret && token === secret;
   const checks: HealthStatus["checks"] = {
     database: "ok",
     redis: "not_configured",
@@ -53,15 +57,20 @@ export async function GET() {
       ? "unhealthy"
       : "degraded";
 
+  const httpStatus = status === "unhealthy" ? 503 : 200;
+  const timestamp  = new Date().toISOString();
+
+  if (!isAuthenticated) {
+    return NextResponse.json({ status, timestamp }, { status: httpStatus });
+  }
+
   const body: HealthStatus = {
     status,
-    timestamp: new Date().toISOString(),
+    timestamp,
     version: process.env.npm_package_version ?? "0.1.0",
     checks,
     uptime: Math.floor((Date.now() - startTime) / 1000),
   };
 
-  return NextResponse.json(body, {
-    status: status === "unhealthy" ? 503 : 200,
-  });
+  return NextResponse.json(body, { status: httpStatus });
 }
