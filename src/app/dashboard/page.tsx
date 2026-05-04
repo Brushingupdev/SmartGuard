@@ -66,7 +66,7 @@ function ChartTooltip({ active, payload, label, timeframe = "Día" }: ChartToolt
             <span className="h-2 w-2" style={{ background: colorMap[key] }} />
             {labelMap[key] ?? key}
           </span>
-          <span className="sg-mono text-[var(--sg-ink)]">{p.value}</span>
+          <span className="sg-mono text-[var(--sg-ink)]">{String(p.value ?? '')}</span>
         </div>
       )})}
       <div className="mt-1.5 border-t border-[var(--sg-line)] pt-1.5 flex justify-between text-[11px]">
