@@ -30,14 +30,9 @@ import {
   YAxis,
 } from "recharts";
 
-interface ChartTooltipPayload {
-  dataKey?: unknown;
-  value?: number;
-}
-
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: readonly ChartTooltipPayload[];
+  payload?: Array<{ dataKey?: unknown; value?: unknown }>;
   label?: string;
   timeframe?: string;
 }
@@ -76,7 +71,7 @@ function ChartTooltip({ active, payload, label, timeframe = "Día" }: ChartToolt
       )})}
       <div className="mt-1.5 border-t border-[var(--sg-line)] pt-1.5 flex justify-between text-[11px]">
         <span className="text-[var(--sg-muted)]">Total</span>
-        <span className="sg-mono text-[var(--sg-ink)]">{payload.reduce((s, p) => s + (p.value ?? 0), 0)}</span>
+        <span className="sg-mono text-[var(--sg-ink)]">{payload.reduce((s, p) => s + (Number(p.value) || 0), 0)}</span>
       </div>
     </div>
   );
