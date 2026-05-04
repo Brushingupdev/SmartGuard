@@ -427,6 +427,9 @@ function EditModal({
                 <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
                   Opcional
                 </span>
+                <span className="sg-font-mono text-[8px] bg-[rgba(200,168,75,0.12)] px-2 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)] uppercase">
+                  Formato 24h — 2 PM = 14:00
+                </span>
               </label>
               <input
                 type="time"
@@ -1129,6 +1132,9 @@ export default function RegistroPage() {
                   Hora de Cita
                   <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
                     Opcional
+                  </span>
+                  <span className="sg-font-mono text-[8px] bg-[rgba(200,168,75,0.12)] px-2 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)] uppercase">
+                    Formato 24h — 2 PM = 14:00
                   </span>
                 </label>
                 <input
