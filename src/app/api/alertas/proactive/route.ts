@@ -7,11 +7,9 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/alertas/proactive
  *
- * Llamado por el cron de Vercel cada 5 minutos.
+ * Endpoint de activación manual / fallback. El cron principal corre en
+ * Supabase Scheduler → Edge Function check_proactive_alerts.
  * Requiere: Authorization: Bearer <CRON_SECRET>
- *
- * Itera todas las empresas activas y encola alertas proactivas
- * para registros pendientes que superan su umbral de demora.
  */
 export async function GET(req: NextRequest) {
   // ── Autenticación del cron ────────────────────────────────────────────────
