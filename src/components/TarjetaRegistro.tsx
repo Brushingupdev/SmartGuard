@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import {
-  Timer, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock
+  Timer, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock, Bell
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -58,7 +58,7 @@ function liveWaitMinutes(reg: Registro): number {
   return minutesSince(reg.time);
 }
 
-function StatePill({ state, isDemora }: { state: State; isDemora: boolean }) {
+function StatePill({ state, isDemora, isCitaActiva }: { state: State; isDemora: boolean; isCitaActiva: boolean }) {
   if (state === "complete")
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-success)] bg-[rgba(107,189,138,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)]">
@@ -77,14 +77,27 @@ function StatePill({ state, isDemora }: { state: State; isDemora: boolean }) {
         {isDemora ? "Demora" : "Atendido"}
       </span>
     );
+  // Pendiente con demora
+  if (isDemora)
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-danger)]">
+        <span className="h-2 w-2 rounded-full sg-pulse bg-[var(--sg-danger)]" />
+        Demora
+      </span>
+    );
+  // Cita llegó y aún no fue atendido
+  if (isCitaActiva)
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-orange-500 bg-orange-500/10 sg-font-mono text-[10px] uppercase tracking-widest text-orange-400 animate-pulse">
+        <Bell className="h-3.5 w-3.5" />
+        Cita Activa
+      </span>
+    );
+  // Pendiente normal
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 border sg-font-mono text-[10px] uppercase tracking-widest ${
-      isDemora
-        ? "border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] text-[var(--sg-danger)]"
-        : "border-[var(--sg-warn)] bg-[rgba(200,160,75,0.08)] text-[var(--sg-warn)]"
-    }`}>
-      <span className={`h-2 w-2 rounded-full sg-pulse ${isDemora ? "bg-[var(--sg-danger)]" : "bg-[var(--sg-warn)]"}`} />
-      {isDemora ? "Demora" : "Pendiente"}
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-warn)] bg-[rgba(200,160,75,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-warn)]">
+      <span className="h-2 w-2 rounded-full sg-pulse bg-[var(--sg-warn)]" />
+      Pendiente
     </span>
   );
 }
@@ -130,20 +143,27 @@ export default function TarjetaRegistro({
   const waitMin = isPending ? liveMin : (reg.espera_min ?? 0);
   const isDemora = state !== "complete" && waitMin >= DELAY_THRESHOLD;
 
-  // Colores del borde según estado + demora
+  // Cita activa: cita llegó (liveMin > 0) pero aún no fue atendido y no es demora aún
+  const isCitaActiva = isPending && !!reg.hora_cita && liveMin > 0 && !isDemora;
+
+  // Colores del borde según estado + demora + cita activa
   const borderClass = state === "complete"
     ? "border-[var(--sg-line)] opacity-70"
     : isDemora
       ? "border-[var(--sg-danger)]"
-      : isPending
-        ? "border-[var(--sg-warn)]"
-        : "border-[var(--sg-accent)]";
+      : isCitaActiva
+        ? "border-orange-500"
+        : isPending
+          ? "border-[var(--sg-warn)]"
+          : "border-[var(--sg-accent)]";
 
   const shadowStyle = isDemora
     ? { boxShadow: "0 0 0 1px rgba(211,92,79,0.35)" }
-    : isPending
-      ? { boxShadow: "0 0 0 1px rgba(200,160,75,0.3)" }
-      : {};
+    : isCitaActiva
+      ? { boxShadow: "0 0 0 1px rgba(249,115,22,0.35)" }
+      : isPending
+        ? { boxShadow: "0 0 0 1px rgba(200,160,75,0.3)" }
+        : {};
 
   return (
     <motion.div
@@ -196,7 +216,7 @@ export default function TarjetaRegistro({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <StatePill state={state} isDemora={isDemora} />
+          <StatePill state={state} isDemora={isDemora} isCitaActiva={isCitaActiva} />
           {isAbandoned && (
             <span className="inline-flex items-center gap-1 px-2 py-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-danger)]">
               <AlertTriangle className="h-3 w-3" />
@@ -207,7 +227,7 @@ export default function TarjetaRegistro({
       </div>
 
       {/* Info row */}
-      {(reg.responsable || reg.agente || reg.h_atencion || reg.h_dev_docs || isDemora) && (
+      {(reg.responsable || reg.agente || reg.h_atencion || reg.h_dev_docs || isDemora || isCitaActiva) && (
         <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3 text-[11px] text-[var(--sg-copy)]">
           {reg.responsable && <span>Resp: {reg.responsable}</span>}
           {reg.agente && <span>Agente: {reg.agente}</span>}
@@ -218,6 +238,12 @@ export default function TarjetaRegistro({
           )}
           {reg.h_dev_docs && (
             <span className="text-[var(--sg-success)]">Docs: {reg.h_dev_docs}</span>
+          )}
+          {isCitaActiva && (
+            <span className="text-orange-400 font-bold flex items-center gap-1">
+              <Bell className="h-3 w-3" />
+              Cita hace {liveMin} min — atender ya
+            </span>
           )}
           {isDemora && (
             <span className="text-[var(--sg-danger)] font-bold flex items-center gap-1">
@@ -237,7 +263,9 @@ export default function TarjetaRegistro({
             className={`flex items-center justify-center gap-3 h-14 border sg-font-mono text-[14px] uppercase tracking-[0.1em] transition-all active:scale-[0.98] ${
               isDemora
                 ? "border-[var(--sg-danger)] text-[var(--sg-danger)] hover:bg-[var(--sg-danger)] hover:text-[var(--sg-canvas)]"
-                : "border-[var(--sg-accent)] text-[var(--sg-accent)] hover:bg-[var(--sg-accent)] hover:text-[var(--sg-canvas)]"
+                : isCitaActiva
+                  ? "border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white"
+                  : "border-[var(--sg-accent)] text-[var(--sg-accent)] hover:bg-[var(--sg-accent)] hover:text-[var(--sg-canvas)]"
             } ${closing ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             {closing ? (
