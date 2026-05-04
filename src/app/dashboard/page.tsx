@@ -32,8 +32,8 @@ import {
 
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: Array<{ dataKey?: unknown; value?: unknown }>;
-  label?: string;
+  payload?: ReadonlyArray<{ dataKey?: unknown; value?: unknown }>;
+  label?: string | number;
   timeframe?: string;
 }
 

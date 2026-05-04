@@ -41,7 +41,7 @@ describe("rate-limit", () => {
     const mockLimiter = {
       limit: vi.fn().mockResolvedValue({ success: true, reset: Date.now() + 300000 }),
     } satisfies MockLimiter;
-    const result = await checkRateLimit(mockLimiter, "test-ip");
+    const result = await checkRateLimit(mockLimiter as never, "test-ip");
     expect(result.success).toBe(true);
     expect(mockLimiter.limit).toHaveBeenCalledWith("test-ip");
   });
@@ -52,7 +52,7 @@ describe("rate-limit", () => {
     const mockLimiter = {
       limit: vi.fn().mockResolvedValue({ success: false, reset: futureReset }),
     } satisfies MockLimiter;
-    const result = await checkRateLimit(mockLimiter, "test-ip");
+    const result = await checkRateLimit(mockLimiter as never, "test-ip");
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.retryAfter).toBeGreaterThan(0);
