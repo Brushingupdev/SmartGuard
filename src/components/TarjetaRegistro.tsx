@@ -21,6 +21,7 @@ interface Registro {
   responsable?: string;
   agente?: string;
   observacion?: string;
+  hora_cita?: string | null;
 }
 
 type State = "pending" | "attended" | "complete";
@@ -39,6 +40,19 @@ function minutesSince(timeStr: string): number {
   const now = new Date();
   const diffMin = (now.getHours() * 60 + now.getMinutes()) - (hh * 60 + mm);
   return diffMin < 0 ? diffMin + 1440 : diffMin;
+}
+
+/**
+ * Para el contador en vivo de pendientes:
+ * Si hay hora_cita, se mide desde ella (y es 0 si aún no llegó la cita).
+ * Si no, se mide desde h_registro (time).
+ */
+function liveWaitMinutes(reg: Registro): number {
+  if (reg.hora_cita) {
+    const fromCita = minutesSince(reg.hora_cita);
+    return Math.max(0, fromCita); // 0 si la cita aún no llegó
+  }
+  return minutesSince(reg.time);
 }
 
 function StatePill({ state, isDemora }: { state: State; isDemora: boolean }) {
@@ -99,14 +113,15 @@ export default function TarjetaRegistro({
 
   // Para pendientes: calcular espera en vivo cada 30 segundos
   const [liveMin, setLiveMin] = useState<number>(() =>
-    isPending ? minutesSince(reg.time) : 0
+    isPending ? liveWaitMinutes(reg) : 0
   );
 
   useEffect(() => {
     if (!isPending) return;
-    const id = setInterval(() => setLiveMin(minutesSince(reg.time)), 30_000);
+    const id = setInterval(() => setLiveMin(liveWaitMinutes(reg)), 30_000);
     return () => clearInterval(id);
-  }, [isPending, reg.time]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, reg.time, reg.hora_cita]);
 
   // Demora: para atendidos usa espera_min guardada, para pendientes usa el contador en vivo
   const waitMin = isPending ? liveMin : (reg.espera_min ?? 0);
@@ -146,6 +161,12 @@ export default function TarjetaRegistro({
             <span className="text-[8px] uppercase tracking-[0.12em] text-[var(--sg-muted)] mt-0.5">
               Ingreso
             </span>
+            {/* Badge de hora de cita */}
+            {reg.hora_cita && (
+              <span className="mt-1 sg-font-mono text-[9px] font-bold text-[var(--sg-accent)] border border-[var(--sg-accent)] px-1.5 leading-[1.6]">
+                {reg.hora_cita}
+              </span>
+            )}
             {/* Contador de espera en vivo para pendientes */}
             {isPending && (
               <span className={`mt-1 sg-font-mono text-[9px] font-bold ${

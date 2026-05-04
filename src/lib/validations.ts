@@ -55,6 +55,11 @@ export const createAtencionSchema = z.object({
   responsable: z.string().max(150).transform((v) => v.trim()).optional(),
   agente: z.string().max(150).transform((v) => v.trim()).optional(),
   note: z.string().max(1000).transform((v) => v.trim()).optional(),
+  horaCita: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Formato HH:MM")
+    .optional()
+    .nullable(),
 });
 
 export const updateAtencionSchema = z.object({
@@ -71,6 +76,11 @@ export const updateAtencionSchema = z.object({
     .optional()
     .nullable(),
   hDevDocs: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Formato HH:MM")
+    .optional()
+    .nullable(),
+  horaCita: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Formato HH:MM")
     .optional()
@@ -177,6 +187,7 @@ export const companySettingsSchema = z.object({
     .optional(),
   plantas: z.string().max(500).optional(),
   contactName: z.string().max(150).optional(),
+  alertaMinutos: z.number().int().min(15).max(240).optional(),
 });
 
 export const plantContactSchema = z.object({

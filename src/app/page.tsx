@@ -29,10 +29,10 @@ const fadeUp: Variants = {
 };
 
 const stats = [
-  { num: "99", suffix: "%", label: "Tasa de detección" },
+  { num: "100", suffix: "%", label: "Trazabilidad de registros" },
   { num: "<2", suffix: "s", label: "Tiempo de respuesta" },
   { num: "24", suffix: "/7", label: "Monitoreo continuo" },
-  { num: "ISO", suffix: " 27001", label: "Certificación de seguridad" },
+  { num: "3", suffix: "", label: "Roles de acceso diferenciados" },
 ];
 
 const steps = [

@@ -100,6 +100,18 @@ async function _getDashboardEvents(supabase: Awaited<ReturnType<typeof createCli
   return data;
 }
 
+async function _getDashboardDelayReasons(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string) {
+  const { data } = await supabase
+    .from("atenciones")
+    .select("motivo_demora")
+    .eq("company_id", companyId)
+    .not("motivo_demora", "is", null)
+    .gte("fecha", from)
+    .lte("fecha", to)
+    .limit(500);
+  return data;
+}
+
 export async function getDashboardStats(plant: string = "Todos", timeframe: string = "Día"): Promise<DashboardStatsResult> {
   const supabase = await createClient();
   const ctx = await getUserContext();
@@ -120,12 +132,13 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
   const groupBy = groupByMode(timeframe);
 
   try {
-    const [kpisData, flowData, breakdownRows, eventsData] = await withRetry(
+    const [kpisData, flowData, breakdownRows, eventsData, reasonsRaw] = await withRetry(
       () => Promise.all([
         _getDashboardKpis(supabase, companyId, from, to, plant),
         _getDashboardFlow(supabase, companyId, from, to, plant, groupBy),
         _getDashboardBreakdown(supabase, companyId, from, to),
         _getDashboardEvents(supabase, companyId, from, to, 6),
+        _getDashboardDelayReasons(supabase, companyId, from, to),
       ]),
       "getDashboardStats-direct"
     );
@@ -143,12 +156,17 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
     const breakdown: Record<string, DashboardBreakdownEntry> = {};
     bRows.forEach(r => { breakdown[r.planta || "Sin planta"] = { total: Number(r.total), ok: Number(r.ok) }; });
 
-    const zones: DashboardZone[] = bRows.map(r => ({
-      name: r.planta || "Sin planta",
-      count: Number(r.total),
-      pct: Math.min(100, (Number(r.total) / 50) * 100),
-      tone: (Number(r.total) > 40 ? "deny" : "ok") as DashboardZone["tone"],
-    })).sort((a, b) => b.count - a.count);
+    const zones: DashboardZone[] = bRows.map(r => {
+      const total = Number(r.total);
+      const ok    = Number(r.ok);
+      const pct   = total > 0 ? Math.round((ok / total) * 100) : 0;
+      return {
+        name:  r.planta || "Sin planta",
+        count: total,
+        pct,
+        tone: (total > 0 && pct >= 70 ? "ok" : "deny") as DashboardZone["tone"],
+      };
+    }).sort((a, b) => b.count - a.count);
 
     const eventsFull = (eventsData ?? []) as DashboardEventFull[];
     const events: DashboardEvent[] = eventsFull;
@@ -183,22 +201,14 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       deny: Number(d.deny),
     }));
 
-    // Delay reasons for CausasTop
-    let delayReasons: { motivo: string; count: number }[] = [];
-    const { data: reasonsData } = await supabase.from("atenciones")
-      .select("motivo_demora")
-      .eq("company_id", companyId)
-      .not("motivo_demora", "is", null)
-      .gte("fecha", from).lte("fecha", to);
-    if (reasonsData) {
-      const reasonMap: Record<string, number> = {};
-      (reasonsData as { motivo_demora: string }[]).forEach(r => {
-        reasonMap[r.motivo_demora] = (reasonMap[r.motivo_demora] || 0) + 1;
-      });
-      delayReasons = Object.entries(reasonMap)
-        .map(([motivo, count]) => ({ motivo, count }))
-        .sort((a, b) => b.count - a.count);
-    }
+    // Delay reasons for CausasTop — aggregated from parallel fetch
+    const reasonMap: Record<string, number> = {};
+    (reasonsRaw ?? []).forEach((r: { motivo_demora: string }) => {
+      reasonMap[r.motivo_demora] = (reasonMap[r.motivo_demora] || 0) + 1;
+    });
+    const delayReasons = Object.entries(reasonMap)
+      .map(([motivo, count]) => ({ motivo, count }))
+      .sort((a, b) => b.count - a.count);
 
     return { events, kpis, breakdown, flowData: safeFlowData, zones, alerts, delayReasons };
   } catch (err) {
@@ -245,7 +255,15 @@ async function getDashboardStatsAdmin(
   });
 
   const zones: DashboardZone[] = Object.entries(breakdown)
-    .map(([name, v]) => ({ name, count: v.total, pct: Math.min(100, (v.total / 50) * 100), tone: v.total > 40 ? "deny" as const : "ok" as const }))
+    .map(([name, v]) => {
+      const pct = v.total > 0 ? Math.round((v.ok / v.total) * 100) : 0;
+      return {
+        name,
+        count: v.total,
+        pct,
+        tone: v.total > 0 && pct >= 70 ? "ok" as const : "deny" as const,
+      };
+    })
     .sort((a, b) => b.count - a.count);
 
     const events: DashboardEvent[] = data.slice(0, 6).map((d) => {

@@ -10,6 +10,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
+const GREEN_API_INSTANCE = Deno.env.get("GREEN_API_INSTANCE");
+const GREEN_API_TOKEN    = Deno.env.get("GREEN_API_TOKEN");
+const GREEN_API_SERVER   = Deno.env.get("GREEN_API_SERVER") ?? "7107";
+const SITE_URL           = Deno.env.get("NEXT_PUBLIC_SITE_URL") ?? "";
+const RESEND_FROM_EMAIL  = Deno.env.get("RESEND_FROM_EMAIL") ?? "SmartGuard <onboarding@resend.dev>";
+
 const BATCH_SIZE = 5;
 
 serve(async () => {
@@ -92,6 +98,7 @@ serve(async () => {
             empresa: alert.empresa,
             planta: alert.planta,
             esperaMin: alert.espera_min,
+            hRegistro: alert.h_registro,
           })
         ),
       ]);
@@ -188,7 +195,7 @@ async function sendEmailAlert(opts: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "SmartGuard <alertas@smartguard.io>",
+      from: RESEND_FROM_EMAIL,
       to: [opts.to],
       subject: `⚠️ Alerta de demora — ${opts.razonSocial}`,
       html: `
@@ -214,7 +221,7 @@ async function sendEmailAlert(opts: {
   }
 }
 
-// ─── WhatsApp (placeholder — integrar con Twilio/Wati) ───────────────────────
+// ─── WhatsApp via Green API ───────────────────────────────────────────────────
 
 async function sendWhatsAppAlert(opts: {
   phone: string;
@@ -222,10 +229,42 @@ async function sendWhatsAppAlert(opts: {
   empresa: string;
   planta: string;
   esperaMin: number;
+  hRegistro?: string;
 }) {
-  // TODO: Integrar con Twilio, Wati, o Meta Business API
-  console.log(`[WhatsApp] Would send to ${opts.phone}:`, {
-    razonSocial: opts.razonSocial,
-    esperaMin: opts.esperaMin,
-  });
+  if (!GREEN_API_INSTANCE || !GREEN_API_TOKEN) {
+    console.warn("[WhatsApp] GREEN_API_INSTANCE o GREEN_API_TOKEN no configurados, omitiendo");
+    return;
+  }
+
+  const seg =
+    opts.esperaMin >= 90 ? "🔴 Crítico"
+    : opts.esperaMin >= 45 ? "🟠 Alto"
+    : "🟡 Moderado";
+
+  const horaStr = opts.hRegistro ? opts.hRegistro.substring(0, 5) : "—";
+
+  const message =
+    `⚠ *SmartGuard — Alerta de Demora*\n\n` +
+    `*${opts.razonSocial}*\n` +
+    `🏭 ${opts.empresa} · ${opts.planta}\n` +
+    `🕐 Ingreso: ${horaStr}\n` +
+    `⏱ Espera: *${opts.esperaMin} min* ${seg}\n\n` +
+    `Ver en plataforma → ${SITE_URL}/alertas`;
+
+  const chatId = `${opts.phone.replace(/\D/g, "")}@c.us`;
+
+  const res = await fetch(
+    `https://${GREEN_API_SERVER}.api.greenapi.com/waInstance${GREEN_API_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ chatId, message }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Green API error: ${res.status} ${await res.text()}`);
+  }
+
+  console.log(`[WhatsApp] Mensaje enviado a ${opts.phone}`);
 }

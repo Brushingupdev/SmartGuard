@@ -136,14 +136,15 @@ function PlantSection({ companyId, planta, initial }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function EmpresaPage() {
-  const [loading,      setLoading]      = useState(true);
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
-  const [company,      setCompany]      = useState<CompanySettings>(null);
-  const [plantData,    setPlantData]    = useState<{ planta: string; emails: string[]; phones: string[] }[]>([]);
-  const [globalEmails, setGlobalEmails] = useState<string[]>([]);
-  const [globalPhones, setGlobalPhones] = useState<string[]>([]);
-  const [plantas,      setPlantas]      = useState("");
+  const [loading,        setLoading]        = useState(true);
+  const [saving,         setSaving]         = useState(false);
+  const [saved,          setSaved]          = useState(false);
+  const [company,        setCompany]        = useState<CompanySettings>(null);
+  const [plantData,      setPlantData]      = useState<{ planta: string; emails: string[]; phones: string[] }[]>([]);
+  const [globalEmails,   setGlobalEmails]   = useState<string[]>([]);
+  const [globalPhones,   setGlobalPhones]   = useState<string[]>([]);
+  const [plantas,        setPlantas]        = useState("");
+  const [alertaMinutos,  setAlertaMinutos]  = useState(45);
 
   useEffect(() => {
     getCompanySettings().then(data => {
@@ -152,6 +153,8 @@ export default function EmpresaPage() {
         setGlobalEmails(data.notification_emails ?? []);
         setGlobalPhones(data.notification_phones ?? []);
         setPlantas((data.plantas ?? []).join(", "));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAlertaMinutos((data as any).alerta_minutos ?? 45);
         getPlantContacts(data.id).then(setPlantData);
       }
       setLoading(false);
@@ -160,7 +163,7 @@ export default function EmpresaPage() {
 
   const handleSaveGlobal = async () => {
     setSaving(true);
-    await updateCompanySettings({ notificationEmails: globalEmails, notificationPhones: globalPhones, plantas });
+    await updateCompanySettings({ notificationEmails: globalEmails, notificationPhones: globalPhones, plantas, alertaMinutos });
     if (company?.id) getPlantContacts(company.id).then(setPlantData);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -224,6 +227,26 @@ export default function EmpresaPage() {
               <input type="text" value={plantas} onChange={e => setPlantas(e.target.value)}
                 className="sg-input text-[12px]" placeholder="Lomas, Cajamarquilla, Planta Norte" />
               <p className="text-[10px] text-[var(--sg-muted)]">Separadas por coma</p>
+            </div>
+
+            <div className="sg-field">
+              <label className="sg-label flex items-center gap-2">
+                Umbral de alerta proactiva
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={15}
+                  max={240}
+                  value={alertaMinutos}
+                  onChange={e => setAlertaMinutos(Math.min(240, Math.max(15, Number(e.target.value))))}
+                  className="sg-input w-24 text-center sg-font-mono"
+                />
+                <span className="text-[12px] text-[var(--sg-copy)]">minutos</span>
+              </div>
+              <p className="text-[10px] text-[var(--sg-muted)]">
+                Se envía alerta si el vehículo lleva más de este tiempo esperando (mín. 15, máx. 240)
+              </p>
             </div>
 
             <SaveBtn saving={saving} saved={saved} onClick={handleSaveGlobal} label="Guardar globales" />

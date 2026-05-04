@@ -79,6 +79,7 @@ export async function createAtencion(rawData: unknown) {
     anio: year,
     mes_num: month,
     company_id: ctx.companyId,
+    hora_cita: data.horaCita ? data.horaCita + ":00" : null,
   };
 
   const { error } = await supabase.from("atenciones").insert(payload);
@@ -107,10 +108,12 @@ export async function updateAtencion(rawId: unknown, rawData: unknown) {
   let hRegistro: string | null = null;
   let alertPlanta: string = "";
 
+  let dbHoraCita: string | null = null;
+
   if (needsTimes) {
     let selQuery = supabase
       .from("atenciones")
-      .select("h_registro, planta")
+      .select("h_registro, planta, hora_cita")
       .eq("id", id);
     if (!ctx?.isAdmin && ctx?.companyId) {
       selQuery = selQuery.eq("company_id", ctx.companyId);
@@ -118,6 +121,7 @@ export async function updateAtencion(rawId: unknown, rawData: unknown) {
     const { data: rec } = await selQuery.single();
     hRegistro = rec?.h_registro ?? null;
     alertPlanta = (rec?.planta as string) ?? "";
+    dbHoraCita = (rec?.hora_cita as string | null) ?? null;
   }
 
   // Helper: calcula minutos entre dos "HH:MM[:SS]" strings
@@ -139,20 +143,52 @@ export async function updateAtencion(rawId: unknown, rawData: unknown) {
     observacion: data.note,
   };
 
+  // Actualizar hora_cita si viene en el payload
+  if (data.horaCita !== undefined) {
+    update.hora_cita = data.horaCita ? data.horaCita + ":00" : null;
+  }
+
+  // Hora de cita efectiva: la nueva si se está cambiando, si no la que está en BD
+  const effectiveHoraCita: string | null =
+    data.horaCita !== undefined
+      ? (data.horaCita ? data.horaCita + ":00" : null)
+      : dbHoraCita;
+
   // Actualizar h_atencion y recalcular espera_min / segmento
   if (data.hAtencion !== undefined) {
-    if (data.hAtencion && hRegistro) {
-      const espera_min = diffMin(hRegistro, data.hAtencion);
-      if (espera_min > 720) {
-        return { success: false, error: "La hora de atención parece incorrecta — verifica que sea posterior a la hora de registro (máx. 12 h de diferencia)" };
-      }
-      const seg = calcSegmento(espera_min);
+    if (data.hAtencion) {
+      // Base para calcular espera: hora_cita si existe, si no h_registro
+      const baseTime = effectiveHoraCita ?? hRegistro;
+      if (baseTime) {
+        const [bh, bm] = baseTime.split(":").map(Number);
+        const [ah, am] = data.hAtencion.split(":").map(Number);
+        const baseMin = bh * 60 + bm;
+        const atenMin = ah * 60 + am;
 
-      update.h_atencion       = data.hAtencion + ":00";
-      update.espera_min       = espera_min;
-      update.segmento_espera  = seg.label;
-      update.segmento_orden   = seg.orden;
-      update.es_demora        = seg.esDemora;
+        if (effectiveHoraCita && atenMin < baseMin) {
+          // Anticipado: atendido antes de la hora de cita
+          update.h_atencion      = data.hAtencion + ":00";
+          update.espera_min      = 0;
+          update.segmento_espera = "🔵 Anticipado";
+          update.segmento_orden  = 0;
+          update.es_demora       = 0;
+        } else {
+          let espera_min = atenMin - baseMin;
+          if (espera_min < 0) espera_min += 24 * 60;
+          if (espera_min > 720) {
+            return { success: false, error: "La hora de atención parece incorrecta — verifica que sea posterior a la hora base (máx. 12 h de diferencia)" };
+          }
+          const seg = calcSegmento(espera_min);
+          update.h_atencion      = data.hAtencion + ":00";
+          update.espera_min      = espera_min;
+          update.segmento_espera = seg.label;
+          update.segmento_orden  = seg.orden;
+          update.es_demora       = seg.esDemora;
+        }
+      } else {
+        // Sin base temporal conocida — solo guardamos la hora
+        update.h_atencion = data.hAtencion + ":00";
+      }
     } else {
       update.h_atencion       = null;
       update.espera_min       = null;
@@ -241,7 +277,7 @@ export async function closeAtencion(rawId: unknown, rawMotivo?: unknown) {
 
   let selQuery = supabase
     .from("atenciones")
-    .select("h_registro, razon_social, empresa, planta")
+    .select("h_registro, hora_cita, razon_social, empresa, planta")
     .eq("id", id);
   if (!ctx?.isAdmin && ctx?.companyId) {
     selQuery = selQuery.eq("company_id", ctx.companyId);
@@ -253,23 +289,44 @@ export async function closeAtencion(rawId: unknown, rawMotivo?: unknown) {
   }
 
   const { time: timeStr, hour, minute, second } = nowLima();
+  const endMinutes = hour * 60 + minute + second / 60;
 
   let espera_min = 0;
-  if (record.h_registro) {
-    const parts = record.h_registro.split(":").map(Number);
+  let isAnticipado = false;
+
+  const horaCita = record.hora_cita as string | null;
+  if (horaCita) {
+    // Calcular desde hora de cita, no desde h_registro
+    const parts = horaCita.split(":").map(Number);
+    const citaMinutes = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
+    if (endMinutes < citaMinutes) {
+      // Llegó antes de la cita → Anticipado
+      espera_min = 0;
+      isAnticipado = true;
+    } else {
+      espera_min = Math.round(endMinutes - citaMinutes);
+      if (espera_min < 0) espera_min += 24 * 60;
+    }
+  } else if (record.h_registro) {
+    const parts = (record.h_registro as string).split(":").map(Number);
     const startMinutes = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
-    const endMinutes = hour * 60 + minute + second / 60;
     espera_min = Math.round(endMinutes - startMinutes);
     if (espera_min < 0) espera_min += 24 * 60;
   }
 
-  const seg = calcSegmento(espera_min);
+  const seg = isAnticipado
+    ? { label: "🔵 Anticipado", orden: 0, esDemora: 0 }
+    : calcSegmento(espera_min);
 
   const update: Record<string, unknown> = {
     h_atencion: timeStr, espera_min,
     segmento_espera: seg.label, segmento_orden: seg.orden, es_demora: seg.esDemora,
   };
-  if (motivoDemora) update.motivo_demora = motivoDemora;
+  if (motivoDemora) {
+    update.motivo_demora = motivoDemora;
+  } else if (isAnticipado) {
+    update.observacion = `Atendido antes de la hora de cita (${horaCita!.substring(0, 5)})`;
+  }
 
   let updQuery = supabase.from("atenciones").update(update).eq("id", id);
   if (!ctx?.isAdmin && ctx?.companyId) {
@@ -594,7 +651,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
 
   let query = supabase
     .from("atenciones")
-    .select("id, razon_social, empresa, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo", { count: "exact" })
+    .select("id, razon_social, empresa, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita", { count: "exact" })
     .eq("planta", plant)
     .eq("fecha", dateStr)
     .order("id", { ascending: false })
@@ -627,7 +684,98 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
     docsDelivered: !!d.h_dev_docs,
     h_dev_docs: d.h_dev_docs ? d.h_dev_docs.substring(0, 5) : null,
     tiempo_total_min: d.tiempo_total_min ?? null,
+    hora_cita: d.hora_cita ? (d.hora_cita as string).substring(0, 5) : null,
   }));
 
   return { records, total: count ?? 0 };
+}
+
+// ─── Alertas proactivas (llamado por el cron /api/alertas/proactive) ──────────
+// Revisa los registros pendientes de hoy para una empresa y encola alertas si
+// la demora supera el umbral configurado, con deduplicación por tiempo.
+export async function checkProactiveAlerts(
+  companyId: string
+): Promise<{ checked: number; alerted: number }> {
+  try {
+    const { createAdminClient } = await import("@/utils/supabase/admin");
+    const supabase = createAdminClient();
+
+    const { date: dateStr, hour, minute, second } = nowLima();
+    const nowMinutes = hour * 60 + minute + second / 60;
+    const nowIso = new Date().toISOString();
+
+    // Umbral configurado para esta empresa
+    const { data: company } = await supabase
+      .from("companies")
+      .select("alerta_minutos")
+      .eq("id", companyId)
+      .single();
+    const alertaMinutos: number = (company?.alerta_minutos as number | null) ?? 45;
+
+    // Registros pendientes de hoy (sin h_atencion)
+    const { data: pending } = await supabase
+      .from("atenciones")
+      .select("id, h_registro, hora_cita, razon_social, empresa, planta, ultima_alerta_proactiva_at")
+      .eq("company_id", companyId)
+      .eq("fecha", dateStr)
+      .is("h_atencion", null)
+      .not("h_registro", "is", null);
+
+    if (!pending?.length) return { checked: 0, alerted: 0 };
+
+    const { enqueueAlert } = await import("@/utils/alert-queue");
+    let alerted = 0;
+
+    for (const rec of pending) {
+      // Calcular minutos de espera efectivos
+      let baseMinutes: number;
+      const horaCita = rec.hora_cita as string | null;
+
+      if (horaCita) {
+        const parts = horaCita.split(":").map(Number);
+        const citaMin = parts[0] * 60 + parts[1] + (parts[2] ?? 0) / 60;
+        if (nowMinutes < citaMin) continue; // Aún antes de la cita — sin alerta
+        baseMinutes = citaMin;
+      } else {
+        const parts = (rec.h_registro as string).split(":").map(Number);
+        baseMinutes = parts[0] * 60 + parts[1] + (parts[2] ?? 0) / 60;
+      }
+
+      let waitMin = Math.round(nowMinutes - baseMinutes);
+      if (waitMin < 0) waitMin += 24 * 60; // cruce de medianoche
+
+      if (waitMin < alertaMinutos) continue;
+
+      // Deduplicación: no repetir alerta hasta que pase otro ciclo de alertaMinutos
+      const lastAt = rec.ultima_alerta_proactiva_at as string | null;
+      if (lastAt) {
+        const minutesSinceLast = (Date.now() - new Date(lastAt).getTime()) / 60_000;
+        if (minutesSinceLast < alertaMinutos) continue;
+      }
+
+      // Encolar alerta
+      await enqueueAlert({
+        companyId,
+        atencionId: rec.id as number,
+        razonSocial: (rec.razon_social as string) ?? "Vehículo",
+        empresa:     (rec.empresa as string) ?? "—",
+        planta:      (rec.planta as string) ?? "—",
+        hRegistro:   rec.h_registro as string,
+        esperaMin:   waitMin,
+      });
+
+      // Marcar timestamp de última alerta proactiva
+      await supabase
+        .from("atenciones")
+        .update({ ultima_alerta_proactiva_at: nowIso })
+        .eq("id", rec.id as number);
+
+      alerted++;
+    }
+
+    return { checked: pending.length, alerted };
+  } catch (err) {
+    logError("checkProactiveAlerts", err, { companyId });
+    return { checked: 0, alerted: 0 };
+  }
 }

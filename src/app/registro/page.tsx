@@ -255,7 +255,7 @@ function EditModal({
 }: {
   reg: RecentRegistration;
   responsablesList: string[];
-  onSave: (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null }) => void;
+  onSave: (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => void;
   onCancel: () => void;
 }) {
   const [razonSocial, setRazonSocial] = useState(reg.razonSocial || "");
@@ -267,6 +267,7 @@ function EditModal({
   const [note, setNote] = useState(reg.observacion || "");
   const [hAtencion, setHAtencion] = useState<string>(reg.h_atencion || "");
   const [hDevDocs, setHDevDocs] = useState<string>(reg.h_dev_docs || "");
+  const [horaCita, setHoraCita] = useState<string>(reg.hora_cita || "");
 
   return (
     <motion.div
@@ -416,6 +417,22 @@ function EditModal({
               />
             </div>
 
+            {/* Hora de cita */}
+            <div className="sg-field">
+              <label className="sg-label flex items-center gap-2">
+                Hora de Cita
+                <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
+                  Opcional
+                </span>
+              </label>
+              <input
+                type="time"
+                value={horaCita}
+                onChange={(e) => setHoraCita(e.target.value)}
+                className="sg-input"
+              />
+            </div>
+
             {/* H. Atención */}
             <div className="sg-field">
               <label className="sg-label">H. Atención</label>
@@ -459,6 +476,7 @@ function EditModal({
                 razonSocial, empresa, type, tipoOperacion, responsable, agente, note,
                 hAtencion: hAtencion || null,
                 hDevDocs: hDevDocs || null,
+                horaCita: horaCita || null,
               })}
               disabled={!razonSocial || !empresa}
               className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -583,6 +601,7 @@ export default function RegistroPage() {
   const [plant, setPlant] = useState("");
   const [plants, setPlants] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const [horaCita, setHoraCita] = useState("");
 
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
@@ -725,6 +744,7 @@ export default function RegistroPage() {
         responsable,
         agente,
         note,
+        horaCita: horaCita || null,
       });
       if (result.success) {
         setToastMsg("Ingreso registrado correctamente.");
@@ -732,6 +752,7 @@ export default function RegistroPage() {
         setRazonSocial("");
         setEmpresa("");
         setNote("");
+        setHoraCita("");
         fetchRecent(plant, true);
         setTimeout(() => setShowToast(false), 3200);
       } else {
@@ -842,7 +863,7 @@ export default function RegistroPage() {
     });
   };
 
-  const handleEditSave = async (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null }) => {
+  const handleEditSave = async (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => {
     if (!editingReg) return;
     const result = await updateAtencion(editingReg.id, data);
     setEditingReg(null);
@@ -1087,6 +1108,25 @@ export default function RegistroPage() {
                   placeholder="Opcional: detalles del ingreso, incidencias..."
                   className="sg-textarea min-h-[72px]"
                 />
+              </div>
+
+              {/* Hora de Cita (opcional) */}
+              <div className="sg-field">
+                <label className="sg-label flex items-center gap-2">
+                  Hora de Cita
+                  <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
+                    Opcional
+                  </span>
+                </label>
+                <input
+                  type="time"
+                  value={horaCita}
+                  onChange={(e) => setHoraCita(e.target.value)}
+                  className="sg-input"
+                />
+                <p className="text-[10px] text-[var(--sg-muted)]">
+                  Si el vehículo tiene cita, la demora se mide desde esta hora
+                </p>
               </div>
 
               <motion.button

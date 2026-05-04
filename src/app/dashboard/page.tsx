@@ -7,7 +7,7 @@ import HeatmapDemoras from "@/components/HeatmapDemoras";
 import CausasTop from "@/components/CausasTop";
 import RankingPlantas from "@/components/RankingPlantas";
 import ExportPDFButton from "@/components/ExportPDFButton";
-import { getDashboardStats, getActivePersonnel, getUserPlants, getAvailableYears, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
+import { getDashboardStats, getUserPlants, getAvailableYears, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
@@ -80,19 +80,16 @@ function ChartTooltip({ active, payload, label, timeframe = "Día" }: ChartToolt
 export default function DashboardPage() {
   const [liveTime, setLiveTime]             = useState("--:--:--");
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>("Día");
-  const [mounted]                         = useState(true);
   const [selectedPlant, setSelectedPlant]   = useState<string>("Todos");
   const [plants, setPlants]                 = useState<string[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [kpis, setKpis]                     = useState<DashboardKpis>({ ok: 0, deny: 0, warn: 0, pending: 0, total: 0 });
-  const [, setBreakdown]                    = useState<Record<string, unknown> | null>(null);
   const [recentEvents, setRecentEvents]     = useState<DashboardEvent[]>([]);
   const [flowData, setFlowData]             = useState<DashboardFlowRow[]>([]);
   const [zones, setZones]                   = useState<DashboardZone[]>([]);
   const [alerts, setAlerts]                 = useState<DashboardAlert[]>([]);
   const [delayReasons, setDelayReasons]     = useState<{ motivo: string; count: number }[]>([]);
   const [heatmapData, setHeatmapData]       = useState<HeatmapCell[]>([]);
-  const [, setPersonnel]                    = useState<Awaited<ReturnType<typeof getActivePersonnel>>>([]);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
   const [lastRefresh, setLastRefresh]       = useState<Date | null>(null);
@@ -104,23 +101,20 @@ export default function DashboardPage() {
   const fetchStats = useCallback(async (plant: string, timeframe: string, silent = false, id: number) => {
     if (silent) setRefreshing(true); else { setLoading(true); setError(null); }
     try {
-      const [data, staff, trendData] = await Promise.all([
+      const [data, trendData] = await Promise.all([
         getDashboardStats(plant, timeframe),
-        getActivePersonnel(),
         silent ? null : getDashboardTrends(plant, timeframe),
       ]);
       if (id !== reqIdRef.current) return;
       if (data) {
         setKpis(data.kpis);
         setRecentEvents(data.events);
-        setBreakdown(data.breakdown);
         setFlowData(data.flowData);
         setZones(data.zones);
         setAlerts(data.alerts);
         setDelayReasons(data.delayReasons ?? []);
       }
       if (trendData) setTrends(trendData.trend);
-      setPersonnel(staff);
       setLastRefresh(new Date());
       setError(null);
     } catch (err) {
@@ -333,7 +327,7 @@ export default function DashboardPage() {
                     Sin datos para este período
                   </span>
                 </div>
-              ) : mounted && (
+              ) : (
                 <ResponsiveContainer width="100%" height="100%" debounce={200}>
                   <BarChart data={flowData} barCategoryGap={6}>
                     <CartesianGrid stroke="rgba(196,192,180,0.06)" vertical={false} />
@@ -464,7 +458,6 @@ export default function DashboardPage() {
               count: z.count,
               pct: z.pct,
               tone: z.tone,
-              trend: z.count > 30 ? "up" as const : z.count > 10 ? "down" as const : "stable" as const,
             }))}
           />
         </aside>

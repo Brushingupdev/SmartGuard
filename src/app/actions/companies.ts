@@ -34,7 +34,7 @@ export async function getCompanySettings() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("companies")
-    .select("id, name, sector, contact_name, notification_emails, notification_phones, plantas, logo_url")
+    .select("id, name, sector, contact_name, notification_emails, notification_phones, plantas, logo_url, alerta_minutos")
     .eq("id", ctx.companyId)
     .single();
   return data ?? null;
@@ -56,6 +56,7 @@ export async function updateCompanySettings(rawSettings: unknown) {
   if (settings.notificationEmails !== undefined) update.notification_emails = settings.notificationEmails.filter(Boolean);
   if (settings.notificationPhones !== undefined) update.notification_phones = settings.notificationPhones.filter(Boolean);
   if (settings.contactName        !== undefined) update.contact_name        = settings.contactName;
+  if (settings.alertaMinutos      !== undefined) update.alerta_minutos      = settings.alertaMinutos;
   if (settings.plantas            !== undefined) {
     update.plantas = settings.plantas.split(",").map(p => p.trim()).filter(Boolean);
   }
@@ -84,6 +85,7 @@ export async function adminUpdateCompanySettings(
   if (settings.notificationEmails !== undefined) update.notification_emails = settings.notificationEmails.filter(Boolean);
   if (settings.notificationPhones !== undefined) update.notification_phones = settings.notificationPhones.filter(Boolean);
   if (settings.contactName        !== undefined) update.contact_name        = settings.contactName;
+  if (settings.alertaMinutos      !== undefined) update.alerta_minutos      = settings.alertaMinutos;
   if (settings.plantas            !== undefined) {
     update.plantas = settings.plantas.split(",").map(p => p.trim()).filter(Boolean);
   }
