@@ -31,7 +31,7 @@ import {
 } from "recharts";
 
 interface ChartTooltipPayload {
-  dataKey?: string | number;
+  dataKey?: unknown;
   value?: number;
 }
 
