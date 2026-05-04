@@ -31,8 +31,8 @@ import {
 } from "recharts";
 
 interface ChartTooltipPayload {
-  dataKey: string;
-  value: number;
+  dataKey?: string | number;
+  value?: number;
 }
 
 interface ChartTooltipProps {
