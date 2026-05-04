@@ -3,7 +3,7 @@
 import AppLayout from "@/components/AppLayout";
 import { getReporteData, getUserPlants, getAvailableYears } from "@/app/actions";
 import { motion } from "framer-motion";
-import { ArrowLeft, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -370,16 +370,41 @@ function ReporteContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {data && !loading && (
-            <button
-              onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe); setExporting(false); }}
-              disabled={exporting}
-              className="flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar CSV
-            </button>
+            <>
+              {/* CSV */}
+              <button
+                onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe); setExporting(false); }}
+                disabled={exporting}
+                title="Descargar CSV"
+                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                CSV
+              </button>
+              {/* Excel */}
+              <a
+                href={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}`}
+                download
+                title="Descargar Excel (.xlsx) — múltiples hojas con datos completos"
+                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#22c55e] hover:text-[#22c55e] transition-colors"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Excel
+              </a>
+              {/* PDF */}
+              <a
+                href={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir reporte PDF — diseño industrial con logo de empresa"
+                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                PDF
+              </a>
+            </>
           )}
           <button
             onClick={load}
