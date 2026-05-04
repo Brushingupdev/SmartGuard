@@ -6,6 +6,7 @@ export interface DashboardKpis {
   warn: number;
   pending: number;
   total: number;
+  anticipado?: number; // Atendidos antes de su hora de cita
 }
 
 // ─── Flow chart rows ───────────────────────────────────────────────────────────

@@ -143,13 +143,27 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       "getDashboardStats-direct"
     );
 
+    // Conteo de anticipados (atendidos antes de su hora de cita)
+    let anticipadoQ = supabase
+      .from("atenciones")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .gte("fecha", from)
+      .lte("fecha", to)
+      .eq("espera_min", 0)
+      .not("hora_cita", "is", null)
+      .not("h_atencion", "is", null);
+    if (plant !== "Todos") anticipadoQ = anticipadoQ.eq("planta", plant);
+    const { count: anticipadoCount } = await anticipadoQ;
+
     const kpiRow = kpisData?.[0] ?? null;
     const kpis: DashboardKpis = {
-      ok:      Number(kpiRow?.ok ?? 0),
-      deny:    Number(kpiRow?.deny ?? 0),
-      warn:    Number(kpiRow?.warn ?? 0),
-      pending: Number(kpiRow?.pending ?? 0),
-      total:   Number(kpiRow?.total ?? 0),
+      ok:         Number(kpiRow?.ok ?? 0),
+      deny:       Number(kpiRow?.deny ?? 0),
+      warn:       Number(kpiRow?.warn ?? 0),
+      pending:    Number(kpiRow?.pending ?? 0),
+      total:      Number(kpiRow?.total ?? 0),
+      anticipado: anticipadoCount ?? 0,
     };
 
     const bRows = (breakdownRows ?? []) as { planta: string; total: number; ok: number }[];
@@ -239,11 +253,12 @@ async function getDashboardStatsAdmin(
   }
 
   const kpis: DashboardKpis = {
-    ok:      data.filter((d) => d.espera_min != null && d.espera_min < 30).length,
-    warn:    data.filter((d) => d.espera_min != null && d.espera_min >= 30 && d.espera_min < 45).length,
-    deny:    data.filter((d) => d.espera_min != null && d.espera_min >= 45).length,
-    pending: data.filter((d) => d.espera_min == null).length,
-    total:   data.length,
+    ok:         data.filter((d) => d.espera_min != null && d.espera_min < 30).length,
+    warn:       data.filter((d) => d.espera_min != null && d.espera_min >= 30 && d.espera_min < 45).length,
+    deny:       data.filter((d) => d.espera_min != null && d.espera_min >= 45).length,
+    pending:    data.filter((d) => d.espera_min == null).length,
+    total:      data.length,
+    anticipado: data.filter((d) => d.espera_min === 0 && d.hora_cita != null && d.h_atencion != null).length,
   };
 
   const breakdown: Record<string, DashboardBreakdownEntry> = {};

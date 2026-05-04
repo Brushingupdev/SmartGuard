@@ -298,36 +298,36 @@ export default function TarjetaRegistro({
           </button>
         )}
 
-        {state !== "complete" && (
+        {/* Editar solo si no está completo */}
+        {state !== "complete" && onEdit && (
           <div className="flex gap-2">
-            {onEdit && (
-              <button
-                onClick={onEdit}
-                className="flex-1 flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                disabled={deleting}
-                className={`flex-1 flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-danger)] hover:text-[var(--sg-danger)] transition-colors ${
-                  deleting ? "opacity-40 cursor-not-allowed" : ""
-                }`}
-              >
-                {deleting ? (
-                  <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
-                    <Trash2 className="h-4 w-4" />
-                  </motion.span>
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                Eliminar
-              </button>
-            )}
+            <button
+              onClick={onEdit}
+              className="flex-1 flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+              Editar
+            </button>
           </div>
+        )}
+        {/* Eliminar disponible en todos los estados */}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className={`w-full flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-danger)] hover:text-[var(--sg-danger)] transition-colors ${
+              deleting ? "opacity-40 cursor-not-allowed" : ""
+            }`}
+          >
+            {deleting ? (
+              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+                <Trash2 className="h-4 w-4" />
+              </motion.span>
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Eliminar
+          </button>
         )}
       </div>
     </motion.div>

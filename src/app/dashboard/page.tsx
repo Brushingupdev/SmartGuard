@@ -265,9 +265,9 @@ export default function DashboardPage() {
               </div>
               <ExportPDFButton plant={selectedPlant} timeframe={selectedTimeframe} kpis={kpis} puntualidad={puntualidad} />
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
               {loading ? (
-                [...Array(4)].map((_, i) => (
+                [...Array(5)].map((_, i) => (
                   <div key={i} className="h-[120px] animate-pulse bg-[var(--sg-panel-2)]" />
                 ))
               ) : (
@@ -292,6 +292,12 @@ export default function DashboardPage() {
                     accent="var(--sg-danger)"
                     trend={trends.deny}
                     trendInverse
+                  />
+                  <DashboardKPICard
+                    label="Anticipado"
+                    value={kpis.anticipado ?? 0}
+                    sub="Antes de cita"
+                    accent="#3b82f6"
                   />
                   <DashboardKPICard
                     label="Total atenciones"
@@ -360,11 +366,12 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <div className="mt-3 flex gap-5 border-t border-[var(--sg-line)] pt-3">
+            <div className="mt-3 flex flex-wrap gap-5 border-t border-[var(--sg-line)] pt-3">
               {[
                 { color: "var(--sg-success)", label: "A tiempo (< 30 min)" },
                 { color: "var(--sg-warn)",    label: "Revisión (30–45 min)" },
                 { color: "var(--sg-danger)",  label: "Con demora (> 45 min)" },
+                { color: "#3b82f6",           label: `Anticipado · ${kpis.anticipado ?? 0} atendidos antes de cita` },
               ].map((l) => (
                 <span key={l.label} className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
                   <span className="h-2.5 w-2.5" style={{ background: l.color }} />

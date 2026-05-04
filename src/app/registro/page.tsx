@@ -13,6 +13,8 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CloudUpload,
   FileCheck2,
   History,
@@ -21,6 +23,7 @@ import {
   Package,
   Pencil,
   Save,
+  Search,
   Timer,
   Trash2,
   Truck,
@@ -622,36 +625,28 @@ export default function RegistroPage() {
   const [liveTime, setLiveTime] = useState("--:--:--");
   const [recentRegistrations, setRecentRegistrations] = useState<RecentRegistration[]>([]);
   const [recentTotal, setRecentTotal] = useState(0);
-  const [recentOffset, setRecentOffset] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [plantAssigned, setPlantAssigned] = useState(false);
   const [userReady, setUserReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string>("");
   const [responsablesList, setResponsablesList] = useState<string[]>(RESPONSABLES_DEFAULT);
   const [isKiosk, setIsKiosk] = useState(false);
-  const PAGE_SIZE = 10;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const LOAD_LIMIT = 200; // Máx registros a traer del servidor
+  const PAGE_SIZE = 10;   // Registros por página en pantalla
 
   // Refs para evitar stale closures en la suscripcion Realtime
   const plantRef = useRef(plant);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetchRecentRef = useRef<((p: string, reset?: boolean) => Promise<void>) | null>(null);
 
-  const fetchRecent = useCallback(async (currentPlant: string, reset = true) => {
-    const offset = reset ? 0 : recentOffset + PAGE_SIZE;
-    if (!reset) setLoadingMore(true);
-    const { records, total } = await getRecentRegistrations(currentPlant, PAGE_SIZE, reset ? 0 : offset);
-    if (reset) {
-      setRecentRegistrations(records);
-      setRecentOffset(0);
-    } else {
-      setRecentRegistrations((prev) => [...prev, ...records]);
-      setRecentOffset(offset);
-    }
+  const fetchRecent = useCallback(async (currentPlant: string) => {
+    const { records, total } = await getRecentRegistrations(currentPlant, LOAD_LIMIT, 0);
+    setRecentRegistrations(records);
     setRecentTotal(total);
-    if (!reset) setLoadingMore(false);
-    if (reset) setLastRefresh(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-  }, [recentOffset]);
+    setLastRefresh(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+  }, []);
 
   // Mantener refs actualizados para el Realtime (evita stale closures)
   useEffect(() => { plantRef.current = plant; }, [plant]);
@@ -704,13 +699,15 @@ export default function RegistroPage() {
 
   useEffect(() => {
     if (!userReady || !plant) return;
-
-    const refresh = async () => {
-      await fetchRecent(plant, true);
-    };
-
-    void refresh();
+    void fetchRecent(plant);
   }, [plant, userReady, fetchRecent]);
+
+  // Auto-refresh cada 90 segundos
+  useEffect(() => {
+    if (!userReady || !plant) return;
+    const id = setInterval(() => fetchRecent(plant), 90_000);
+    return () => clearInterval(id);
+  }, [userReady, plant, fetchRecent]);
 
   // Supabase Realtime — actualiza la lista al instante cuando hay cambios en atenciones.
   // Usamos refs (plantRef, fetchRecentRef) para que el callback siempre tenga la planta
@@ -731,6 +728,22 @@ export default function RegistroPage() {
     })();
     return () => { cleanupRef.fn?.(); };
   }, [userReady]);
+
+  // Filtrado y paginación client-side
+  const filteredRecords = useMemo(() => {
+    const term = searchTerm.trim().toUpperCase();
+    if (!term) return recentRegistrations;
+    return recentRegistrations.filter(r =>
+      r.razonSocial.toUpperCase().includes(term) ||
+      r.empresa.toUpperCase().includes(term)
+    );
+  }, [recentRegistrations, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const paginatedRecords = filteredRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Resetear a página 1 cuando cambia el filtro
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -753,7 +766,7 @@ export default function RegistroPage() {
         setEmpresa("");
         setNote("");
         setHoraCita("");
-        fetchRecent(plant, true);
+        fetchRecent(plant);
         setTimeout(() => setShowToast(false), 3200);
       } else {
         setToastMsg(humanizeError(result.error));
@@ -795,7 +808,7 @@ export default function RegistroPage() {
     if (result.success) {
       setToastMsg(`Atención cerrada · ${result.espera_min} min de espera`);
       setShowToast(true);
-      fetchRecent(plant, true);
+      fetchRecent(plant);
       setTimeout(() => setShowToast(false), 3200);
     } else {
       setToastMsg(humanizeError(result.error));
@@ -822,7 +835,7 @@ export default function RegistroPage() {
         if (result.success) {
           setToastMsg(`Documentos entregados · Tiempo total: ${result.tiempo_total_min} min`);
           setShowToast(true);
-          fetchRecent(plant, true);
+          fetchRecent(plant);
           setTimeout(() => setShowToast(false), 3200);
         } else {
           setToastMsg(humanizeError(result.error));
@@ -852,7 +865,7 @@ export default function RegistroPage() {
         if (result.success) {
           setToastMsg("Registro eliminado.");
           setShowToast(true);
-          fetchRecent(plant, true);
+          fetchRecent(plant);
           setTimeout(() => setShowToast(false), 3200);
         } else {
           setToastMsg(humanizeError(result.error));
@@ -870,7 +883,7 @@ export default function RegistroPage() {
     if (result.success) {
       setToastMsg("Registro actualizado correctamente.");
       setShowToast(true);
-      fetchRecent(plant, true);
+      fetchRecent(plant);
       setTimeout(() => setShowToast(false), 3200);
     } else {
       setToastMsg(humanizeError(result.error));
@@ -904,7 +917,7 @@ export default function RegistroPage() {
     const result = await closeAbandonedBatch(ids);
     setToastMsg(`${result.count} registro${result.count !== 1 ? "s" : ""} cerrado${result.count !== 1 ? "s" : ""} como abandonado${result.count !== 1 ? "s" : ""}.`);
     setShowToast(true);
-    fetchRecent(plant, true);
+    fetchRecent(plant);
     setTimeout(() => setShowToast(false), 3200);
   };
 
@@ -1174,31 +1187,52 @@ export default function RegistroPage() {
         {/* ── RECENT HISTORY COLUMN ── */}
         <div className="flex flex-col gap-6">
           <section className="sg-panel flex flex-col min-h-[600px]">
-            <div className="flex items-center justify-between border-b border-[var(--sg-line)] p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center bg-[var(--sg-panel-2)] text-[var(--sg-accent)]">
-                  <History className="h-5 w-5" />
+            <div className="border-b border-[var(--sg-line)] p-6 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center bg-[var(--sg-panel-2)] text-[var(--sg-accent)]">
+                    <History className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="sg-font-display text-[18px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                      Registros de Hoy
+                    </h2>
+                    <p className="text-[11px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      {plant} · {filteredRecords.length}{searchTerm ? ` de ${recentRegistrations.length}` : `/${recentTotal}`}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="sg-font-display text-[18px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-                    Registros de Hoy
-                  </h2>
-                  <p className="text-[11px] uppercase tracking-widest text-[var(--sg-muted)]">
-                    {plant} · {recentRegistrations.length}/{recentTotal}
-                  </p>
+                <div className="flex flex-col items-end gap-0.5">
+                  <button
+                    onClick={() => fetchRecent(plant)}
+                    className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-accent)] hover:underline"
+                  >
+                    Actualizar
+                  </button>
+                  {lastRefresh && (
+                    <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]" suppressHydrationWarning>
+                      ↻ {lastRefresh}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <button
-                  onClick={() => fetchRecent(plant)}
-                  className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-accent)] hover:underline"
-                >
-                  Actualizar
-                </button>
-                {lastRefresh && (
-                  <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]" suppressHydrationWarning>
-                    ↻ {lastRefresh}
-                  </span>
+              {/* Buscador */}
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value.toUpperCase())}
+                  placeholder="Buscar por placa o empresa..."
+                  className="sg-input pl-9 text-[11px] w-full"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
             </div>
@@ -1225,15 +1259,20 @@ export default function RegistroPage() {
                     <Truck className="h-12 w-12 opacity-10 mb-4" />
                     <p className="sg-font-mono text-[12px] uppercase tracking-widest">Sin registros hoy</p>
                   </div>
+                ) : filteredRecords.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-[var(--sg-muted)]">
+                    <Search className="h-10 w-10 opacity-10 mb-4" />
+                    <p className="sg-font-mono text-[12px] uppercase tracking-widest">Sin resultados para &quot;{searchTerm}&quot;</p>
+                  </div>
                 ) : (
                   <div className="grid gap-3">
-                    {recentRegistrations.map((reg) => (
+                    {paginatedRecords.map((reg) => (
                       <TarjetaRegistro
                         key={reg.id}
                         reg={reg}
                         onClose={() => handleClose(reg)}
                         onDocs={reg.attended && !reg.docsDelivered ? () => handleDocs(reg) : undefined}
-                        onEdit={() => setEditingReg(reg)}
+                        onEdit={!reg.docsDelivered ? () => setEditingReg(reg) : undefined}
                         onDelete={userRole !== "guardia" ? () => handleDelete(reg.id, reg.razonSocial) : undefined}
                         isAbandoned={abandonedRecords.some((a) => a.id === reg.id)}
                         closing={closingIds.has(reg.id)}
@@ -1246,15 +1285,25 @@ export default function RegistroPage() {
               </AnimatePresence>
             </div>
 
-            {/* Load more */}
-            {recentRegistrations.length < recentTotal && (
-              <div className="border-t border-[var(--sg-line)] p-4 flex justify-center">
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="border-t border-[var(--sg-line)] p-3 flex items-center justify-between">
                 <button
-                  onClick={() => fetchRecent(plant, false)}
-                  disabled={loadingMore}
-                  className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
-                  {loadingMore ? "Cargando..." : `Cargar más (${recentTotal - recentRegistrations.length} restantes) →`}
+                  <ChevronLeft className="h-3.5 w-3.5" /> Anterior
+                </button>
+                <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Siguiente <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
