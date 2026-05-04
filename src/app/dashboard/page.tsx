@@ -63,15 +63,17 @@ function ChartTooltip({ active, payload, label, timeframe = "Día" }: ChartToolt
   return (
     <div className="border border-[var(--sg-line)] bg-[var(--sg-panel)] px-3 py-2 shadow-[6px_6px_0_rgba(196,192,180,0.08)]">
       <div className="sg-slabel mb-2">{formatTooltipLabel(String(label), String(timeframe))}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex items-center justify-between gap-5 text-[12px]">
+      {payload.map((p) => {
+        const key = String(p.dataKey ?? '');
+        return (
+        <div key={key} className="flex items-center justify-between gap-5 text-[12px]">
           <span className="flex items-center gap-2 text-[var(--sg-copy)]">
-            <span className="h-2 w-2" style={{ background: colorMap[p.dataKey] }} />
-            {labelMap[p.dataKey] ?? p.dataKey}
+            <span className="h-2 w-2" style={{ background: colorMap[key] }} />
+            {labelMap[key] ?? key}
           </span>
           <span className="sg-mono text-[var(--sg-ink)]">{p.value}</span>
         </div>
-      ))}
+      )})}
       <div className="mt-1.5 border-t border-[var(--sg-line)] pt-1.5 flex justify-between text-[11px]">
         <span className="text-[var(--sg-muted)]">Total</span>
         <span className="sg-mono text-[var(--sg-ink)]">{payload.reduce((s, p) => s + (p.value ?? 0), 0)}</span>
