@@ -46,11 +46,14 @@ function minutesSince(timeStr: string): number {
  * Para el contador en vivo de pendientes:
  * Si hay hora_cita, se mide desde ella (y es 0 si aún no llegó la cita).
  * Si no, se mide desde h_registro (time).
+ * IMPORTANTE: no usar minutesSince para hora_cita (evita el +1440 cuando la cita no llegó).
  */
 function liveWaitMinutes(reg: Registro): number {
   if (reg.hora_cita) {
-    const fromCita = minutesSince(reg.hora_cita);
-    return Math.max(0, fromCita); // 0 si la cita aún no llegó
+    const [hh, mm] = reg.hora_cita.split(":").map(Number);
+    const now = new Date();
+    const diffMin = (now.getHours() * 60 + now.getMinutes()) - (hh * 60 + mm);
+    return Math.max(0, diffMin); // 0 si la cita aún no llegó (sin +1440)
   }
   return minutesSince(reg.time);
 }
