@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function header(sheet: string[][], companyN: string, section: string) {
+  function header(sheet: (string | number | null)[][], companyN: string, section: string) {
     sheet.push(
       [`SMARTGUARD — ${section}`],
       [`Empresa: ${companyN}   ·   Planta: ${plant}   ·   Período: ${timeframe}   ·   Generado: ${now}`],
