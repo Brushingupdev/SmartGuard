@@ -37,7 +37,7 @@ interface ChartTooltipPayload {
 
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: ChartTooltipPayload[];
+  payload?: readonly ChartTooltipPayload[];
   label?: string;
   timeframe?: string;
 }
