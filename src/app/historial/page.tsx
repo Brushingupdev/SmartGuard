@@ -12,16 +12,20 @@ import {
   ChevronRight,
   Clock,
   Download,
+  FileSpreadsheet,
   FileText,
   RefreshCw,
   Search,
   Timer,
   Truck,
+  Upload,
   User,
   X,
 } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getAtenciones, getAtencionesForExport, getHistorialStats, getUserPlants, getUserProfile, getCompaniesMap, getCompanies } from "../actions";
+import { importAtenciones } from "../actions/atenciones";
+import { autoDetectMapping, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
 
 const fmt = new Intl.NumberFormat("en-US");
 
@@ -277,6 +281,19 @@ export default function HistorialPage() {
   // Detail modal
   const [selectedRecord, setSelectedRecord] = useState<HistorialRecord | null>(null);
 
+  // Import modal
+  const [showImport,      setShowImport]      = useState(false);
+  const [importParsing,   setImportParsing]   = useState(false);
+  const [importLoading,   setImportLoading]   = useState(false);
+  const [importFileName,  setImportFileName]  = useState<string | null>(null);
+  const [importValidRows, setImportValidRows] = useState<import("@/utils/excel-import").ImportedExcelRow[]>([]);
+  const [importInvalid,   setImportInvalid]   = useState(0);
+  const [importMapping,   setImportMapping]   = useState<ExcelMapping>({});
+  const [importHeaders,   setImportHeaders]   = useState<string[]>([]);
+  const [importRawRows,   setImportRawRows]   = useState<ExcelRow[]>([]);
+  const [importResult,    setImportResult]    = useState<{ imported: number } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
   const activeFilters = [plant !== "Todos", segment !== "Todos", !!dateFrom, !!dateTo].filter(Boolean).length;
 
   const toggleSort = () => {
@@ -343,11 +360,185 @@ export default function HistorialPage() {
     setExporting(false);
   };
 
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportParsing(true);
+    setImportResult(null);
+    try {
+      const XLSX = await import("@e965/xlsx");
+      const buffer = await file.arrayBuffer();
+      const wb  = XLSX.read(buffer, { type: "array", cellDates: false });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as ExcelRow[];
+      if (raw.length < 2) { alert("El archivo no contiene datos suficientes."); setImportParsing(false); return; }
+      const headers = raw[0].map(h => (h?.toString().trim() ?? "")).filter(Boolean) as string[];
+      const rows    = raw.slice(1).filter(r => r.some(c => c !== null && c !== ""));
+      const mapping = autoDetectMapping(headers);
+      const { valid, invalid } = processRows(rows, headers, mapping);
+      setImportFileName(file.name);
+      setImportHeaders(headers);
+      setImportRawRows(rows);
+      setImportMapping(mapping);
+      setImportValidRows(valid);
+      setImportInvalid(invalid);
+    } catch { alert("No se pudo leer el archivo. Asegúrate de que sea un Excel o CSV válido."); }
+    setImportParsing(false);
+    if (importFileRef.current) importFileRef.current.value = "";
+  };
+
+  const handleMappingChange = (field: string, col: string | null) => {
+    const newMapping = { ...importMapping, [field]: col };
+    setImportMapping(newMapping);
+    const { valid, invalid } = processRows(importRawRows, importHeaders, newMapping);
+    setImportValidRows(valid);
+    setImportInvalid(invalid);
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importValidRows.length) return;
+    setImportLoading(true);
+    const result = await importAtenciones(importValidRows);
+    setImportLoading(false);
+    if (result.success) {
+      setImportResult({ imported: result.imported });
+      setImportValidRows([]);
+      setImportFileName(null);
+      void fetchRecords();
+    } else {
+      alert(result.error ?? "Error al importar");
+    }
+  };
+
+  const closeImport = () => {
+    setShowImport(false);
+    setImportFileName(null);
+    setImportValidRows([]);
+    setImportInvalid(0);
+    setImportResult(null);
+  };
+
   return (
     <AppLayout>
       <AnimatePresence>
         {selectedRecord && (
           <RecordDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal de importación Excel ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {showImport && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            onClick={e => { if (e.target === e.currentTarget) closeImport(); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-2xl bg-[var(--sg-panel)] border border-[var(--sg-line)] p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet className="h-5 w-5 text-[var(--sg-accent)]" />
+                  <h2 className="sg-font-display text-[16px] font-bold">Importar datos históricos</h2>
+                </div>
+                <button onClick={closeImport} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Resultado exitoso */}
+              {importResult && (
+                <div className="flex items-center gap-3 p-4 border border-[var(--sg-success)] bg-[rgba(107,189,138,0.08)] text-[var(--sg-success)]">
+                  <FileSpreadsheet className="h-5 w-5 shrink-0" />
+                  <p className="text-[13px]"><strong>{importResult.imported.toLocaleString()}</strong> registros importados correctamente.</p>
+                </div>
+              )}
+
+              {/* Upload */}
+              {!importFileName && !importResult && (
+                <div>
+                  <p className="text-[12px] text-[var(--sg-muted)] mb-3">
+                    Sube un archivo <strong>.xlsx</strong> o <strong>.csv</strong> con registros históricos.
+                    Campos requeridos: <strong>fecha</strong> y <strong>razón social</strong>.
+                  </p>
+                  <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" id="import-file-input" />
+                  <label
+                    htmlFor="import-file-input"
+                    className="flex items-center justify-center gap-3 h-24 border-2 border-dashed border-[var(--sg-line)] hover:border-[var(--sg-accent)] cursor-pointer transition-colors text-[var(--sg-muted)] hover:text-[var(--sg-accent)]"
+                  >
+                    {importParsing
+                      ? <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}><RefreshCw className="h-5 w-5" /></motion.span>
+                      : <Upload className="h-5 w-5" />}
+                    <span className="sg-font-mono text-[11px] uppercase tracking-widest">
+                      {importParsing ? "Leyendo archivo..." : "Seleccionar archivo Excel o CSV"}
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* Preview y mapeo */}
+              {importFileName && !importResult && (
+                <>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-[var(--sg-muted)] truncate">{importFileName}</span>
+                    <div className="flex gap-3 shrink-0">
+                      <span className="text-[var(--sg-success)] font-bold">{importValidRows.length.toLocaleString()} válidas</span>
+                      {importInvalid > 0 && <span className="text-[var(--sg-danger)]">{importInvalid} inválidas</span>}
+                    </div>
+                  </div>
+
+                  {/* Mapeo de columnas */}
+                  <div>
+                    <p className="text-[11px] text-[var(--sg-muted)] uppercase tracking-widest mb-2">Mapeo de columnas</p>
+                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {PLATFORM_FIELDS.map(f => (
+                        <div key={f.key} className="flex items-center gap-2">
+                          <span className={`text-[11px] w-36 shrink-0 ${f.required ? "text-[var(--sg-ink)]" : "text-[var(--sg-muted)]"}`}>
+                            {f.label}{f.required && <span className="text-[var(--sg-danger)] ml-0.5">*</span>}
+                          </span>
+                          <select
+                            value={importMapping[f.key] ?? ""}
+                            onChange={e => handleMappingChange(f.key, e.target.value || null)}
+                            className="sg-select text-[11px] flex-1 min-w-0"
+                          >
+                            <option value="">— sin mapear —</option>
+                            {importHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex gap-3 pt-2 border-t border-[var(--sg-line)]">
+                    <button
+                      onClick={() => { setImportFileName(null); setImportValidRows([]); setImportInvalid(0); }}
+                      className="sg-btn sg-btn-ghost sg-btn-sm flex-1"
+                    >
+                      Cambiar archivo
+                    </button>
+                    <button
+                      onClick={handleImportConfirm}
+                      disabled={importValidRows.length === 0 || importLoading}
+                      className="sg-btn sg-btn-sm flex-1 flex items-center justify-center gap-2 bg-[var(--sg-accent)] text-[var(--sg-canvas)] disabled:opacity-40"
+                    >
+                      {importLoading
+                        ? <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}><RefreshCw className="h-3.5 w-3.5" /></motion.span>
+                        : <Upload className="h-3.5 w-3.5" />}
+                      Importar {importValidRows.length > 0 && `${importValidRows.length.toLocaleString()} registros`}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {importResult && (
+                <button onClick={closeImport} className="sg-btn sg-btn-ghost sg-btn-sm w-full">Cerrar</button>
+              )}
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -422,6 +613,14 @@ export default function HistorialPage() {
                   Limpiar
                 </button>
               )}
+
+              <button
+                onClick={() => setShowImport(true)}
+                className="sg-btn sg-btn-ghost sg-btn-sm flex items-center gap-2"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Importar Excel
+              </button>
 
               <button
                 onClick={handleExport}

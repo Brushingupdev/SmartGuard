@@ -36,6 +36,10 @@ export async function enqueueAlert(payload: AlertPayload): Promise<void> {
     });
 
     if (error) {
+      // 23505 = unique_violation: alerta ya en cola para este registro.
+      // Ocurre si closeAtencion() y check_proactive_alerts corren en paralelo
+      // (race condition). Se ignora silenciosamente — la alerta ya está encolada.
+      if ((error as { code?: string }).code === "23505") return;
       logError("enqueueAlert", error, { payload });
     }
   } catch (err) {
