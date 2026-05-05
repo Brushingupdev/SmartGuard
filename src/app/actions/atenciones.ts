@@ -779,3 +779,40 @@ export async function checkProactiveAlerts(
     return { checked: 0, alerted: 0 };
   }
 }
+
+// ─── Importación histórica desde Excel ───────────────────────────────────────
+
+export async function importAtenciones(
+  rows: import("@/utils/excel-import").ImportedExcelRow[]
+): Promise<{ success: boolean; imported: number; error?: string }> {
+  const ctx = await getUserContext();
+  if (!ctx?.companyId) return { success: false, imported: 0, error: "Sin empresa asociada" };
+  const writeError = await checkWriteAccess();
+  if (writeError) return { success: false, imported: 0, error: writeError };
+
+  if (!rows || rows.length === 0) return { success: false, imported: 0, error: "Sin filas válidas" };
+  if (rows.length > 10_000) return { success: false, imported: 0, error: "Máximo 10.000 filas por importación" };
+
+  try {
+    const { createAdminClient } = await import("@/utils/supabase/admin");
+    const admin = createAdminClient();
+
+    const mapped = rows.map(r => ({ ...r, company_id: ctx.companyId }));
+    let imported = 0;
+
+    for (let i = 0; i < mapped.length; i += 500) {
+      const batch = mapped.slice(i, i + 500);
+      const { error } = await admin.from("atenciones").insert(batch);
+      if (error) {
+        logError("importAtenciones", error, { batch: i });
+        return { success: false, imported, error: "Error al insertar filas. Verifica el formato." };
+      }
+      imported += batch.length;
+    }
+
+    return { success: true, imported };
+  } catch (err) {
+    logError("importAtenciones", err);
+    return { success: false, imported: 0, error: "Error inesperado al importar" };
+  }
+}
