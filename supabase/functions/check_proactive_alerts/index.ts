@@ -36,7 +36,7 @@ Deno.serve(async (_req) => {
   const { data: companies, error: compErr } = await supabase
     .from("companies")
     .select("id, alerta_minutos")
-    .in("status", ["trial", "active"]);
+    .is("deleted_at", null);
 
   if (compErr) {
     console.error("[check_proactive_alerts] Error fetching companies:", compErr);

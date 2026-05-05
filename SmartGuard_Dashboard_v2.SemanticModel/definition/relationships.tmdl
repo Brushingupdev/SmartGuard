@@ -1,0 +1,14 @@
+relationship 13070203-0da7-4d74-93ee-3e384ec9119b
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Tbl_Atenciones.Fecha
+	toColumn: LocalDateTable_fdc221d5-dbaa-44fe-a2ae-ffa8988a72e7.Date
+
+relationship eeaf57d0-dd15-4013-b3c0-00089da6c341
+	joinOnDateBehavior: datePartOnly
+	fromColumn: Calendario.Date
+	toColumn: LocalDateTable_097afe10-b032-4ae9-93d3-4f2e2e797091.Date
+
+relationship Rel_Atenciones_Calendario
+	fromColumn: Tbl_Atenciones.Fecha
+	toColumn: Calendario.Date
+

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v10line_tendencia",
+  "position": { "x": 20, "y": 400, "z": 4000, "width": 800, "height": 300 },
+  "visual": {
+    "visualType": "lineChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "mes_num" } },
+              "queryRef": "pbi_atenciones.mes_num", "nativeQueryRef": "mes_num", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Total_Atenciones" } },
+              "queryRef": "pbi_atenciones.Total_Atenciones", "nativeQueryRef": "Total_Atenciones"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Con_Demora" } },
+              "queryRef": "pbi_atenciones.Con_Demora", "nativeQueryRef": "Con_Demora"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

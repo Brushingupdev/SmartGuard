@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v02slicer_anio",
+  "position": { "x": 190, "y": 20, "z": 1000, "width": 130, "height": 60 },
+  "visual": {
+    "visualType": "slicer",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "anio" } },
+              "queryRef": "pbi_atenciones.anio", "nativeQueryRef": "anio", "active": true
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "b4adffb8b3434cf48687",
+  "position": {
+    "x": 20.425531914893618,
+    "y": 588.44984802431611,
+    "z": 1000,
+    "height": 111.85410334346506,
+    "width": 200.36474164133739
+  },
+  "visual": {
+    "visualType": "slicer",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Planta"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Planta",
+              "nativeQueryRef": "Planta",
+              "active": true
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "general": [
+        {
+          "properties": {}
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

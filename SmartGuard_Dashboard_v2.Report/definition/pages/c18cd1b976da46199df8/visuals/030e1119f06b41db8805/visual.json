@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "030e1119f06b41db8805",
+  "position": {
+    "x": 240,
+    "y": 420,
+    "z": 5000,
+    "height": 280,
+    "width": 1000
+  },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Motivo_Demora"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Motivo_Demora",
+              "nativeQueryRef": "Motivo_Demora",
+              "active": true
+            }
+          ]
+        },
+        "Series": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Planta"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Planta",
+              "nativeQueryRef": "Planta",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Total_Atenciones"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Total_Atenciones",
+              "nativeQueryRef": "Total_Atenciones"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

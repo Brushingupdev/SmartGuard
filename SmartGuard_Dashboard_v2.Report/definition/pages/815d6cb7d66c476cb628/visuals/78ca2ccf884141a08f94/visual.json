@@ -1,0 +1,75 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "78ca2ccf884141a08f94",
+  "position": {
+    "x": 20,
+    "y": 190,
+    "z": 3000,
+    "width": 1240,
+    "height": 250
+  },
+  "visual": {
+    "visualType": "lineChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Calendario"
+                    }
+                  },
+                  "Property": "Año"
+                }
+              },
+              "queryRef": "Calendario.Año",
+              "nativeQueryRef": "Año",
+              "active": true
+            }
+          ]
+        },
+        "Series": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Planta"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Planta",
+              "nativeQueryRef": "Planta",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Total_Atenciones"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Total_Atenciones",
+              "nativeQueryRef": "Total_Atenciones"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

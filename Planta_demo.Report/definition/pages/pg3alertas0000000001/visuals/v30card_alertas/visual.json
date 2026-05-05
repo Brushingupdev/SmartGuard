@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v30card_alertas",
+  "position": { "x": 20, "y": 20, "z": 1000, "width": 200, "height": 80 },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "id" } },
+              "queryRef": "pbi_alert_logs.id", "nativeQueryRef": "id"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

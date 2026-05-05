@@ -1,0 +1,56 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "a2a5001c0df441909597",
+  "position": {
+    "x": 20,
+    "y": 480,
+    "z": 7000,
+    "width": 600,
+    "height": 220
+  },
+  "visual": {
+    "visualType": "donutChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Planta"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Planta",
+              "nativeQueryRef": "Planta",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Seg_Mas90"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Seg_Mas90",
+              "nativeQueryRef": "Seg_Mas90"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

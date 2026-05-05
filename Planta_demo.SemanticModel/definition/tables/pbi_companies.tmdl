@@ -1,0 +1,84 @@
+table pbi_companies
+	lineageTag: 5b53fe2d-8932-4567-a8b7-c54bc1a01299
+
+	column id
+		dataType: string
+		lineageTag: db059b5c-7401-4f86-bea3-d1dd6909eae0
+		summarizeBy: none
+		sourceColumn: id
+
+		annotation SummarizationSetBy = Automatic
+
+	column name
+		dataType: string
+		lineageTag: 4d1a77b7-f473-4957-8ab8-eb0c35bcef25
+		summarizeBy: none
+		sourceColumn: name
+
+		annotation SummarizationSetBy = Automatic
+
+	column sector
+		dataType: string
+		lineageTag: 60eea163-535a-4c87-8843-6dce3b1a33e5
+		summarizeBy: none
+		sourceColumn: sector
+
+		annotation SummarizationSetBy = Automatic
+
+	column plantas
+		dataType: string
+		lineageTag: bc3d9131-b76d-421f-96ce-e9e3c9fa7033
+		summarizeBy: none
+		sourceColumn: plantas
+
+		annotation SummarizationSetBy = Automatic
+
+	column alerta_minutos
+		dataType: int64
+		formatString: 0
+		lineageTag: 6196d2c2-de9a-42d2-b610-946747e90e4d
+		summarizeBy: sum
+		sourceColumn: alerta_minutos
+
+		annotation SummarizationSetBy = Automatic
+
+	column plan
+		dataType: string
+		lineageTag: 59644f27-6bfd-4423-ad53-0985c1e3b00b
+		summarizeBy: none
+		sourceColumn: plan
+
+		annotation SummarizationSetBy = Automatic
+
+	column trial_ends_at
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: dfa12a84-ce49-444f-9c1b-149aafbbb275
+		summarizeBy: none
+		sourceColumn: trial_ends_at
+
+		variation Variación
+			isDefault
+			relationship: 15cf25b4-1eb2-4ce3-9624-065d73c23c63
+			defaultHierarchy: LocalDateTable_063ab1ea-8fd6-44dd-b110-fb68c9f18bf8.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	partition pbi_companies = m
+		mode: import
+		source =
+				let
+				    Origen = Json.Document(Web.Contents("https://vjmcyriwwkimygubsimg.supabase.co/rest/v1/rpc/pbi_companies", [Headers=[apikey="sb_publishable_Be7cdcOHa7jACzqMvLgVZw_Fxr4JRJa", #"Content-Type"="application/json"]])),
+				    #"Convertida en tabla" = Table.FromList(Origen, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+				    #"Se expandió Column1" = Table.ExpandRecordColumn(#"Convertida en tabla", "Column1", {"id", "name", "sector", "plantas", "alerta_minutos", "plan", "trial_ends_at"}, {"id", "name", "sector", "plantas", "alerta_minutos", "plan", "trial_ends_at"}),
+				    #"Se expandió plantas" = Table.ExpandListColumn(#"Se expandió Column1", "plantas"),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Se expandió plantas",{{"id", type text}, {"name", type text}, {"sector", type text}, {"plantas", type text}, {"alerta_minutos", Int64.Type}, {"plan", type text}, {"trial_ends_at", type date}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

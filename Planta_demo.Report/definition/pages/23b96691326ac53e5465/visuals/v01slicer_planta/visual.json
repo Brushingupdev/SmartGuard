@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v01slicer_planta",
+  "position": { "x": 20, "y": 20, "z": 1000, "width": 160, "height": 60 },
+  "visual": {
+    "visualType": "slicer",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "planta" } },
+              "queryRef": "pbi_atenciones.planta", "nativeQueryRef": "planta", "active": true
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

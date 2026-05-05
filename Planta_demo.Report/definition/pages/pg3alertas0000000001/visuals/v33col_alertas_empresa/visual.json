@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v33col_alertas_empresa",
+  "position": { "x": 20, "y": 420, "z": 3000, "width": 1240, "height": 280 },
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "empresa" } },
+              "queryRef": "pbi_alert_logs.empresa", "nativeQueryRef": "empresa", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "espera_min" } },
+              "queryRef": "Average of pbi_alert_logs.espera_min2", "nativeQueryRef": "espera_min"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "espera_min" } },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

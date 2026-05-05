@@ -1,0 +1,42 @@
+table Calendario
+	lineageTag: 560f967c-4769-48d7-9e9c-8c038d1c3036
+
+	column Date
+		formatString: General Date
+		lineageTag: 70178f9c-3967-4b3b-9924-e9396a894b56
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		variation Variación
+			isDefault
+			relationship: eeaf57d0-dd15-4013-b3c0-00089da6c341
+			defaultHierarchy: LocalDateTable_097afe10-b032-4ae9-93d3-4f2e2e797091.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	column Año = YEAR('Calendario'[Date])
+		lineageTag: a0bb932a-b75d-4339-9feb-1222c920d1d4
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Mes_Num = MONTH('Calendario'[Date])
+		dataType: int64
+		lineageTag: 28602c07-fccf-415f-a1a6-e145f6ac54a8
+
+	column Mes_Nombre = FORMAT('Calendario'[Date],"MMM")
+		dataType: string
+		lineageTag: 10a921e3-2b5d-4f97-82c2-5c04a623885e
+		sortByColumn: Mes_Num
+
+	column Semana = WEEKNUM('Calendario'[Date])
+		dataType: int64
+		lineageTag: 0342522f-63fe-496e-9a2e-c2f3da3051b0
+
+	partition Calendario = calculated
+		mode: import
+		source = CALENDAR(MIN('Tbl_Atenciones'[Fecha]), MAX('Tbl_Atenciones'[Fecha]))
+
+	annotation PBI_Id = 249fc5cda2f343f5a38b88e17f89f18c
+

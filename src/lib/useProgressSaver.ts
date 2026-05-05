@@ -12,6 +12,7 @@ interface SavedProgress {
   contactName: string;
   plantasText: string;
   notificationEmail: string;
+  notificationPhone: string;
   email: string;
   logoBase64: string | null;
   logoMimeType: string | null;

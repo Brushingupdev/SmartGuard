@@ -1,0 +1,33 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v25col_tipo_op",
+  "position": { "x": 620, "y": 400, "z": 3000, "width": 640, "height": 300 },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "tipo_operacion" } },
+              "queryRef": "pbi_atenciones.tipo_operacion", "nativeQueryRef": "tipo_operacion", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Atenciones_ProvCli" } },
+              "queryRef": "pbi_atenciones.Atenciones_ProvCli", "nativeQueryRef": "Atenciones_ProvCli"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Con_Demora" } },
+              "queryRef": "pbi_atenciones.Con_Demora", "nativeQueryRef": "Con_Demora"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

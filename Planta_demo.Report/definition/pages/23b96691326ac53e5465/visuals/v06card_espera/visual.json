@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v06card_espera",
+  "position": { "x": 890, "y": 10, "z": 2000, "width": 170, "height": 70 },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Espera_Promedio" } },
+              "queryRef": "pbi_atenciones.Espera_Promedio", "nativeQueryRef": "Espera_Promedio"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

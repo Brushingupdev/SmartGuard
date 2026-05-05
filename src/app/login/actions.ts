@@ -45,9 +45,10 @@ export async function login(formData: FormData) {
 export async function logout() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  // Clear impersonation cookie if present
+  // Clear session-scoped cookies
   const cookieStore = await cookies()
   cookieStore.set('sg_impersonate', '', { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 0 })
+  cookieStore.set('sg_plan',        '', { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 0 })
   redirect('/login')
 }
 

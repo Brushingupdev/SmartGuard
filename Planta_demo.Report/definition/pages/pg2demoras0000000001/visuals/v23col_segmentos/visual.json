@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v23col_segmentos",
+  "position": { "x": 640, "y": 100, "z": 2000, "width": 620, "height": 280 },
+  "visual": {
+    "visualType": "columnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "planta" } },
+              "queryRef": "pbi_atenciones.planta", "nativeQueryRef": "planta", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Seg_Menos30" } },
+              "queryRef": "pbi_atenciones.Seg_Menos30", "nativeQueryRef": "Seg_Menos30"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Seg_30_45" } },
+              "queryRef": "pbi_atenciones.Seg_30_45", "nativeQueryRef": "Seg_30_45"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Seg_45_90" } },
+              "queryRef": "pbi_atenciones.Seg_45_90", "nativeQueryRef": "Seg_45_90"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Seg_Mas90" } },
+              "queryRef": "pbi_atenciones.Seg_Mas90", "nativeQueryRef": "Seg_Mas90"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

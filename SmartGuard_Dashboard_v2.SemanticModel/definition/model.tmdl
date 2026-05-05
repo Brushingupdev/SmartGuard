@@ -1,0 +1,22 @@
+model Model
+	culture: es-ES
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: es-PE
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 1
+
+annotation PBI_QueryOrder = ["Tbl_Atenciones"]
+
+annotation PBI_ProTooling = ["TMDLView_Desktop","DevMode"]
+
+ref table Tbl_Atenciones
+ref table DateTableTemplate_1054aedf-f606-4f92-959d-f85c717c7637
+ref table LocalDateTable_fdc221d5-dbaa-44fe-a2ae-ffa8988a72e7
+ref table Calendario
+ref table LocalDateTable_097afe10-b032-4ae9-93d3-4f2e2e797091
+
+ref cultureInfo es-ES
+

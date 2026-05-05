@@ -1,0 +1,29 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v09donut_segmento",
+  "position": { "x": 620, "y": 100, "z": 3000, "width": 640, "height": 280 },
+  "visual": {
+    "visualType": "donutChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "segmento_espera" } },
+              "queryRef": "pbi_atenciones.segmento_espera", "nativeQueryRef": "segmento_espera", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Atenciones_ProvCli" } },
+              "queryRef": "pbi_atenciones.Atenciones_ProvCli", "nativeQueryRef": "Atenciones_ProvCli"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

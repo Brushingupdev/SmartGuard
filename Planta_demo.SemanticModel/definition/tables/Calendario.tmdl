@@ -1,0 +1,41 @@
+table Calendario
+	lineageTag: cal-smartguard-001
+
+	column Date
+		formatString: General Date
+		lineageTag: cal-date-001
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		annotation SummarizationSetBy = Automatic
+
+	column Año = YEAR('Calendario'[Date])
+		lineageTag: cal-anio-001
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	column Mes_Num = MONTH('Calendario'[Date])
+		dataType: int64
+		lineageTag: cal-mesnum-001
+
+	column Mes_Nombre = FORMAT('Calendario'[Date], "MMM", "es-PE")
+		dataType: string
+		lineageTag: cal-mesnombre-001
+		sortByColumn: Mes_Num
+
+	column Semana = WEEKNUM('Calendario'[Date], 2)
+		dataType: int64
+		lineageTag: cal-semana-001
+
+	column Dia_Semana = FORMAT('Calendario'[Date], "ddd", "es-PE")
+		dataType: string
+		lineageTag: cal-diasemana-001
+
+	partition Calendario = calculated
+		mode: import
+		source = CALENDAR(MIN('pbi_atenciones'[fecha]), MAX('pbi_atenciones'[fecha]))
+
+	annotation PBI_Id = cal-smartguard-annotation-001
+

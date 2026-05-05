@@ -23,17 +23,17 @@ function BillingBanner() {
             Cuenta suspendida
           </h2>
           <p className="text-[13px] text-[var(--sg-muted)] mb-6">
-            El acceso a SmartGuard ha sido suspendido. Contacta a tu administrador para reactivar la cuenta.
+            El acceso a SmartGuard ha sido suspendido. Contacta al equipo de SmartGuard para reactivar tu cuenta.
           </p>
-          <a href="mailto:soporte@smartguard.io" className="sg-btn sg-btn-accent w-full justify-center">
-            Contactar soporte
+          <a href="/upgrade" className="sg-btn sg-btn-danger w-full justify-center">
+            Ver opciones de reactivación
           </a>
         </div>
       </div>
     );
   }
 
-  // Trial expirado
+  // Trial expirado — el middleware debería haber redirigido, pero por si acaso
   if (status.plan === "trial" && status.expired) {
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(3,5,4,0.92)] backdrop-blur-sm">
@@ -43,23 +43,27 @@ function BillingBanner() {
             Período de prueba finalizado
           </h2>
           <p className="text-[13px] text-[var(--sg-muted)] mb-6">
-            Tu prueba gratuita de SmartGuard ha terminado. Activa tu plan para continuar usando la plataforma.
+            Tu prueba gratuita de SmartGuard ha terminado. Activa tu plan para continuar operando.
           </p>
-          <a href="mailto:soporte@smartguard.io" className="sg-btn sg-btn-accent w-full justify-center">
-            Activar plan
+          <a href="/upgrade" className="sg-btn sg-btn-accent w-full justify-center">
+            Activar plan →
           </a>
         </div>
       </div>
     );
   }
 
-  // Trial por vencer (< 7 días)
-  if (status.plan === "trial" && status.daysLeft != null && status.daysLeft <= 7) {
+  // Trial por vencer (≤ 3 días)
+  if (status.plan === "trial" && status.daysLeft != null && status.daysLeft <= 3) {
     return (
       <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-between gap-3 px-5 py-2.5 bg-[var(--sg-warn)] text-[var(--sg-canvas)]">
         <div className="flex items-center gap-2 text-[12px] font-medium">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          Tu período de prueba vence en <strong>{status.daysLeft} día{status.daysLeft !== 1 ? "s" : ""}</strong>. Contacta a SmartGuard para activar tu plan.
+          {status.daysLeft === 0
+            ? <>Tu período de prueba <strong>vence hoy</strong>. Activa tu plan para no perder el acceso.</>
+            : <>Tu período de prueba vence en <strong>{status.daysLeft} día{status.daysLeft !== 1 ? "s" : ""}</strong>. Activa tu plan para no perder el acceso.</>
+          }
+          <a href="/upgrade" className="underline font-bold ml-1 hover:opacity-80">Ver opciones →</a>
         </div>
         <button onClick={() => setDismissed(true)} className="shrink-0 opacity-70 hover:opacity-100">
           <X className="h-4 w-4" />

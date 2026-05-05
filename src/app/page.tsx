@@ -12,6 +12,9 @@ import {
   Building2,
   Upload,
   Zap,
+  CheckCircle2,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -144,7 +147,7 @@ export default function LandingPage() {
             {[
               { label: "Características", href: "#modulos" },
               { label: "Cómo funciona", href: "#como-funciona" },
-              { label: "Módulos", href: "#caracteristicas" },
+              { label: "Precios", href: "#precios" },
             ].map((item) => (
               <Link
                 key={item.label}
@@ -417,6 +420,200 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ─────────── PRECIOS ─────────── */}
+      <section id="precios" className="border-b border-[var(--sg-line)]">
+        <div className="sg-shell py-20 lg:py-28">
+
+          {/* Header */}
+          <div className="mb-14 flex flex-col gap-3 border-b border-[var(--sg-line)] pb-8 md:flex-row md:items-baseline md:justify-between">
+            <div>
+              <div className="sg-kicker sg-kicker--muted">Planes y precios</div>
+              <h2 className="sg-section-title mt-2">
+                Transparente.<br />Sin sorpresas.
+              </h2>
+            </div>
+            <p className="text-[13px] font-light text-[var(--sg-muted)] max-w-[260px] leading-relaxed">
+              14 días de prueba gratuita en todos los planes. Sin tarjeta de crédito.
+            </p>
+          </div>
+
+          {/* Cards */}
+          <div className="grid gap-px bg-[var(--sg-line)] md:grid-cols-3">
+
+            {/* ── Plan Trial ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ delay: 0, duration: 0.5, ease: easeOut }}
+              className="bg-[var(--sg-panel)] p-8 lg:p-10 flex flex-col"
+            >
+              <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] mb-6">
+                01 · Inicio
+              </div>
+              <div className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)] mb-2">
+                Prueba Gratuita
+              </div>
+              <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
+                Explora SmartGuard sin compromiso. Acceso completo a todas las funcionalidades durante 14 días.
+              </p>
+
+              <div className="mb-8">
+                <span className="sg-font-display text-[48px] font-bold text-[var(--sg-ink)] leading-none">S/. 0</span>
+                <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ 14 días</span>
+              </div>
+
+              <div className="flex flex-col gap-3 mb-10 flex-1">
+                {[
+                  "Acceso completo al sistema",
+                  "1 planta / garita",
+                  "Hasta 3 usuarios",
+                  "Dashboard y alertas incluidos",
+                  "Soporte por WhatsApp",
+                ].map((f) => (
+                  <div key={f} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-[var(--sg-muted)] shrink-0 mt-0.5" />
+                    <span className="text-[13px] text-[var(--sg-copy)]">{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/onboarding" className="sg-btn sg-btn-ghost w-full justify-center">
+                Empezar gratis
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </motion.div>
+
+            {/* ── Plan Pro ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ delay: 0.1, duration: 0.5, ease: easeOut }}
+              className="bg-[var(--sg-panel)] p-8 lg:p-10 flex flex-col relative border-x-0 border-[var(--sg-accent)] md:border-x"
+            >
+              {/* Badge */}
+              <div className="absolute -top-px left-0 right-0 h-[2px] bg-[var(--sg-accent)]" />
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-[rgba(200,168,75,0.12)] border border-[var(--sg-accent)] px-2.5 py-1">
+                <Sparkles className="h-3 w-3 text-[var(--sg-accent)]" />
+                <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">Más popular</span>
+              </div>
+
+              <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-accent)] mb-6">
+                02 · Profesional
+              </div>
+              <div className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)] mb-2">
+                Plan Pro
+              </div>
+              <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
+                Para empresas industriales en operación. Todo lo necesario para controlar el acceso vehicular de tu planta.
+              </p>
+
+              <div className="mb-8">
+                <span className="sg-font-display text-[48px] font-bold text-[var(--sg-ink)] leading-none">S/. 550</span>
+                <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ mes</span>
+              </div>
+
+              <div className="flex flex-col gap-3 mb-10 flex-1">
+                {[
+                  "Plantas / garitas ilimitadas",
+                  "Usuarios ilimitados",
+                  "Dashboard KPIs en tiempo real",
+                  "Alertas WhatsApp + Email",
+                  "Reportes PDF + Excel con logo",
+                  "Importación de datos históricos",
+                  "Configuración por sede",
+                  "Soporte prioritario por WhatsApp",
+                ].map((f) => (
+                  <div key={f} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-[var(--sg-accent)] shrink-0 mt-0.5" />
+                    <span className="text-[13px] text-[var(--sg-copy)]">{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/onboarding" className="sg-btn sg-btn-accent w-full justify-center">
+                Registrar mi empresa
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+
+              <p className="text-center text-[11px] text-[var(--sg-muted)] mt-3">
+                14 días de prueba gratuita incluidos
+              </p>
+            </motion.div>
+
+            {/* ── Plan Enterprise ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ delay: 0.2, duration: 0.5, ease: easeOut }}
+              className="bg-[var(--sg-panel)] p-8 lg:p-10 flex flex-col"
+            >
+              <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] mb-6">
+                03 · Corporativo
+              </div>
+              <div className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)] mb-2">
+                Enterprise
+              </div>
+              <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
+                Para corporaciones con múltiples operaciones, requerimientos de integración o volumen alto de vehículos.
+              </p>
+
+              <div className="mb-8">
+                <span className="sg-font-display text-[32px] font-bold text-[var(--sg-ink)] leading-none">A consultar</span>
+              </div>
+
+              <div className="flex flex-col gap-3 mb-10 flex-1">
+                {[
+                  "Todo lo del Plan Pro",
+                  "Configuración personalizada",
+                  "Capacitación al equipo incluida",
+                  "SLA de disponibilidad garantizado",
+                  "API de integración con ERP/WMS",
+                  "Gerente de cuenta dedicado",
+                  "Reportes a medida",
+                  "Facturación empresarial",
+                ].map((f) => (
+                  <div key={f} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-[var(--sg-success)] shrink-0 mt-0.5" />
+                    <span className="text-[13px] text-[var(--sg-copy)]">{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <a
+                href="https://wa.me/51983450723?text=Hola%2C%20quiero%20información%20sobre%20el%20plan%20Enterprise%20de%20SmartGuard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sg-btn sg-btn-primary w-full justify-center"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Hablar con ventas
+              </a>
+            </motion.div>
+
+          </div>
+
+          {/* Guarantee strip */}
+          <div className="mt-10 grid grid-cols-1 gap-px bg-[var(--sg-line)] sm:grid-cols-3">
+            {[
+              { label: "Sin permanencia", desc: "Cancela cuando quieras, sin penalidades ni contratos." },
+              { label: "Sin instalación", desc: "100% en la nube. Funciona desde cualquier dispositivo con internet." },
+              { label: "Soporte real", desc: "Atención directa por WhatsApp. Sin bots, sin tickets sin respuesta." },
+            ].map((g) => (
+              <div key={g.label} className="bg-[var(--sg-canvas-2)] px-7 py-6">
+                <div className="sg-font-display text-[14px] font-bold uppercase tracking-tight text-[var(--sg-ink)] mb-1.5">
+                  {g.label}
+                </div>
+                <p className="text-[12px] font-light text-[var(--sg-muted)] leading-relaxed">{g.desc}</p>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
       {/* ─────────── INDUSTRIAS ─────────── */}
       <section className="border-y border-[var(--sg-line)] bg-[var(--sg-canvas-2)]">
         <div className="sg-shell py-10">
@@ -495,6 +692,7 @@ export default function LandingPage() {
               {[
                 { label: "Características", href: "#modulos" },
                 { label: "Cómo funciona", href: "#como-funciona" },
+                { label: "Precios", href: "#precios" },
                 { label: "Registrar empresa", href: "/onboarding" },
               ].map((link) => (
                 <Link

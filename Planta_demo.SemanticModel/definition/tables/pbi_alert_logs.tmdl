@@ -1,0 +1,107 @@
+table pbi_alert_logs
+	lineageTag: 96062c76-1be2-4d36-ba11-c9662f9373a6
+
+	column id
+		dataType: int64
+		formatString: 0
+		lineageTag: 87f74dc9-be4b-453e-8513-9a834c8e2876
+		summarizeBy: sum
+		sourceColumn: id
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_id
+		dataType: string
+		lineageTag: a1fd887c-0c8d-4dfa-9bd3-4e35266c5ce7
+		summarizeBy: none
+		sourceColumn: company_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column channel
+		dataType: string
+		lineageTag: 4aaeb581-3aa3-4b8b-a9da-8f0882a8eb3d
+		summarizeBy: none
+		sourceColumn: channel
+
+		annotation SummarizationSetBy = Automatic
+
+	column recipient
+		dataType: string
+		lineageTag: ad472bc1-ad8e-4c90-a352-a908213f3ccc
+		summarizeBy: none
+		sourceColumn: recipient
+
+		annotation SummarizationSetBy = Automatic
+
+	column success
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: ec09b6f2-d089-4b21-a5e1-6406e2201d65
+		summarizeBy: none
+		sourceColumn: success
+
+		annotation SummarizationSetBy = Automatic
+
+	column espera_min
+		dataType: int64
+		formatString: 0
+		lineageTag: 9d2a7bb6-ece4-48f8-98d6-59fe05a693a6
+		summarizeBy: sum
+		sourceColumn: espera_min
+
+		annotation SummarizationSetBy = Automatic
+
+	column planta
+		dataType: string
+		lineageTag: ae14cc13-d8e9-42c0-807b-080e58758de8
+		summarizeBy: none
+		sourceColumn: planta
+
+		annotation SummarizationSetBy = Automatic
+
+	column empresa
+		dataType: string
+		lineageTag: bcd4f98c-6bfa-4a8e-b3fd-ad36f522efa3
+		summarizeBy: none
+		sourceColumn: empresa
+
+		annotation SummarizationSetBy = Automatic
+
+	column razon_social
+		dataType: string
+		lineageTag: 65ef7210-8c6c-41a8-ad60-d3067b97a7e6
+		summarizeBy: none
+		sourceColumn: razon_social
+
+		annotation SummarizationSetBy = Automatic
+
+	column created_at
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 94f48beb-e631-475f-bd19-f897606c0e54
+		summarizeBy: none
+		sourceColumn: created_at
+
+		variation Variación
+			isDefault
+			relationship: 11ef5efa-25f5-4a2e-92ec-70b91f040c83
+			defaultHierarchy: LocalDateTable_332d8148-9595-4da1-a20b-09346efe521c.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+	partition pbi_alert_logs = m
+		mode: import
+		source =
+				let
+				    Origen = Json.Document(Web.Contents("https://vjmcyriwwkimygubsimg.supabase.co/rest/v1/rpc/pbi_alert_logs", [Headers=[apikey="sb_publishable_Be7cdcOHa7jACzqMvLgVZw_Fxr4JRJa", #"Content-Type"="application/json"]])),
+				    #"Convertida en tabla" = Table.FromList(Origen, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+				    #"Se expandió Column1" = Table.ExpandRecordColumn(#"Convertida en tabla", "Column1", {"id", "company_id", "channel", "recipient", "success", "espera_min", "planta", "empresa", "razon_social", "created_at"}, {"id", "company_id", "channel", "recipient", "success", "espera_min", "planta", "empresa", "razon_social", "created_at"}),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Se expandió Column1",{{"id", Int64.Type}, {"company_id", type text}, {"channel", type text}, {"recipient", type text}, {"success", type logical}, {"espera_min", Int64.Type}, {"planta", type text}, {"empresa", type text}, {"razon_social", type text}, {"created_at", type datetime}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

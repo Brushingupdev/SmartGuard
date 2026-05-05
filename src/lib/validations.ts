@@ -155,6 +155,10 @@ export const registerCompanySchema = z.object({
     .max(500)
     .transform((v) => v.trim()),
   notificationEmail: emailSchema.optional(),
+  notificationPhone: z.preprocess(
+    v => (typeof v === "string" && v.trim() === "" ? undefined : typeof v === "string" ? v.trim() : v),
+    z.string().regex(/^\+?[\d]{7,15}$/, "Teléfono inválido — solo dígitos, ej: 51987654321").optional()
+  ),
   supervisorEmail: emailSchema,
   supervisorPassword: passwordSchema,
   responsables: z

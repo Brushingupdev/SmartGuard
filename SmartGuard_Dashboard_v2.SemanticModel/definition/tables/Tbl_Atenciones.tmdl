@@ -1,0 +1,419 @@
+table Tbl_Atenciones
+	lineageTag: c1e22e0a-7604-4eb3-ae29-0788ab0630bc
+
+	/// Total de registros en el período seleccionado
+	measure Total_Atenciones = COUNTROWS('Tbl_Atenciones')
+		formatString: 0
+		lineageTag: 86cddd66-297f-4037-874b-9f8072d798f7
+
+	/// Excluye transporte propio
+	measure Atenciones_ProvCli =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: fd1eed3c-4062-4988-aab1-4c39da1aa7d3
+
+	/// Atenciones donde espera > 0 con demora registrada
+	measure Con_Demora =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Es_Demora] = 1,
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: f09d98a7-f98b-49d3-bd30-620c26eb703c
+
+	/// Formato: Porcentaje en Power BI
+	measure Pct_Demora = DIVIDE(COALESCE([Con_Demora], 0), COALESCE([Atenciones_ProvCli], 0), 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 71016c3f-4d7f-4cf4-bf70-6166ad9bb94d
+
+	/// Promedio en minutos, excluye vacíos y propios
+	measure Espera_Promedio =
+			CALCULATE(
+			    AVERAGE('Tbl_Atenciones'[Espera_Min]),
+			    'Tbl_Atenciones'[Espera_Min] > 0,
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0.0
+		lineageTag: 06e468b1-60e5-46d3-89d7-7de16d017fa0
+
+	/// Caso más extremo del período
+	measure Espera_Maxima =
+			CALCULATE(
+			    MAX('Tbl_Atenciones'[Espera_Min]),
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: 5596e35b-55ea-4014-8da7-c418f52d1fc0
+
+	/// Atenciones excelentes
+	measure Seg_Menos30 =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Segmento_Espera] = "🟢 < 30 min",
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: ac26b8a9-2fd8-453f-aef4-3ba4e02f1aad
+
+	/// Atenciones aceptables
+	measure Seg_30_45 =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Segmento_Espera] = "🟡 30-45 min",
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: 52fee95b-a396-477a-b4ac-08526900321a
+
+	/// Atenciones críticas
+	measure Seg_45_90 =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Segmento_Espera] = "🟠 45-90 min",
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: 511c0e29-0b3d-40b9-ad11-c907c454930c
+
+	/// Atenciones muy críticas
+	measure Seg_Mas90 =
+			CALCULATE(
+			    COUNTROWS('Tbl_Atenciones'),
+			    'Tbl_Atenciones'[Segmento_Espera] = "🔴 > 90 min",
+			    'Tbl_Atenciones'[Tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: e2885cc3-a898-4ec7-bb7a-8bcd46205991
+
+	/// Formato porcentaje
+	measure Pct_Menos30 = DIVIDE([Seg_Menos30], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 4b40c973-f72e-4e3f-b31b-eb7b82abe062
+
+	/// Formato porcentaje
+	measure Pct_30_45 = DIVIDE([Seg_30_45], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: a73350a5-e741-400a-b684-14142b1ab84c
+
+	/// Formato porcentaje
+	measure Pct_45_90 = DIVIDE([Seg_45_90], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 06e0859e-870b-4d93-baf2-09e1c2e13f02
+
+	/// Formato porcentaje
+	measure Pct_Mas90 = DIVIDE([Seg_Mas90], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 94952f79-a9ed-45c9-beb0-fb7deefe991b
+
+	/// Score ponderado para ranking de criticidad
+	measure Score_Critico = [Seg_45_90] * 2 + [Seg_Mas90] * 4
+		formatString: 0
+		lineageTag: 9289d429-7f47-4391-9ace-e155ddce3ae7
+
+	/// Motivo más frecuente en segmentos críticos
+	measure Top_Motivo = ```
+			VAR TopTable = 
+			    TOPN(1,
+			        SUMMARIZE(
+			            FILTER('Tbl_Atenciones', 'Tbl_Atenciones'[Espera_Min] > 45 && 'Tbl_Atenciones'[Tipo] <> "Propio"),
+			            'Tbl_Atenciones'[Motivo_Demora],
+			            "cnt", COUNTROWS('Tbl_Atenciones')
+			        ),
+			        [cnt], DESC
+			    )
+			RETURN MAXX(TopTable, 'Tbl_Atenciones'[Motivo_Demora])
+			```
+		lineageTag: 29e295b6-c842-4e73-8d07-16fe3587989d
+
+	/// Requiere tabla Calendario conectada
+	measure Var_Mes_Anterior =
+			VAR actual = [Atenciones_ProvCli]
+			VAR anterior = CALCULATE(
+			    [Atenciones_ProvCli],
+			    DATEADD('Calendario'[Date], -1, MONTH)
+			)
+			RETURN DIVIDE(actual - anterior, anterior, 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: f1d2e683-da93-44e1-a4a5-89846708e4cc
+
+	/// Positivo = empeoró, Negativo = mejoró
+	measure Var_Pct_Demora =
+			VAR actual = [Pct_Demora]
+			VAR anterior = CALCULATE(
+			    [Pct_Demora],
+			    DATEADD('Calendario'[Date], -1, MONTH)
+			)
+			RETURN actual - anterior
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e3f30996-6573-408f-8887-f2417b21ce68
+
+	column ID
+		dataType: int64
+		formatString: 0
+		lineageTag: 47ed4489-115d-48d2-a130-ddb5146b23a3
+		summarizeBy: count
+		sourceColumn: ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Planta
+		dataType: string
+		lineageTag: 13f4dcba-a1af-4cc6-a11e-e48c935a5424
+		summarizeBy: none
+		sourceColumn: Planta
+
+		annotation SummarizationSetBy = Automatic
+
+	column Fecha
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 2f9d1e43-374c-45bb-bfbe-a49859cf3391
+		summarizeBy: none
+		sourceColumn: Fecha
+
+		variation Variación
+			isDefault
+			relationship: 13070203-0da7-4d74-93ee-3e384ec9119b
+			defaultHierarchy: LocalDateTable_fdc221d5-dbaa-44fe-a2ae-ffa8988a72e7.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Año
+		dataType: int64
+		formatString: 0
+		lineageTag: ec1d95c0-b71d-4ec4-afa8-2b95cc4d8875
+		summarizeBy: sum
+		sourceColumn: Año
+
+		annotation SummarizationSetBy = Automatic
+
+	column Mes_Num
+		dataType: int64
+		formatString: 0
+		lineageTag: cb4fdc65-5b81-44e7-8d8c-3344f046bd39
+		summarizeBy: sum
+		sourceColumn: Mes_Num
+
+		annotation SummarizationSetBy = Automatic
+
+	column Mes_Nombre
+		dataType: string
+		lineageTag: ea3a2e9c-5e02-495a-80c1-62b87f3e19a2
+		summarizeBy: none
+		sourceColumn: Mes_Nombre
+
+		annotation SummarizationSetBy = Automatic
+
+	column Semana
+		dataType: int64
+		formatString: 0
+		lineageTag: 3d57147c-c282-4226-98a1-ef4ddf5028a7
+		summarizeBy: sum
+		sourceColumn: Semana
+
+		annotation SummarizationSetBy = Automatic
+
+	column Dia_Semana
+		dataType: string
+		lineageTag: 5ceb7a4d-6299-4e11-a12d-5164316edb90
+		summarizeBy: none
+		sourceColumn: Dia_Semana
+
+		annotation SummarizationSetBy = Automatic
+
+	column Tipo
+		dataType: string
+		lineageTag: 1db7e17c-990a-4d54-8fa1-f0f6851a2f48
+		summarizeBy: none
+		sourceColumn: Tipo
+
+		annotation SummarizationSetBy = Automatic
+
+	column Razon_Social
+		dataType: string
+		lineageTag: 900d8152-3ab4-4349-87c9-a571bbfffbd6
+		summarizeBy: none
+		sourceColumn: Razon_Social
+
+		annotation SummarizationSetBy = Automatic
+
+	column Empresa
+		dataType: string
+		lineageTag: 71852087-95bb-4a4a-a426-7c6a18f08c0e
+		summarizeBy: none
+		sourceColumn: Empresa
+
+		annotation SummarizationSetBy = Automatic
+
+	column H_Registro
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: 54f07725-1225-4fd9-971e-4e2b1145bc1d
+		summarizeBy: none
+		sourceColumn: H_Registro
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column H_Atencion
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: 20bb8c53-8f56-4210-896b-4f428fd01b46
+		summarizeBy: none
+		sourceColumn: H_Atencion
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column H_Dev_Docs
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: 6f429a06-6346-40d4-9808-761dac5a2b58
+		summarizeBy: none
+		sourceColumn: H_Dev_Docs
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column Espera_Min
+		dataType: int64
+		formatString: 0
+		lineageTag: 2c243b8a-a5bf-48d1-a771-a66142283dd4
+		summarizeBy: sum
+		sourceColumn: Espera_Min
+
+		annotation SummarizationSetBy = Automatic
+
+	column Tiempo_Total_Min
+		dataType: int64
+		formatString: 0
+		lineageTag: 515d46dd-56f1-4aef-b8aa-cedb988c88e2
+		summarizeBy: sum
+		sourceColumn: Tiempo_Total_Min
+
+		annotation SummarizationSetBy = Automatic
+
+	column Segmento_Espera
+		dataType: string
+		lineageTag: e9499d0f-4966-4a2a-aaac-64612f5c6166
+		summarizeBy: none
+		sourceColumn: Segmento_Espera
+
+		annotation SummarizationSetBy = Automatic
+
+	column Tipo_Operacion
+		dataType: string
+		lineageTag: 1af5feac-6706-4ac8-8825-b6ac808ef16f
+		summarizeBy: none
+		sourceColumn: Tipo_Operacion
+
+		annotation SummarizationSetBy = Automatic
+
+	column Motivo_Demora
+		dataType: string
+		lineageTag: 9096952f-aeb5-4f95-97fd-380881c8c8b7
+		summarizeBy: none
+		sourceColumn: Motivo_Demora
+
+		annotation SummarizationSetBy = Automatic
+
+	column Es_Demora
+		dataType: int64
+		formatString: 0
+		lineageTag: 7ba802bc-d204-40e7-aa97-429d4f5ed3d8
+		summarizeBy: sum
+		sourceColumn: Es_Demora
+
+		annotation SummarizationSetBy = Automatic
+
+	column Responsable
+		dataType: string
+		lineageTag: 28c9bf8a-d3ea-4b70-9813-34167e5f6212
+		summarizeBy: none
+		sourceColumn: Responsable
+
+		annotation SummarizationSetBy = Automatic
+
+	column Agente
+		dataType: string
+		lineageTag: 35cb7f39-756d-4100-94c8-7037bdc7561e
+		summarizeBy: none
+		sourceColumn: Agente
+
+		annotation SummarizationSetBy = Automatic
+
+	column Observacion
+		dataType: string
+		lineageTag: f1873603-f57a-403a-881e-db252bbfd8d6
+		summarizeBy: none
+		sourceColumn: Observacion
+
+		annotation SummarizationSetBy = Automatic
+
+	column Company_ID
+		dataType: string
+		lineageTag: 18c89ca9-0393-4db1-b2df-e5646939effb
+		summarizeBy: none
+		sourceColumn: Company_ID
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Tbl_Atenciones = m
+		mode: import
+		source =
+				let
+				    ApiKey  = "sb_publishable_Be7cdcOHa7jACzqMvLgVZw_Fxr4JRJa",
+				    Url     = "https://vjmcyriwwkimygubsimg.supabase.co/rest/v1/rpc/pbi_atenciones",
+				    Origen  = Json.Document(Web.Contents(Url, [
+				        Headers = [#"apikey" = ApiKey, #"Content-Type" = "application/json"]
+				    ])),
+				    ToTable = Table.FromList(Origen, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+				    Expanded = Table.ExpandRecordColumn(ToTable, "Column1", {
+				        "id","fecha","h_registro","h_atencion","h_dev_docs",
+				        "razon_social","empresa","planta","tipo","tipo_operacion",
+				        "responsable","agente","espera_min","tiempo_total_min",
+				        "segmento_espera","es_demora","motivo_demora","observacion",
+				        "anio","mes_num","company_id"
+				    }),
+				    Typed = Table.TransformColumnTypes(Expanded, {
+				        {"id", Int64.Type}, {"fecha", type date},
+				        {"espera_min", Int64.Type}, {"tiempo_total_min", Int64.Type},
+				        {"es_demora", Int64.Type}, {"anio", Int64.Type}, {"mes_num", Int64.Type}
+				    }),
+				    AddMesNombre  = Table.AddColumn(Typed, "mes_nombre", each Date.ToText([fecha], "MMM", "es-PE"), type text),
+				    AddSemana     = Table.AddColumn(AddMesNombre, "semana", each Date.WeekOfYear([fecha]), Int64.Type),
+				    AddDiaSemana  = Table.AddColumn(AddSemana, "dia_semana", each Date.ToText([fecha], "ddd", "es-PE"), type text),
+				    Renamed = Table.RenameColumns(AddDiaSemana, {
+				        {"id","ID"}, {"fecha","Fecha"}, {"h_registro","H_Registro"},
+				        {"h_atencion","H_Atencion"}, {"h_dev_docs","H_Dev_Docs"},
+				        {"razon_social","Razon_Social"}, {"empresa","Empresa"}, {"planta","Planta"},
+				        {"tipo","Tipo"}, {"tipo_operacion","Tipo_Operacion"},
+				        {"responsable","Responsable"}, {"agente","Agente"},
+				        {"espera_min","Espera_Min"}, {"tiempo_total_min","Tiempo_Total_Min"},
+				        {"segmento_espera","Segmento_Espera"}, {"es_demora","Es_Demora"},
+				        {"motivo_demora","Motivo_Demora"}, {"observacion","Observacion"},
+				        {"anio","Año"}, {"mes_num","Mes_Num"},
+				        {"mes_nombre","Mes_Nombre"}, {"semana","Semana"},
+				        {"dia_semana","Dia_Semana"}, {"company_id","Company_ID"}
+				    }),
+				    Resultado = Table.TransformColumnTypes(Renamed, {
+				        {"Planta", type text}, {"Razon_Social", type text}, {"Empresa", type text},
+				        {"Tipo", type text}, {"Tipo_Operacion", type text}, {"Responsable", type text},
+				        {"Agente", type text}, {"Segmento_Espera", type text}, {"Motivo_Demora", type text},
+				        {"Observacion", type text}, {"Mes_Nombre", type text}, {"Dia_Semana", type text},
+				        {"H_Registro", type time}, {"H_Atencion", type time}, {"H_Dev_Docs", type time}
+				    })
+				in
+				    Resultado
+
+	annotation PBI_ResultType = Table
+

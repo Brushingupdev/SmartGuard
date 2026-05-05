@@ -117,6 +117,7 @@ export default function OnboardingPage() {
 
   // Step 1 — acceso
   const [notificationEmail, setNotificationEmail] = useState("");
+  const [notificationPhone, setNotificationPhone] = useState("");
   const [email, setEmail]               = useState("");
   const [password, setPassword]         = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -158,6 +159,7 @@ export default function OnboardingPage() {
       setContactName(progress.contactName);
       setPlantasText(progress.plantasText);
       setNotificationEmail(progress.notificationEmail);
+      setNotificationPhone(progress.notificationPhone ?? "");
       setEmail(progress.email);
       setParsedNames(progress.parsedNames);
       setGuardias(progress.guardias);
@@ -182,6 +184,7 @@ export default function OnboardingPage() {
         contactName,
         plantasText,
         notificationEmail,
+        notificationPhone,
         email,
         logoBase64,
         logoMimeType,
@@ -190,7 +193,7 @@ export default function OnboardingPage() {
       };
       save(progress);
     }
-  }, [step, companyName, sector, contactName, plantasText, notificationEmail, email, logoBase64, logoMimeType, parsedNames, guardias, done, save]);
+  }, [step, companyName, sector, contactName, plantasText, notificationEmail, notificationPhone, email, logoBase64, logoMimeType, parsedNames, guardias, done, save]);
 
   // ── Logo handlers ──────────────────────────────────────────────────────────
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,6 +302,7 @@ export default function OnboardingPage() {
       contactName:        contactName.trim(),
       plantasText:        plantasText.trim(),
       notificationEmail:  notificationEmail.trim() || undefined,
+      notificationPhone:  notificationPhone.trim() || undefined,
       supervisorEmail:    email.trim(),
       supervisorPassword: password,
       responsables:       parsedNames,
@@ -425,6 +429,22 @@ export default function OnboardingPage() {
                     <input type="email" value={notificationEmail} onChange={(e) => setNotificationEmail(e.target.value)}
                       placeholder="alertas@empresa.com" className="sg-input" />
                     <p className="text-[10px] text-[var(--sg-muted)]">Recibirá emails automáticos cuando haya demoras críticas. Si se deja vacío se usará el correo del supervisor.</p>
+                  </div>
+
+                  <div className="sg-field">
+                    <label className="sg-label">
+                      WhatsApp para alertas{" "}
+                      <span className="normal-case text-[var(--sg-muted)]">(opcional)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={notificationPhone}
+                      onChange={(e) => setNotificationPhone(e.target.value.replace(/[^\d]/g, ""))}
+                      placeholder="51987654321"
+                      className="sg-input"
+                      maxLength={15}
+                    />
+                    <p className="text-[10px] text-[var(--sg-muted)]">Solo dígitos, sin + ni espacios. Incluye código de país (Perú: 51). Puedes agregar más números después en /configuracion.</p>
                   </div>
 
                   <div className="sg-field">
@@ -826,6 +846,7 @@ export default function OnboardingPage() {
                     { label: "Plantas",          value: plantasText || "No especificadas" },
                     { label: "Email supervisor", value: email },
                     { label: "Email alertas",    value: notificationEmail || "(mismo que supervisor)" },
+                    { label: "WhatsApp alertas", value: notificationPhone || "No configurado" },
                     { label: "Responsables",     value: parsedNames.length > 0 ? `${parsedNames.length} persona${parsedNames.length !== 1 ? "s" : ""}` : "No cargados" },
                     { label: "Guardias",         value: guardias.length > 0 ? `${guardias.length} cuenta${guardias.length !== 1 ? "s" : ""} · ${guardias.map(g => g.email).join(", ")}` : "No agregados" },
                     { label: "Datos históricos", value: excelValidRows.length > 0 ? `${excelValidRows.length.toLocaleString()} registros a importar` : "No seleccionados" },

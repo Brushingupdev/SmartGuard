@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v32bar_alertas_planta",
+  "position": { "x": 440, "y": 120, "z": 2000, "width": 820, "height": 280 },
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "planta" } },
+              "queryRef": "pbi_alert_logs.planta", "nativeQueryRef": "planta", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "espera_min" } },
+              "queryRef": "Average of pbi_alert_logs.espera_min", "nativeQueryRef": "espera_min"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_alert_logs" } }, "Property": "espera_min" } },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

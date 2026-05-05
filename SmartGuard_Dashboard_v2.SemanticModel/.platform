@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "SmartGuard_Dashboard_v2"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "89e39d79-bee5-4071-a408-7c9feb23846b"
+  }
+}

@@ -64,7 +64,8 @@ export async function middleware(request: NextRequest) {
                            request.nextUrl.pathname.startsWith('/empresa')  ||
                            request.nextUrl.pathname.startsWith('/admin')   ||
                            request.nextUrl.pathname.startsWith('/monitor')  ||
-                           request.nextUrl.pathname.startsWith('/perfil')
+                           request.nextUrl.pathname.startsWith('/perfil')   ||
+                           request.nextUrl.pathname.startsWith('/upgrade')
 
   // If the user is not signed in and the current path is a protected route, redirect to the login page
   if (!user && isProtectedRoute) {
@@ -130,6 +131,68 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
+    }
+  }
+
+  // ── Trial / plan enforcement ───────────────────────────────────────────────
+  // Only for company users (supervisor / guardia), not admin.
+  // Uses a short-lived cookie (sg_plan) to avoid a DB round-trip on every request.
+  if (user && isProtectedRoute) {
+    const metaRole    = user.user_metadata?.role as string | undefined;
+    const isAdmin     = metaRole === 'administrador';
+    const path        = request.nextUrl.pathname;
+    const companyId   = user.user_metadata?.company_id as string | undefined;
+
+    if (!isAdmin && !path.startsWith('/upgrade') && companyId) {
+      const planCookie = request.cookies.get('sg_plan');
+      let isBlocked    = false;
+
+      if (planCookie?.value === 'blocked') {
+        // Cache hit — already known to be blocked
+        isBlocked = true;
+      } else if (planCookie?.value !== 'ok') {
+        // No valid cache — query Supabase (uses user session + RLS)
+        try {
+          const { data: company } = await supabase
+            .from('companies')
+            .select('plan, trial_ends_at')
+            .eq('id', companyId)
+            .single();
+
+          if (company) {
+            const plan        = company.plan as string;
+            const trialEndsAt = company.trial_ends_at as string | null;
+            if (plan === 'suspended') {
+              isBlocked = true;
+            } else if (plan === 'trial' && trialEndsAt) {
+              isBlocked = new Date(trialEndsAt + 'T23:59:59') < new Date();
+            }
+          }
+        } catch {
+          // Query failed — fail open (don't block)
+        }
+
+        if (isBlocked) {
+          const upgradeUrl = request.nextUrl.clone();
+          upgradeUrl.pathname = '/upgrade';
+          const redirectRes = NextResponse.redirect(upgradeUrl);
+          redirectRes.cookies.set('sg_plan', 'blocked', {
+            httpOnly: true, sameSite: 'lax', maxAge: 15 * 60, path: '/',
+          });
+          return redirectRes;
+        }
+
+        // Cache the "ok" result for 15 minutes
+        supabaseResponse.cookies.set('sg_plan', 'ok', {
+          httpOnly: true, sameSite: 'lax', maxAge: 15 * 60, path: '/',
+        });
+      }
+
+      if (isBlocked) {
+        const upgradeUrl = request.nextUrl.clone();
+        upgradeUrl.pathname = '/upgrade';
+        return NextResponse.redirect(upgradeUrl);
+      }
     }
   }
 

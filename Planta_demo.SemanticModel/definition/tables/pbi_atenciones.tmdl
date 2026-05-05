@@ -1,0 +1,350 @@
+table pbi_atenciones
+	lineageTag: 29212573-1633-4507-b776-1d81a006b286
+
+	/// Total de registros en el período seleccionado
+	measure Total_Atenciones = COUNTROWS('pbi_atenciones')
+		formatString: 0
+		lineageTag: m001-total-atenciones
+
+	/// Excluye transporte propio
+	measure Atenciones_ProvCli =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m002-atenciones-provcli
+
+	/// Atenciones con demora registrada (excluye propios)
+	measure Con_Demora =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[es_demora] = 1,
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m003-con-demora
+
+	/// % de atenciones con demora
+	measure Pct_Demora = DIVIDE(COALESCE([Con_Demora], 0), COALESCE([Atenciones_ProvCli], 0), 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m004-pct-demora
+
+	/// Promedio de espera en minutos (excluye vacíos y propios)
+	measure Espera_Promedio =
+			CALCULATE(
+			    AVERAGE('pbi_atenciones'[espera_min]),
+			    'pbi_atenciones'[espera_min] > 0,
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0.0
+		lineageTag: m005-espera-promedio
+
+	/// Caso más extremo del período
+	measure Espera_Maxima =
+			CALCULATE(
+			    MAX('pbi_atenciones'[espera_min]),
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m006-espera-maxima
+
+	/// A tiempo: < 30 min
+	measure Seg_Menos30 =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[segmento_espera] = "🟢 < 30 min",
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m007-seg-menos30
+
+	/// Moderado: 30–45 min
+	measure Seg_30_45 =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[segmento_espera] = "🟡 30-45 min",
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m008-seg-3045
+
+	/// Alto: 45–90 min
+	measure Seg_45_90 =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[segmento_espera] = "🟠 45-90 min",
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m009-seg-4590
+
+	/// Crítico: > 90 min
+	measure Seg_Mas90 =
+			CALCULATE(
+			    COUNTROWS('pbi_atenciones'),
+			    'pbi_atenciones'[segmento_espera] = "🔴 > 90 min",
+			    'pbi_atenciones'[tipo] <> "Propio"
+			)
+		formatString: 0
+		lineageTag: m010-seg-mas90
+
+	measure Pct_Menos30 = DIVIDE([Seg_Menos30], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m011-pct-menos30
+
+	measure Pct_30_45 = DIVIDE([Seg_30_45], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m012-pct-3045
+
+	measure Pct_45_90 = DIVIDE([Seg_45_90], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m013-pct-4590
+
+	measure Pct_Mas90 = DIVIDE([Seg_Mas90], [Atenciones_ProvCli], 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m014-pct-mas90
+
+	/// Score ponderado de criticidad (para ranking de plantas/empresas)
+	measure Score_Critico = [Seg_45_90] * 2 + [Seg_Mas90] * 4
+		formatString: 0
+		lineageTag: m015-score-critico
+
+	/// Motivo de demora más frecuente en el período
+	measure Top_Motivo =
+			VAR TopTable =
+			    TOPN(1,
+			        SUMMARIZE(
+			            FILTER('pbi_atenciones', 'pbi_atenciones'[espera_min] > 45 && 'pbi_atenciones'[tipo] <> "Propio"),
+			            'pbi_atenciones'[motivo_demora],
+			            "cnt", COUNTROWS('pbi_atenciones')
+			        ),
+			        [cnt], DESC
+			    )
+			RETURN MAXX(TopTable, 'pbi_atenciones'[motivo_demora])
+		lineageTag: m016-top-motivo
+
+	/// Variación vs mes anterior
+	measure Var_Mes_Anterior =
+			VAR actual = [Atenciones_ProvCli]
+			VAR anterior = CALCULATE(
+			    [Atenciones_ProvCli],
+			    DATEADD('Calendario'[Date], -1, MONTH)
+			)
+			RETURN DIVIDE(actual - anterior, anterior, 0)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m017-var-mes-anterior
+
+	/// Variación del % de demora vs mes anterior (positivo = empeoró)
+	measure Var_Pct_Demora =
+			VAR actual = [Pct_Demora]
+			VAR anterior = CALCULATE(
+			    [Pct_Demora],
+			    DATEADD('Calendario'[Date], -1, MONTH)
+			)
+			RETURN actual - anterior
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: m018-var-pct-demora
+
+	column id
+		dataType: int64
+		formatString: 0
+		lineageTag: 8a237864-4238-4385-ac49-281dde9b8487
+		summarizeBy: sum
+		sourceColumn: id
+
+		annotation SummarizationSetBy = Automatic
+
+	column fecha
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: be8d54fc-bf4e-4fab-b32b-60f83e117c66
+		summarizeBy: none
+		sourceColumn: fecha
+
+		variation Variación
+			isDefault
+			relationship: d61808aa-77cf-4067-adac-3f085edbc7bc
+			defaultHierarchy: LocalDateTable_6c9a2edf-c407-4415-8c88-f49ef22d0857.'Jerarquía de fechas'
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column h_registro
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: dbc3a74b-f125-4b24-b83d-3f2a2ba998e7
+		summarizeBy: none
+		sourceColumn: h_registro
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column h_atencion
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: e9f5fdb0-031b-4a83-b002-6781cffe0802
+		summarizeBy: none
+		sourceColumn: h_atencion
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column h_dev_docs
+		dataType: string
+		lineageTag: 5c9fbeb9-d6f0-4fd1-9c92-4ef2b49a00be
+		summarizeBy: none
+		sourceColumn: h_dev_docs
+
+		annotation SummarizationSetBy = Automatic
+
+	column razon_social
+		dataType: string
+		lineageTag: 40699654-7f49-4628-83fe-72b1ca005f24
+		summarizeBy: none
+		sourceColumn: razon_social
+
+		annotation SummarizationSetBy = Automatic
+
+	column empresa
+		dataType: string
+		lineageTag: 115abec5-7a44-41bc-957f-ad1075542944
+		summarizeBy: none
+		sourceColumn: empresa
+
+		annotation SummarizationSetBy = Automatic
+
+	column planta
+		dataType: string
+		lineageTag: 7147d5b8-c230-46b3-a391-6160bc497dda
+		summarizeBy: none
+		sourceColumn: planta
+
+		annotation SummarizationSetBy = Automatic
+
+	column tipo
+		dataType: string
+		lineageTag: d86dee2d-09f9-402f-90d9-29910ba53a58
+		summarizeBy: none
+		sourceColumn: tipo
+
+		annotation SummarizationSetBy = Automatic
+
+	column tipo_operacion
+		dataType: string
+		lineageTag: 4c5dd54f-ccb0-4d33-a8c5-fcec8839eb48
+		summarizeBy: none
+		sourceColumn: tipo_operacion
+
+		annotation SummarizationSetBy = Automatic
+
+	column responsable
+		dataType: string
+		lineageTag: 0c2caae5-3dad-4a94-a596-86a23007593a
+		summarizeBy: none
+		sourceColumn: responsable
+
+		annotation SummarizationSetBy = Automatic
+
+	column agente
+		dataType: string
+		lineageTag: b488f124-2be1-436f-abfc-f9fbf56d9ef3
+		summarizeBy: none
+		sourceColumn: agente
+
+		annotation SummarizationSetBy = Automatic
+
+	column espera_min
+		dataType: int64
+		formatString: 0
+		lineageTag: b593c737-a35e-469a-b5ea-52c246a1b23e
+		summarizeBy: sum
+		sourceColumn: espera_min
+
+		annotation SummarizationSetBy = Automatic
+
+	column tiempo_total_min
+		dataType: string
+		lineageTag: 700c3a8c-2b61-45bf-9eea-39c4bc564bfe
+		summarizeBy: none
+		sourceColumn: tiempo_total_min
+
+		annotation SummarizationSetBy = Automatic
+
+	column segmento_espera
+		dataType: string
+		lineageTag: 7c93c703-2484-44d0-91a2-3f8770d4d652
+		summarizeBy: none
+		sourceColumn: segmento_espera
+
+		annotation SummarizationSetBy = Automatic
+
+	column es_demora
+		dataType: int64
+		formatString: 0
+		lineageTag: 672fc591-2e1c-40b6-882d-4c16d385c479
+		summarizeBy: sum
+		sourceColumn: es_demora
+
+		annotation SummarizationSetBy = Automatic
+
+	column motivo_demora
+		dataType: string
+		lineageTag: da673147-60db-49d1-8544-c15255916627
+		summarizeBy: none
+		sourceColumn: motivo_demora
+
+		annotation SummarizationSetBy = Automatic
+
+	column observacion
+		dataType: string
+		lineageTag: b5d09253-73aa-4063-a24b-f72b28d38f76
+		summarizeBy: none
+		sourceColumn: observacion
+
+		annotation SummarizationSetBy = Automatic
+
+	column anio
+		dataType: int64
+		formatString: 0
+		lineageTag: 05865b39-fdf5-4936-b815-390e61ce8b12
+		summarizeBy: sum
+		sourceColumn: anio
+
+		annotation SummarizationSetBy = Automatic
+
+	column mes_num
+		dataType: int64
+		formatString: 0
+		lineageTag: 3c0cb66f-eb6e-4a65-b645-654794a3a76b
+		summarizeBy: sum
+		sourceColumn: mes_num
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_id
+		dataType: string
+		lineageTag: 99f5513a-8ee0-49e2-8e72-dc630dbbf065
+		summarizeBy: none
+		sourceColumn: company_id
+
+		annotation SummarizationSetBy = Automatic
+
+	partition pbi_atenciones = m
+		mode: import
+		source =
+				let
+				    Origen = Json.Document(Web.Contents("https://vjmcyriwwkimygubsimg.supabase.co/rest/v1/rpc/pbi_atenciones", [Headers=[apikey="sb_publishable_Be7cdcOHa7jACzqMvLgVZw_Fxr4JRJa", #"Content-Type"="application/json"]])),
+				    #"Convertida en tabla" = Table.FromList(Origen, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+				    #"Se expandió Column1" = Table.ExpandRecordColumn(#"Convertida en tabla", "Column1", {"id", "fecha", "h_registro", "h_atencion", "h_dev_docs", "razon_social", "empresa", "planta", "tipo", "tipo_operacion", "responsable", "agente", "espera_min", "tiempo_total_min", "segmento_espera", "es_demora", "motivo_demora", "observacion", "anio", "mes_num", "company_id"}, {"id", "fecha", "h_registro", "h_atencion", "h_dev_docs", "razon_social", "empresa", "planta", "tipo", "tipo_operacion", "responsable", "agente", "espera_min", "tiempo_total_min", "segmento_espera", "es_demora", "motivo_demora", "observacion", "anio", "mes_num", "company_id"}),
+				    #"Tipo cambiado" = Table.TransformColumnTypes(#"Se expandió Column1",{{"id", Int64.Type}, {"fecha", type date}, {"h_registro", type time}, {"h_atencion", type time}, {"h_dev_docs", type any}, {"razon_social", type text}, {"empresa", type text}, {"planta", type text}, {"tipo", type text}, {"tipo_operacion", type text}, {"responsable", type text}, {"agente", type text}, {"espera_min", Int64.Type}, {"tiempo_total_min", type any}, {"segmento_espera", type text}, {"es_demora", Int64.Type}, {"motivo_demora", type text}, {"observacion", type any}, {"anio", Int64.Type}, {"mes_num", Int64.Type}, {"company_id", type text}})
+				in
+				    #"Tipo cambiado"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

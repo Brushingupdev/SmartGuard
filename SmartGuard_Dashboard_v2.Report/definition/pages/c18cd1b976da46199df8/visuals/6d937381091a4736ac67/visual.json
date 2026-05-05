@@ -1,0 +1,78 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "6d937381091a4736ac67",
+  "position": {
+    "x": 560.243161094225,
+    "y": 20.425531914893618,
+    "z": 3000,
+    "height": 112.82674772036475,
+    "width": 297.629179331307
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Tbl_Atenciones"
+                    }
+                  },
+                  "Property": "Espera_Promedio"
+                }
+              },
+              "queryRef": "Tbl_Atenciones.Espera_Promedio",
+              "nativeQueryRef": "Espera_Promedio"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "label": [
+        {
+          "properties": {
+            "fontColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "ThemeDataColor": {
+                      "ColorId": 0,
+                      "Percent": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "id": "default"
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "e49a1168023336b0e295",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Tbl_Atenciones"
+              }
+            },
+            "Property": "Espera_Promedio"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

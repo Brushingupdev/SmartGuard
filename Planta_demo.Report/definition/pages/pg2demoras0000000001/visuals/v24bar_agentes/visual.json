@@ -1,0 +1,33 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.8.0/schema.json",
+  "name": "v24bar_agentes",
+  "position": { "x": 20, "y": 400, "z": 3000, "width": 580, "height": 300 },
+  "visual": {
+    "visualType": "barChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": { "Column": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "agente" } },
+              "queryRef": "pbi_atenciones.agente", "nativeQueryRef": "agente", "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Total_Atenciones" } },
+              "queryRef": "pbi_atenciones.Total_Atenciones", "nativeQueryRef": "Total_Atenciones"
+            },
+            {
+              "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "pbi_atenciones" } }, "Property": "Con_Demora" } },
+              "queryRef": "pbi_atenciones.Con_Demora", "nativeQueryRef": "Con_Demora"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

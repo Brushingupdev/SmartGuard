@@ -1,0 +1,19 @@
+relationship d61808aa-77cf-4067-adac-3f085edbc7bc
+	joinOnDateBehavior: datePartOnly
+	fromColumn: pbi_atenciones.fecha
+	toColumn: LocalDateTable_6c9a2edf-c407-4415-8c88-f49ef22d0857.Date
+
+relationship 15cf25b4-1eb2-4ce3-9624-065d73c23c63
+	joinOnDateBehavior: datePartOnly
+	fromColumn: pbi_companies.trial_ends_at
+	toColumn: LocalDateTable_063ab1ea-8fd6-44dd-b110-fb68c9f18bf8.Date
+
+relationship 11ef5efa-25f5-4a2e-92ec-70b91f040c83
+	joinOnDateBehavior: datePartOnly
+	fromColumn: pbi_alert_logs.created_at
+	toColumn: LocalDateTable_332d8148-9595-4da1-a20b-09346efe521c.Date
+
+relationship Rel_Atenciones_Calendario
+	fromColumn: pbi_atenciones.fecha
+	toColumn: Calendario.Date
+
