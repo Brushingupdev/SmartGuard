@@ -36,6 +36,8 @@ function buildHtml(
   logoUrl: string | null,
   plant: string,
   timeframe: string,
+  sector?: string | null,
+  contactName?: string | null,
 ): string {
   const now = new Date().toLocaleString("es-PE", {
     timeZone:   "America/Lima",
@@ -49,6 +51,49 @@ function buildHtml(
   const logoHtml = logoUrl
     ? `<img src="${logoUrl}" alt="Logo" class="logo" />`
     : `<div class="logo-fallback">SG</div>`;
+
+  // Tendencia diaria (últimos N períodos)
+  const trendHtml = data.trendData && data.trendData.length > 0
+    ? `<table>
+        <thead><tr>
+          <th>Período</th>
+          <th style="text-align:right">Total</th>
+          <th style="text-align:right">A tiempo</th>
+          <th style="text-align:right">Con demora</th>
+        </tr></thead>
+        <tbody>
+          ${data.trendData.map((t, i) => `
+            <tr class="${i % 2 === 0 ? "even" : ""}">
+              <td>${t.label ?? t.date}</td>
+              <td class="num">${t.total}</td>
+              <td class="num ok">${t.onTime}</td>
+              <td class="num crit">${t.delayed}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>`
+    : `<p class="empty">Sin datos de tendencia en este período</p>`;
+
+  // Horas pico (top 3 horas con más demoras)
+  const peakHours = data.flowData && data.flowData.length > 0
+    ? [...data.flowData]
+        .sort((a, b) => b.deny - a.deny)
+        .slice(0, 5)
+        .filter(h => h.deny > 0)
+    : [];
+  const peakHoursHtml = peakHours.length > 0
+    ? peakHours.map(h => `
+        <div class="peak-row">
+          <span class="peak-hour">${String(h.h).padStart(2,"0")}:00</span>
+          <div class="peak-bars">
+            <div class="peak-bar ok-bar"  style="width:${Math.round((h.ok  / (h.ok + h.warn + h.deny || 1)) * 100)}%"></div>
+            <div class="peak-bar warn-bar" style="width:${Math.round((h.warn / (h.ok + h.warn + h.deny || 1)) * 100)}%"></div>
+            <div class="peak-bar deny-bar" style="width:${Math.round((h.deny / (h.ok + h.warn + h.deny || 1)) * 100)}%"></div>
+          </div>
+          <span class="peak-count crit">${h.deny} demora${h.deny !== 1 ? "s" : ""}</span>
+        </div>
+      `).join("")
+    : `<p class="empty">Sin horas pico registradas</p>`;
 
   // KPI cards
   const kpis = [
@@ -476,6 +521,42 @@ function buildHtml(
       padding: 8px 0;
     }
 
+    /* ── Peak hours ─────────────────────────────────────────────────── */
+    .peak-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .peak-hour {
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #334155;
+      width: 42px;
+      flex-shrink: 0;
+    }
+    .peak-bars {
+      flex: 1;
+      height: 8px;
+      background: #f1f5f9;
+      border-radius: 2px;
+      display: flex;
+      overflow: hidden;
+    }
+    .peak-bar { height: 100%; min-width: 1px; }
+    .ok-bar   { background: #22c55e; }
+    .warn-bar { background: #eab308; }
+    .deny-bar { background: #ef4444; }
+    .peak-count {
+      font-family: monospace;
+      font-size: 10px;
+      font-weight: 700;
+      width: 70px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
     /* ── Print styles ───────────────────────────────────────────────── */
     @media print {
       body { background: #fff; font-size: 10px; }
@@ -508,13 +589,14 @@ function buildHtml(
     <div class="report-header">
       ${logoHtml}
       <div class="header-info">
-        <div class="header-badge">SmartGuard · Reporte Analítico de Acceso</div>
+        <div class="header-badge">SmartGuard · Reporte Analítico de Acceso Vehicular Industrial</div>
         <div class="header-company">${companyName}</div>
         <div class="header-meta">
+          ${sector ? `<span class="header-pill">SECTOR: ${sector}</span>` : ""}
           <span class="header-pill">PLANTA: ${plant}</span>
           <span class="header-pill">PERÍODO: ${timeframe}</span>
         </div>
-        <div class="header-timestamp">Generado el ${now}</div>
+        <div class="header-timestamp">Generado el ${now}${contactName ? ` · Responsable: ${contactName}` : ""}</div>
       </div>
       <div class="header-sg">
         <div class="header-sg-logo">SMART<br/>GUARD</div>
@@ -643,9 +725,29 @@ function buildHtml(
     </div>
     ` : ""}
 
+    <!-- Tendencia + Horas pico -->
+    <div class="section">
+      <div class="two-col">
+        <div class="col-section">
+          <div class="section-title">Tendencia por Período</div>
+          ${trendHtml}
+        </div>
+        <div class="col-section">
+          <div class="section-title">Horas con Mayor Demora</div>
+          ${peakHoursHtml}
+          ${peakHours.length > 0 ? `
+          <div style="display:flex;gap:12px;margin-top:10px;font-size:9px;color:#64748b;">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:4px;"></span>A tiempo</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#eab308;border-radius:2px;margin-right:4px;"></span>Moderado</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;margin-right:4px;"></span>Con demora</span>
+          </div>` : ""}
+        </div>
+      </div>
+    </div>
+
     <!-- Footer -->
     <div class="report-footer">
-      <span><span class="footer-brand">SMARTGUARD</span> · Sistema de Control de Acceso Vehicular</span>
+      <span><span class="footer-brand">SMARTGUARD</span> · Control de Acceso Vehicular Industrial${sector ? ` · ${sector}` : ""}</span>
       <span>${companyName} · ${plant} · ${timeframe}</span>
       <span>Generado ${now}</span>
     </div>
@@ -681,10 +783,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const companyName = company?.name     ?? "SmartGuard";
-  const logoUrl     = company?.logo_url ?? null;
+  const companyName = company?.name         ?? "SmartGuard";
+  const logoUrl     = company?.logo_url     ?? null;
+  const sector      = company?.sector       ?? null;
+  const contactName = company?.contact_name ?? null;
 
-  const html = buildHtml(data, companyName, logoUrl, plant, timeframe);
+  const html = buildHtml(data, companyName, logoUrl, plant, timeframe, sector, contactName);
 
   return new NextResponse(html, {
     headers: {
