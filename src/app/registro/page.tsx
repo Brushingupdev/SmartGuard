@@ -696,7 +696,7 @@ export default function RegistroPage() {
       const client = createClient();
       const { data: { user } } = await client.auth.getUser();
       if (user?.email) {
-        setUserRole((user.user_metadata?.role as string) ?? null);
+        setUserRole((user.user_metadata?.role as string) ?? "guardia");
         const prefix = user.email.split("@")[0];
         setAgente(prefix.toUpperCase().replace(/\./g, " ").replace(/_/g, " "));
         // Leer planta desde user_metadata
