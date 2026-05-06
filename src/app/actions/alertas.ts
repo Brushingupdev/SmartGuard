@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { nowLima, daysAgoLima } from "./_helpers";
 
-export async function getAlertsData() {
+export async function getAlertsData(plant?: string) {
   const ctx = await getUserContext();
   const db = ctx?.isAdmin
     ? (await import("@/utils/supabase/admin")).createAdminClient()
@@ -21,6 +21,7 @@ export async function getAlertsData() {
     .order("espera_min", { ascending: false })
     .limit(50);
   if (!ctx?.isAdmin && ctx?.companyId) closedQuery = closedQuery.eq("company_id", ctx.companyId);
+  if (plant && plant !== "Todas") closedQuery = closedQuery.eq("planta", plant);
   const { data: closed } = await closedQuery;
 
   let pendingQuery = db
@@ -30,6 +31,7 @@ export async function getAlertsData() {
     .is("h_atencion", null)
     .not("h_registro", "is", null);
   if (!ctx?.isAdmin && ctx?.companyId) pendingQuery = pendingQuery.eq("company_id", ctx.companyId);
+  if (plant && plant !== "Todas") pendingQuery = pendingQuery.eq("planta", plant);
   const { data: pending } = await pendingQuery;
 
   const pendingAlerts = (pending || [])

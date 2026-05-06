@@ -11,8 +11,8 @@ export function AlertasRecientes({ plant, limit = 8 }: { plant: string; limit?: 
   const [collapsed, setCollapsed] = useState(false);
 
   const fetchAlertas = useCallback(async () => {
-    const { alertas: list } = await getAlertasRecientes();
-    setAlertas((list ?? []).filter((a) => !plant || plant === "Todas" || a.planta === plant).slice(0, limit));
+    const { alertas: list } = await getAlertasRecientes(plant);
+    setAlertas((list ?? []).slice(0, limit));
     setLoading(false);
   }, [plant, limit]);
 

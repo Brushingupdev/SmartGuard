@@ -327,27 +327,32 @@ export default function AlertasPage() {
   const [isAdmin,       setIsAdmin]       = useState(false);
   const [companiesMap,  setCompaniesMap]  = useState<Record<string, string>>({});
 
+  const [userPlant, setUserPlant] = useState<string | undefined>(undefined);
+
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [result, logs] = await Promise.all([getAlertsData(), getAlertLogs()]);
+      const [result, logs] = await Promise.all([getAlertsData(userPlant), getAlertLogs()]);
       setData(result);
       setAlertLogs(logs);
     } finally {
       if (isRefresh) setRefreshing(false); else setLoading(false);
     }
-  }, []);
+  }, [userPlant]);
 
   useEffect(() => {
     let active = true;
 
     const bootstrap = async () => {
       try {
-        const [result, logs, profile] = await Promise.all([getAlertsData(), getAlertLogs(), getUserProfile()]);
+        const profile = await getUserProfile();
+        const plant = profile?.plant ?? undefined;
+        const [result, logs] = await Promise.all([getAlertsData(plant), getAlertLogs()]);
         if (!active) return;
 
         setData(result);
         setAlertLogs(logs);
+        setUserPlant(plant);
         setIsAdmin(Boolean(profile?.isAdmin));
 
         if (!profile?.isAdmin) {

@@ -1061,19 +1061,23 @@ export async function cancelarCita(rawId: unknown) {
   return { success: true };
 }
 
-export async function getAlertasRecientes() {
+export async function getAlertasRecientes(plant?: string) {
   const ctx = await getUserContext();
   if (!ctx) return { alertas: [] as AlertQueueRow[] };
   const supabase = await createClient();
   const { date: today } = nowLima();
 
-  const query = supabase
+  let query = supabase
     .from("alert_queue")
     .select("id, razon_social, empresa, planta, espera_min, status, created_at, processed_at")
     .eq("company_id", ctx.companyId!)
     .gte("created_at", `${today}T00:00:00`)
     .order("created_at", { ascending: false })
     .limit(20);
+
+  if (plant && plant !== "Todas") {
+    query = query.eq("planta", plant);
+  }
 
   const { data, error } = await query;
   if (error) {
