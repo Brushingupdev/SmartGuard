@@ -119,8 +119,8 @@ export async function middleware(request: NextRequest) {
     const isSupervisor = metaRole === 'supervisor';
     const path = request.nextUrl.pathname;
 
-    // Guardias: solo /registro
-    if (isGuardia && (path.startsWith('/dashboard') || path.startsWith('/historial') || path.startsWith('/alertas') || path.startsWith('/usuarios') || path.startsWith('/reporte'))) {
+    // Guardias: solo /registro y /alertas
+    if (isGuardia && (path.startsWith('/dashboard') || path.startsWith('/historial') || path.startsWith('/usuarios') || path.startsWith('/reporte'))) {
       const url = request.nextUrl.clone()
       url.pathname = '/registro'
       return NextResponse.redirect(url)
