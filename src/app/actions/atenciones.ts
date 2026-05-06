@@ -197,6 +197,8 @@ export async function updateAtencion(rawId: unknown, rawData: unknown) {
       update.segmento_espera  = null;
       update.segmento_orden   = 0;
       update.es_demora        = 0;
+      update.ultima_alerta_proactiva_at = null;
+      update.motivo_demora    = null;
     }
   }
 

@@ -10,9 +10,6 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Lima = UTC-5 (sin horario de verano)
 const LIMA_OFFSET_MS = -5 * 60 * 60 * 1000;
 
-// Intervalo de re-alerta para vehículos con hora_cita (en minutos)
-const CITA_REPEAT_MIN = 15;
-
 function limaNow(): { totalMin: number } {
   const d  = new Date(Date.now() + LIMA_OFFSET_MS);
   return { totalMin: d.getUTCHours() * 60 + d.getUTCMinutes() };
@@ -59,7 +56,8 @@ Deno.serve(async (_req) => {
       .select("id, h_registro, hora_cita, ultima_alerta_proactiva_at, planta, razon_social, empresa")
       .eq("company_id", company.id)
       .eq("fecha", today)
-      .is("h_atencion", null);
+      .is("h_atencion", null)
+      .not("h_registro", "is", null);
 
     if (atErr) {
       console.error(`[check_proactive_alerts] Error fetching atenciones (${company.id}):`, atErr);
@@ -79,7 +77,7 @@ Deno.serve(async (_req) => {
         if (nowMin < citaMin) continue;  // Cita aún no llegó (mismo día)
         waitMin           = diffMin(citaMin, nowMin);
         threshold         = 0;              // Alerta desde el momento exacto de la cita
-        repeatIntervalMin = CITA_REPEAT_MIN; // Repetir cada 15 min
+        repeatIntervalMin = alertaMinutos;   // Re-alertar según umbral configurado
       } else {
         // ── Vehículo sin cita ────────────────────────────────────────────────────
         const regMin = toMin(at.h_registro as string);
