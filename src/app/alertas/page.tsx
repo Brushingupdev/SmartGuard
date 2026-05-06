@@ -324,6 +324,12 @@ export default function AlertasPage() {
   const [selectedAlert, setSelectedAlert] = useState<AlertDetail | null>(null);
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [alertLogs,     setAlertLogs]     = useState<AlertLogRow[]>([]);
+  const [logsPage,      setLogsPage]      = useState(1);
+
+  useEffect(() => {
+    setLogsPage(1);
+  }, [alertLogs.length]);
+  const LOGS_PAGE_SIZE = 10;
   const [isAdmin,       setIsAdmin]       = useState(false);
   const [companiesMap,  setCompaniesMap]  = useState<Record<string, string>>({});
 
@@ -640,7 +646,7 @@ export default function AlertasPage() {
         <div className="mt-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="sg-kicker">Alertas Enviadas</div>
-            <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">últimas 50</span>
+            <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">{alertLogs.length} total</span>
           </div>
           <div className="sg-panel overflow-x-auto">
             <table className="sg-table min-w-[640px]">
@@ -656,7 +662,11 @@ export default function AlertasPage() {
                 </tr>
               </thead>
               <tbody>
-                {alertLogs.map((log) => (
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
+                  const page = Math.min(logsPage, totalPages);
+                  const paginated = alertLogs.slice((page - 1) * LOGS_PAGE_SIZE, page * LOGS_PAGE_SIZE);
+                  return paginated.map((log) => (
                   <tr key={log.id}>
                     <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] whitespace-nowrap">
                       {new Date(log.created_at).toLocaleString("es-PE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
@@ -685,9 +695,35 @@ export default function AlertasPage() {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  ));
+                })()}
               </tbody>
             </table>
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
+              if (totalPages <= 1) return null;
+              return (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--sg-line)]">
+                  <button
+                    onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                    disabled={logsPage === 1}
+                    className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                    {logsPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setLogsPage(p => Math.min(totalPages, p + 1))}
+                    disabled={logsPage === totalPages}
+                    className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
