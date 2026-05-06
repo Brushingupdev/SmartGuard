@@ -63,6 +63,40 @@ export async function createAtencion(rawData: unknown) {
 
   const { date: dateStr, time: timeStr, year, month } = nowLima();
 
+  // Check de duplicado: mismo vehículo pendiente hoy misma planta
+  const { count: dupCount } = await supabase
+    .from("atenciones")
+    .select("*", { count: "exact", head: true })
+    .eq("razon_social", data.razonSocial)
+    .eq("planta", data.plant)
+    .eq("fecha", dateStr)
+    .eq("company_id", ctx.companyId)
+    .is("h_atencion", null);
+
+  if (dupCount && dupCount > 0) {
+    return { success: false, error: "Ya existe un registro pendiente para este vehículo hoy en esta planta." };
+  }
+
+  // Si no especificó hora_cita, verificar si hay una cita programada para este vehículo
+  if (!data.horaCita) {
+    const { data: citaMatch } = await supabase
+      .from("atenciones")
+      .select("id, hora_cita")
+      .eq("razon_social", data.razonSocial)
+      .eq("planta", data.plant)
+      .eq("company_id", ctx.companyId)
+      .eq("estado", "esperado")
+      .maybeSingle();
+
+    if (citaMatch) {
+      const hora = (citaMatch.hora_cita as string)?.substring(0, 5) ?? "?";
+      return {
+        success: false,
+        error: `Hay una cita pendiente para este vehículo a las ${hora}. Usa el botón "Llegó" en Citas del Día para activarla, o especifica la hora de cita si es otra.`,
+      };
+    }
+  }
+
   const payload = {
     fecha: dateStr,
     h_registro: timeStr,
@@ -841,10 +875,15 @@ export async function preRegisterCita(rawData: unknown) {
     return { success: false, error: "Debe tener una empresa asignada" };
   }
 
-  const { date: dateStr, year, month } = nowLima();
+  const { date: todayStr, year: todayYear, month: todayMonth } = nowLima();
+
+  const fechaStr = data.fecha || todayStr;
+  const parts = fechaStr.split("-").map(Number);
+  const anio = parts[0] ?? todayYear;
+  const mesNum = parts[1] ?? todayMonth;
 
   const payload = {
-    fecha: dateStr,
+    fecha: fechaStr,
     h_registro: null,     // ← trigger auto-set estado = 'esperado'
     hora_cita: data.horaCita + ":00",
     razon_social: data.razonSocial || null,
@@ -859,8 +898,8 @@ export async function preRegisterCita(rawData: unknown) {
     espera_min: null,
     es_demora: 0,
     segmento_orden: 0,
-    anio: year,
-    mes_num: month,
+    anio: anio,
+    mes_num: mesNum,
     company_id: ctx.companyId,
   };
 
@@ -912,8 +951,8 @@ export async function activateCita(rawData: unknown) {
   return { success: true };
 }
 
-// Obtiene las citas del día para una planta.
-// Devuelve registros con estado 'esperado' o 'activo' de hoy.
+// Obtiene las citas para una planta: de hoy en adelante, estado esperado/activo.
+// Ordenadas por fecha y hora de cita.
 export async function getCitasDelDia(plant: string) {
   const ctx = await getUserContext();
   const supabase = await createClient();
@@ -922,11 +961,12 @@ export async function getCitasDelDia(plant: string) {
   let query = supabase
     .from("atenciones")
     .select(
-      "id, razon_social, empresa, planta, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min"
+      "id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min"
     )
-    .eq("fecha", dateStr)
+    .gte("fecha", dateStr)
     .eq("planta", plant)
     .in("estado", ["esperado", "activo"])
+    .order("fecha", { ascending: true })
     .order("hora_cita", { ascending: true });
 
   if (!ctx?.isAdmin && ctx?.companyId) {
@@ -944,6 +984,7 @@ export async function getCitasDelDia(plant: string) {
     razonSocial: (c.razon_social as string) || "—",
     empresa: (c.empresa as string) || "—",
     planta: c.planta as string,
+    fecha: (c.fecha as string) || "",
     horaCita: c.hora_cita ? (c.hora_cita as string).substring(0, 5) : "—",
     hRegistro: c.h_registro ? (c.h_registro as string).substring(0, 5) : null,
     hAtencion: c.h_atencion ? (c.h_atencion as string).substring(0, 5) : null,

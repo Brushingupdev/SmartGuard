@@ -76,6 +76,7 @@ Deno.serve(async (_req) => {
         const citaMin = toMin(at.hora_cita as string);
         if (nowMin < citaMin) continue;  // Cita aún no llegó (mismo día)
         waitMin           = diffMin(citaMin, nowMin);
+        if (waitMin > 720) continue;     // sanity: cita aún no llegó (e.g. 00:00 detectado como 23:50)
         threshold         = 0;              // Alerta desde el momento exacto de la cita
         repeatIntervalMin = alertaMinutos;   // Re-alertar según umbral configurado
       } else {

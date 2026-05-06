@@ -1,8 +1,8 @@
 "use client";
 
-import { CalendarClock, LogIn, Plus, X } from "lucide-react";
+import { CalendarClock, LogIn, Pencil, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { preRegisterCita, activateCita, cancelarCita } from "@/app/actions";
+import { preRegisterCita, activateCita, cancelarCita, updateAtencion } from "@/app/actions";
 import { humanizeError } from "@/lib/humanizeError";
 
 export type CitaRow = {
@@ -10,6 +10,7 @@ export type CitaRow = {
   razonSocial: string;
   empresa: string;
   planta: string;
+  fecha: string;
   horaCita: string;
   hRegistro: string | null;
   hAtencion: string | null;
@@ -34,15 +35,44 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
   const [formRazon, setFormRazon] = useState("");
   const [formEmpresa, setFormEmpresa] = useState("");
   const [formHora, setFormHora] = useState("");
+  const [formFecha, setFormFecha] = useState("");
   const [formResponsable, setFormResponsable] = useState("");
   const [formPending, setFormPending] = useState(false);
   const [activatingIds, setActivatingIds] = useState<Set<number>>(new Set());
   const [cancellingIds, setCancellingIds] = useState<Set<number>>(new Set());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editHora, setEditHora] = useState("");
+  const [editRazon, setEditRazon] = useState("");
+  const [editEmpresa, setEditEmpresa] = useState("");
+  const [editResponsable, setEditResponsable] = useState("");
+  const [editPending, setEditPending] = useState(false);
+
+  const handleEdit = async (id: number) => {
+    setEditPending(true);
+    const r = await updateAtencion(id, {
+      razonSocial: editRazon || "Cita programada",
+      empresa: editEmpresa || "—",
+      type: "Proveedor",
+      tipoOperacion: "Carga",
+      responsable: editResponsable || undefined,
+      note: undefined,
+      horaCita: editHora || null,
+    });
+    setEditPending(false);
+    if (r.success) {
+      onToast("Cita actualizada.");
+      setEditingId(null);
+      onRefresh();
+    } else {
+      onToast(humanizeError(r.error));
+    }
+  };
 
   const handlePreRegister = async () => {
     setFormPending(true);
     const r = await preRegisterCita({
       horaCita: formHora,
+      fecha: formFecha || undefined,
       plant,
       razonSocial: formRazon,
       empresa: formEmpresa,
@@ -54,6 +84,7 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
       setFormRazon("");
       setFormEmpresa("");
       setFormHora("");
+      setFormFecha("");
       setFormResponsable("");
       setShowForm(false);
       onRefresh();
@@ -131,6 +162,17 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
               />
             </div>
             <div className="sg-field">
+              <label className="sg-label text-[11px]">Fecha (opcional, default hoy)</label>
+              <input
+                type="date"
+                value={formFecha}
+                onChange={(e) => setFormFecha(e.target.value)}
+                className="sg-input text-sm"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <div className="sg-field">
               <label className="sg-label text-[11px]">Razón Social</label>
               <input
                 type="text"
@@ -188,11 +230,15 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
             const nowMin = now.getHours() * 60 + now.getMinutes();
             const [ch, cm] = c.horaCita.split(":").map(Number);
             const citaMin = ch * 60 + cm;
-            const delayMin = citaMin < nowMin ? nowMin - citaMin : 0;
+
+            const todayStr = now.toISOString().substring(0, 10);
+            const isToday = !c.fecha || c.fecha <= todayStr;
+
+            const delayMin = isToday && citaMin < nowMin ? nowMin - citaMin : 0;
             const diff = citaMin - nowMin;
 
-            const isLate = c.estado === "esperado" && delayMin >= 10;
-            const isSoon = c.estado === "esperado" && !isLate && diff <= 15 && diff > 0;
+            const isLate = isToday && c.estado === "esperado" && delayMin >= 10;
+            const isSoon = isToday && c.estado === "esperado" && !isLate && diff <= 15 && diff > 0;
             const isActive = c.estado === "activo";
 
             let badge = "";
@@ -206,8 +252,11 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
             } else if (isActive) {
               badge = "Llegó";
               badgeColor = "var(--sg-success)";
-            } else {
+            } else if (isToday) {
               badge = "En " + diff + " min";
+              badgeColor = "var(--sg-muted)";
+            } else {
+              badge = "Programada";
               badgeColor = "var(--sg-muted)";
             }
 
@@ -244,6 +293,11 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
                       {c.responsable}
                     </p>
                   )}
+                  {!isToday && c.fecha && (
+                    <p className="text-[10px] text-[var(--sg-accent)]">
+                      {c.fecha}
+                    </p>
+                  )}
                   <span
                     className="inline-block mt-1 sg-font-mono text-[9px] uppercase tracking-widest"
                     style={{ color: badgeColor }}
@@ -254,21 +308,68 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
                 <div className="flex items-center gap-1 shrink-0">
                   {c.estado === "esperado" && (
                     <>
-                      <button
-                        onClick={() => handleActivate(c.id)}
-                        disabled={activatingIds.has(c.id)}
-                        className="sg-font-mono text-[9px] uppercase tracking-widest bg-[var(--sg-accent)] text-[var(--sg-canvas)] px-2.5 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
-                      >
+                      {editingId === c.id ? (
+                        <div className="flex flex-col gap-1 w-[160px]">
+                          <input
+                            type="time"
+                            value={editHora}
+                            onChange={e => setEditHora(e.target.value)}
+                            className="sg-input text-[10px] h-7"
+                          />
+                          <input
+                            type="text"
+                            value={editRazon}
+                            onChange={e => setEditRazon(e.target.value.toUpperCase())}
+                            placeholder="Razón social"
+                            className="sg-input text-[10px] h-7 uppercase"
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEdit(c.id)}
+                              disabled={editPending}
+                              className="sg-font-mono text-[8px] uppercase bg-[var(--sg-accent)] text-[var(--sg-canvas)] px-2 py-1"
+                            >
+                              {editPending ? "..." : "Guardar"}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="sg-font-mono text-[8px] uppercase text-[var(--sg-muted)] px-1 py-1"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingId(c.id);
+                              setEditHora(c.horaCita);
+                              setEditRazon(c.razonSocial !== "—" ? c.razonSocial : "");
+                              setEditEmpresa(c.empresa !== "—" ? c.empresa : "");
+                              setEditResponsable(c.responsable || "");
+                            }}
+                            className="text-[10px] text-[var(--sg-muted)] hover:text-[var(--sg-accent)] px-1.5 py-1.5"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => handleActivate(c.id)}
+                            disabled={activatingIds.has(c.id)}
+                            className="sg-font-mono text-[9px] uppercase tracking-widest bg-[var(--sg-accent)] text-[var(--sg-canvas)] px-2.5 py-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
+                          >
                         {activatingIds.has(c.id) ? "..." : "Llegó"}
-                      </button>
-                      <button
-                        onClick={() => handleCancel(c.id)}
-                        disabled={cancellingIds.has(c.id)}
-                        className="text-[10px] text-[var(--sg-muted)] hover:text-[var(--sg-danger)] px-1.5 py-1.5 disabled:opacity-30"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </>
+                          </button>
+                          <button
+                            onClick={() => handleCancel(c.id)}
+                            disabled={cancellingIds.has(c.id)}
+                            className="text-[10px] text-[var(--sg-muted)] hover:text-[var(--sg-danger)] px-1.5 py-1.5 disabled:opacity-30"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}  // close inner Fragment, close ternary
+                    </>     // close outer Fragment
                   )}
                 </div>
               </div>

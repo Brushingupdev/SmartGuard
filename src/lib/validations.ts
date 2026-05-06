@@ -102,6 +102,10 @@ export const preRegisterCitaSchema = z
       .string()
       .regex(/^\d{2}:\d{2}$/, "Hora de cita obligatoria (formato HH:MM)"),
     plant: nonEmptyString,
+    fecha: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD")
+      .optional(),
     razonSocial: z.string().max(200).transform((v) => v.trim()).optional(),
     empresa: z.string().max(200).transform((v) => v.trim()).optional(),
     responsable: z.string().max(150).transform((v) => v.trim()).optional(),
