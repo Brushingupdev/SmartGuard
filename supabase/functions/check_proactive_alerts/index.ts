@@ -1,5 +1,5 @@
 // Edge Function: check_proactive_alerts
-// Con hora_cita: alerta al llegar la cita, luego cada 15 min.
+// Con hora_cita: alerta al llegar la cita, luego cada alertaMinutos.
 // Sin hora_cita: alerta al superar umbral de empresa, luego cada alertaMinutos.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.104.1";
@@ -22,6 +22,7 @@ function limaToday(): string {
 
 function toMin(t: string): number {
   const [hh, mm] = t.split(":").map(Number);
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return NaN;
   return hh * 60 + mm;
 }
 
@@ -51,11 +52,15 @@ Deno.serve(async (_req) => {
   for (const company of companies ?? []) {
     const alertaMinutos: number = company.alerta_minutos ?? 45;
 
+    const yesterday = new Date(Date.now() + LIMA_OFFSET_MS - 86_400_000)
+      .toISOString()
+      .substring(0, 10);
+
     const { data: atenciones, error: atErr } = await supabase
       .from("atenciones")
-      .select("id, h_registro, hora_cita, ultima_alerta_proactiva_at, planta, razon_social, empresa")
+      .select("id, fecha, h_registro, hora_cita, ultima_alerta_proactiva_at, planta, razon_social, empresa")
       .eq("company_id", company.id)
-      .eq("fecha", today)
+      .gte("fecha", yesterday)
       .is("h_atencion", null)
       .not("h_registro", "is", null);
 
@@ -67,37 +72,46 @@ Deno.serve(async (_req) => {
     for (const at of atenciones ?? []) {
       totalChecked++;
 
+      const registroMin = toMin(at.h_registro as string);
+      if (Number.isNaN(registroMin)) {
+        console.error(`[check_proactive_alerts] h_registro inválido atencion=${at.id}: "${at.h_registro}"`);
+        continue;
+      }
+
       let waitMin: number;
       let repeatIntervalMin: number;
       let threshold: number;
 
       if (at.hora_cita) {
-        // ── Vehículo con cita ────────────────────────────────────────────────────
         const citaMin = toMin(at.hora_cita as string);
-        if (nowMin < citaMin) continue;  // Cita aún no llegó (mismo día)
-        waitMin           = diffMin(citaMin, nowMin);
-        if (waitMin > 720) continue;     // sanity: cita aún no llegó (e.g. 00:00 detectado como 23:50)
-        threshold         = 0;              // Alerta desde el momento exacto de la cita
-        repeatIntervalMin = alertaMinutos;   // Re-alertar según umbral configurado
+        if (Number.isNaN(citaMin)) {
+          console.error(`[check_proactive_alerts] hora_cita inválida atencion=${at.id}: "${at.hora_cita}"`);
+          continue;
+        }
+
+        if ((at.fecha as string) === today) {
+          if (nowMin < citaMin) continue;
+          waitMin = diffMin(citaMin, nowMin);
+        } else {
+          waitMin = nowMin + (1440 - citaMin);
+        }
+
+        threshold         = 0;
+        repeatIntervalMin = alertaMinutos;
       } else {
-        // ── Vehículo sin cita ────────────────────────────────────────────────────
-        const regMin = toMin(at.h_registro as string);
-        waitMin           = diffMin(regMin, nowMin);
-        threshold         = alertaMinutos;  // Alerta al superar el umbral
-        repeatIntervalMin = alertaMinutos;  // Repetir cada alertaMinutos
+        waitMin           = diffMin(registroMin, nowMin);
+        threshold         = alertaMinutos;
+        repeatIntervalMin = alertaMinutos;
       }
 
-      // ¿Supera el umbral?
       if (waitMin < threshold) continue;
 
-      // Deduplicación: ¿se envió alerta hace menos de repeatIntervalMin?
       if (at.ultima_alerta_proactiva_at) {
         const lastMs           = new Date(at.ultima_alerta_proactiva_at as string).getTime();
         const minutesSinceLast = (Date.now() - lastMs) / 60_000;
         if (minutesSinceLast < repeatIntervalMin) continue;
       }
 
-      // Insertar en cola de alertas
       const { error: qErr } = await supabase.from("alert_queue").insert({
         company_id:   company.id,
         atencion_id:  at.id,
@@ -113,10 +127,14 @@ Deno.serve(async (_req) => {
         continue;
       }
 
-      await supabase
+      const { error: updErr } = await supabase
         .from("atenciones")
         .update({ ultima_alerta_proactiva_at: new Date().toISOString() })
         .eq("id", at.id);
+
+      if (updErr) {
+        console.error(`[check_proactive_alerts] Error updating ultima_alerta atencion=${at.id}:`, updErr);
+      }
 
       console.log(`[check_proactive_alerts] Alerta encolada: atencion=${at.id}, espera=${waitMin}min, conCita=${!!at.hora_cita}`);
       totalAlerted++;

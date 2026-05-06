@@ -93,7 +93,22 @@ Deno.serve(async (_req) => {
         ]),
       ].filter(Boolean);
 
-      // 3. Enviar alertas en paralelo
+      // 3. Verificar que haya al menos un destinatario
+      if (allEmails.length === 0 && allPhones.length === 0) {
+        await supabase
+          .from("alert_queue")
+          .update({
+            status: "failed",
+            last_error: "Sin destinatarios (sin emails ni teléfonos configurados)",
+            processed_at: new Date().toISOString(),
+            processing_started_at: null,
+          })
+          .eq("id", alert.id);
+        failed++;
+        continue;
+      }
+
+      // 4. Enviar alertas en paralelo
       const results = await Promise.allSettled([
         ...allEmails.map((email) =>
           sendEmailAlert({
@@ -118,7 +133,7 @@ Deno.serve(async (_req) => {
         ),
       ]);
 
-      // 4. Log de resultados
+      // 5. Log de resultados individuales
       const logPromises: Promise<unknown>[] = [];
       for (let i = 0; i < allEmails.length; i++) {
         logPromises.push(
@@ -152,7 +167,27 @@ Deno.serve(async (_req) => {
       }
       await Promise.allSettled(logPromises);
 
-      // 5. Marcar como sent
+      // 6. Determinar estado final: "sent" solo si al menos un canal funcionó
+      const allFailed = results.length > 0 && results.every(r => r.status === "rejected");
+      if (allFailed) {
+        const maxAttempts = alert.max_attempts ?? 3;
+        const nextAttempts = (alert.attempts ?? 0) + 1;
+        const firstFailed = results.find(r => r.status === "rejected");
+        const reason = firstFailed && "reason" in firstFailed ? firstFailed.reason : null;
+        const errorMsg = reason instanceof Error ? reason.message : String(reason ?? "todos los canales fallaron");
+        await supabase
+          .from("alert_queue")
+          .update({
+            status: nextAttempts >= maxAttempts ? "failed" : "pending",
+            attempts: nextAttempts,
+            last_error: errorMsg,
+            processing_started_at: null,
+          })
+          .eq("id", alert.id);
+        failed++;
+        continue;
+      }
+
       await supabase
         .from("alert_queue")
         .update({
@@ -167,11 +202,14 @@ Deno.serve(async (_req) => {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(`Alert ${alert.id} failed:`, errorMsg);
 
+      const maxAttempts = typeof alert.max_attempts === "number" ? alert.max_attempts : 3;
+      const nextAttempts = (alert.attempts ?? 0) + 1;
+
       await supabase
         .from("alert_queue")
         .update({
-          status: alert.attempts + 1 >= alert.max_attempts ? "failed" : "pending",
-          attempts: alert.attempts + 1,
+          status: nextAttempts >= maxAttempts ? "failed" : "pending",
+          attempts: nextAttempts,
           last_error: errorMsg,
           processing_started_at: null,
         })

@@ -45,6 +45,8 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
   const [editRazon, setEditRazon] = useState("");
   const [editEmpresa, setEditEmpresa] = useState("");
   const [editResponsable, setEditResponsable] = useState("");
+  const [editTipo, setEditTipo] = useState("Proveedor");
+  const [editTipoOperacion, setEditTipoOperacion] = useState<string | null>(null);
   const [editPending, setEditPending] = useState(false);
 
   const handleEdit = async (id: number) => {
@@ -52,8 +54,8 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
     const r = await updateAtencion(id, {
       razonSocial: editRazon || "Cita programada",
       empresa: editEmpresa || "—",
-      type: "Proveedor",
-      tipoOperacion: "Carga",
+      type: editTipo,
+      tipoOperacion: editTipoOperacion || "Carga",
       responsable: editResponsable || undefined,
       note: undefined,
       horaCita: editHora || null,
@@ -228,17 +230,19 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
           {citas.map((c) => {
             const now = new Date();
             const nowMin = now.getHours() * 60 + now.getMinutes();
-            const [ch, cm] = c.horaCita.split(":").map(Number);
-            const citaMin = ch * 60 + cm;
+            const parts = c.horaCita.split(":").map(Number);
+            const citaMin = parts.length === 2 && !Number.isNaN(parts[0]) && !Number.isNaN(parts[1])
+              ? parts[0] * 60 + parts[1]
+              : null;
 
             const todayStr = now.toISOString().substring(0, 10);
             const isToday = !c.fecha || c.fecha <= todayStr;
 
-            const delayMin = isToday && citaMin < nowMin ? nowMin - citaMin : 0;
-            const diff = citaMin - nowMin;
+            const delayMin = isToday && citaMin !== null && citaMin < nowMin ? nowMin - citaMin : 0;
+            const diff = citaMin !== null ? citaMin - nowMin : 0;
 
             const isLate = isToday && c.estado === "esperado" && delayMin >= 10;
-            const isSoon = isToday && c.estado === "esperado" && !isLate && diff <= 15 && diff > 0;
+            const isSoon = isToday && c.estado === "esperado" && !isLate && diff > 0 && diff <= 15;
             const isActive = c.estado === "activo";
 
             let badge = "";
@@ -252,9 +256,14 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
             } else if (isActive) {
               badge = "Llegó";
               badgeColor = "var(--sg-success)";
-            } else if (isToday) {
-              badge = "En " + diff + " min";
-              badgeColor = "var(--sg-muted)";
+            } else if (isToday && citaMin !== null) {
+              if (diff < 0) {
+                badge = "Hace " + Math.abs(diff) + " min";
+                badgeColor = "var(--sg-muted)";
+              } else {
+                badge = "En " + diff + " min";
+                badgeColor = "var(--sg-muted)";
+              }
             } else {
               badge = "Programada";
               badgeColor = "var(--sg-muted)";
@@ -348,6 +357,8 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
                               setEditRazon(c.razonSocial !== "—" ? c.razonSocial : "");
                               setEditEmpresa(c.empresa !== "—" ? c.empresa : "");
                               setEditResponsable(c.responsable || "");
+                              setEditTipo(c.tipo || "Proveedor");
+                              setEditTipoOperacion(c.tipoOperacion);
                             }}
                             className="text-[10px] text-[var(--sg-muted)] hover:text-[var(--sg-accent)] px-1.5 py-1.5"
                           >

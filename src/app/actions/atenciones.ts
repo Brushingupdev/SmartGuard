@@ -64,16 +64,18 @@ export async function createAtencion(rawData: unknown) {
   const { date: dateStr, time: timeStr, year, month } = nowLima();
 
   // Check de duplicado: mismo vehículo pendiente hoy misma planta
-  const { count: dupCount } = await supabase
+  const { data: existing } = await supabase
     .from("atenciones")
-    .select("*", { count: "exact", head: true })
+    .select("id")
     .eq("razon_social", data.razonSocial)
     .eq("planta", data.plant)
     .eq("fecha", dateStr)
     .eq("company_id", ctx.companyId)
-    .is("h_atencion", null);
+    .is("h_atencion", null)
+    .limit(1)
+    .maybeSingle();
 
-  if (dupCount && dupCount > 0) {
+  if (existing) {
     return { success: false, error: "Ya existe un registro pendiente para este vehículo hoy en esta planta." };
   }
 
@@ -713,6 +715,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
     type: d.tipo || "Proveedor",
     time: d.h_registro ? d.h_registro.substring(0, 5) : "--:--",
     reason: d.tipo_operacion || d.motivo_demora || "Ingreso",
+    tipoOperacion: d.tipo_operacion || null,
     responsable: d.responsable || "",
     agente: d.agente || "",
     observacion: d.observacion || "",
@@ -932,11 +935,26 @@ export async function activateCita(rawData: unknown) {
 
   const { time: timeStr } = nowLima();
 
+  let baseQuery = supabase
+    .from("atenciones")
+    .select("id")
+    .eq("id", id)
+    .eq("estado", "esperado");
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    baseQuery = baseQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { data: existing } = await baseQuery.maybeSingle();
+  if (!existing) {
+    return { success: false, error: "Esta cita ya fue activada o cancelada por otro usuario." };
+  }
+
   let updQuery = supabase
     .from("atenciones")
     .update({ h_registro: timeStr })
     .eq("id", id)
-    .eq("estado", "esperado"); // solo citas no activadas
+    .eq("estado", "esperado");
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     updQuery = updQuery.eq("company_id", ctx.companyId);
@@ -1009,11 +1027,26 @@ export async function cancelarCita(rawId: unknown) {
   const writeError = await checkWriteAccess();
   if (writeError) return { success: false, error: writeError };
 
+  let baseQuery = supabase
+    .from("atenciones")
+    .select("id")
+    .eq("id", id)
+    .eq("estado", "esperado");
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    baseQuery = baseQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { data: existing } = await baseQuery.maybeSingle();
+  if (!existing) {
+    return { success: false, error: "Esta cita ya fue cancelada o activada por otro usuario." };
+  }
+
   let delQuery = supabase
     .from("atenciones")
     .delete()
     .eq("id", id)
-    .eq("estado", "esperado"); // solo citas que aún no se activaron
+    .eq("estado", "esperado");
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     delQuery = delQuery.eq("company_id", ctx.companyId);

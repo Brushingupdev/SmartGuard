@@ -282,7 +282,7 @@ function EditModal({
   const [razonSocial, setRazonSocial] = useState(reg.razonSocial || "");
   const [empresa, setEmpresa] = useState(reg.empresa || "");
   const [type, setType] = useState(reg.type || "Proveedor");
-  const [tipoOperacion, setTipoOperacion] = useState(reg.reason || "Carga");
+  const [tipoOperacion, setTipoOperacion] = useState(reg.tipoOperacion || "Carga");
   const [responsable, setResponsable] = useState(reg.responsable || responsablesList[0] || "");
   const [agente, setAgente] = useState(reg.agente || "");
   const [note, setNote] = useState(reg.observacion || "");
@@ -746,19 +746,32 @@ export default function RegistroPage() {
   // actual sin necesidad de recrear la suscripcion cada vez que cambia la planta.
   useEffect(() => {
     if (!userReady) return;
-    const cleanupRef = { fn: undefined as (() => void) | undefined };
+    let client: Awaited<ReturnType<typeof import("@/utils/supabase/client").createClient>> | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let channel: any = null;
+    let mounted = true;
+
     (async () => {
       const { createClient } = await import("@/utils/supabase/client");
-      const client = createClient();
-      const channel = client
+      client = createClient();
+      channel = client
         .channel("atenciones-registro-live")
         .on("postgres_changes", { event: "*", schema: "public", table: "atenciones" }, () => {
           if (plantRef.current) fetchRecentRef.current?.(plantRef.current, true);
         })
         .subscribe();
-      cleanupRef.fn = () => { client.removeChannel(channel); };
+
+      if (!mounted && channel) {
+        client.removeChannel(channel);
+        channel = null;
+        client = null;
+      }
     })();
-    return () => { cleanupRef.fn?.(); };
+
+    return () => {
+      mounted = false;
+      if (channel && client) client.removeChannel(channel);
+    };
   }, [userReady]);
 
   // Filtrado y paginación client-side
@@ -796,6 +809,10 @@ export default function RegistroPage() {
         setShowToast(true);
         setRazonSocial("");
         setEmpresa("");
+        setType("Proveedor");
+        setTipoOperacion("Carga");
+        setResponsable("");
+        setAgente("");
         setNote("");
         setHoraCita("");
         fetchRecent(plant);
@@ -911,8 +928,8 @@ export default function RegistroPage() {
   const handleEditSave = async (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => {
     if (!editingReg) return;
     const result = await updateAtencion(editingReg.id, data);
-    setEditingReg(null);
     if (result.success) {
+      setEditingReg(null);
       setToastMsg("Registro actualizado correctamente.");
       setShowToast(true);
       fetchRecent(plant);
