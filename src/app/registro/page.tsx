@@ -6,6 +6,7 @@ import RegistroWizard from "@/components/RegistroWizard";
 import PlacaInput from "@/components/PlacaInput";
 import TarjetaRegistro from "@/components/TarjetaRegistro";
 import CitasDelDia from "@/components/CitasDelDia";
+import { AlertasRecientes } from "@/components/AlertasRecientes";
 import {
   createAtencion,
   closeAtencion,
@@ -1232,6 +1233,8 @@ export default function RegistroPage() {
               </motion.button>
             </form>
           </section>
+
+          <AlertasRecientes plant={plant} />
 
           <div className="border border-[var(--sg-line)] bg-[#1B1C1D] p-5">
             <div className="flex items-center gap-3">
