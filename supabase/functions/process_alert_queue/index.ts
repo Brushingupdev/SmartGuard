@@ -183,8 +183,7 @@ async function sendEmailAlert(opts: {
   esperaMin: number;
 }) {
   if (!RESEND_API_KEY) {
-    console.warn("RESEND_API_KEY not configured, skipping email");
-    return;
+    throw new Error("RESEND_API_KEY no configurada, no se puede enviar email");
   }
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -231,8 +230,7 @@ async function sendWhatsAppAlert(opts: {
   hRegistro?: string;
 }) {
   if (!GREEN_API_INSTANCE || !GREEN_API_TOKEN) {
-    console.warn("[WhatsApp] GREEN_API_INSTANCE o GREEN_API_TOKEN no configurados, omitiendo");
-    return;
+    throw new Error("GREEN_API_INSTANCE o GREEN_API_TOKEN no configurados, no se puede enviar WhatsApp");
   }
 
   const seg =

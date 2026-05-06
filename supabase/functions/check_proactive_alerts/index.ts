@@ -28,6 +28,11 @@ function toMin(t: string): number {
   return hh * 60 + mm;
 }
 
+function diffMin(from: number, to: number): number {
+  const d = to - from;
+  return d < 0 ? d + 1440 : d;
+}
+
 Deno.serve(async (_req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const today    = limaToday();
@@ -71,15 +76,14 @@ Deno.serve(async (_req) => {
       if (at.hora_cita) {
         // ── Vehículo con cita ────────────────────────────────────────────────────
         const citaMin = toMin(at.hora_cita as string);
-        if (nowMin < citaMin) continue; // Cita aún no llegó
-        waitMin           = nowMin - citaMin;
+        if (nowMin < citaMin) continue;  // Cita aún no llegó (mismo día)
+        waitMin           = diffMin(citaMin, nowMin);
         threshold         = 0;              // Alerta desde el momento exacto de la cita
         repeatIntervalMin = CITA_REPEAT_MIN; // Repetir cada 15 min
       } else {
         // ── Vehículo sin cita ────────────────────────────────────────────────────
         const regMin = toMin(at.h_registro as string);
-        const diff   = nowMin - regMin;
-        waitMin           = diff < 0 ? diff + 1440 : diff;
+        waitMin           = diffMin(regMin, nowMin);
         threshold         = alertaMinutos;  // Alerta al superar el umbral
         repeatIntervalMin = alertaMinutos;  // Repetir cada alertaMinutos
       }

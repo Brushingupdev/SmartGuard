@@ -96,6 +96,35 @@ export const closeAtencionDocsSchema = z.object({
   id: z.number().int().positive("ID inválido"),
 });
 
+export const preRegisterCitaSchema = z
+  .object({
+    horaCita: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/, "Hora de cita obligatoria (formato HH:MM)"),
+    plant: nonEmptyString,
+    razonSocial: z.string().max(200).transform((v) => v.trim()).optional(),
+    empresa: z.string().max(200).transform((v) => v.trim()).optional(),
+    responsable: z.string().max(150).transform((v) => v.trim()).optional(),
+    agente: z.string().max(150).transform((v) => v.trim()).optional(),
+    type: z
+      .enum(["Proveedor", "Propio", "Cliente", "Otro"])
+      .optional(),
+    tipoOperacion: z.string().max(100).transform((v) => v.trim()).optional(),
+    note: z.string().max(500).transform((v) => v.trim()).optional(),
+  })
+  .refine(
+    (d) => {
+      const has = [d.razonSocial, d.empresa, d.responsable, d.agente]
+        .some((v) => v && v.length > 0);
+      return has;
+    },
+    { message: "Debe indicar al menos Razón Social, Empresa, Responsable o Agente" }
+  );
+
+export const activateCitaSchema = z.object({
+  id: z.number().int().positive("ID inválido"),
+});
+
 export const searchSuggestionsSchema = z.object({
   field: z.enum(["razon_social", "empresa"]),
   term: z.string().min(2, "Mínimo 2 caracteres").max(100),
@@ -263,6 +292,8 @@ export const removeResponsableSchema = z.object({
 
 export type CreateAtencionInput = z.infer<typeof createAtencionSchema>;
 export type UpdateAtencionInput = z.infer<typeof updateAtencionSchema>;
+export type PreRegisterCitaInput = z.infer<typeof preRegisterCitaSchema>;
+export type ActivateCitaInput = z.infer<typeof activateCitaSchema>;
 export type RegisterCompanyInput = z.infer<typeof registerCompanySchema>;
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>;
 

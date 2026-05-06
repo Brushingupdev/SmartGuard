@@ -5,12 +5,27 @@ import KioskLayout from "@/components/KioskLayout";
 import RegistroWizard from "@/components/RegistroWizard";
 import PlacaInput from "@/components/PlacaInput";
 import TarjetaRegistro from "@/components/TarjetaRegistro";
-import { createAtencion, closeAtencion, closeAtencionDocs, updateAtencion, deleteAtencion, getRecentRegistrations, getResponsables, getUserPlants, searchSuggestions, closeAbandonedBatch, getVehicleProfile } from "@/app/actions";
+import CitasDelDia from "@/components/CitasDelDia";
+import {
+  createAtencion,
+  closeAtencion,
+  closeAtencionDocs,
+  updateAtencion,
+  deleteAtencion,
+  getRecentRegistrations,
+  getResponsables,
+  getUserPlants,
+  searchSuggestions,
+  closeAbandonedBatch,
+  getVehicleProfile,
+  getCitasDelDia,
+} from "@/app/actions";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   AlertTriangle,
   Building2,
+  CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -18,10 +33,12 @@ import {
   CloudUpload,
   FileCheck2,
   History,
+  LogIn,
   Monitor,
   MonitorSmartphone,
   Package,
   Pencil,
+  Plus,
   Save,
   Search,
   Timer,
@@ -34,6 +51,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { humanizeError } from "@/lib/humanizeError";
 
 type RecentRegistration = Awaited<ReturnType<typeof getRecentRegistrations>>["records"][number];
+type CitaRow = Awaited<ReturnType<typeof getCitasDelDia>>[number];
 type ModalIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -636,8 +654,11 @@ export default function RegistroPage() {
   const [isKiosk, setIsKiosk] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const LOAD_LIMIT = 200; // Máx registros a traer del servidor
-  const PAGE_SIZE = 10;   // Registros por página en pantalla
+  const LOAD_LIMIT = 200;
+  const PAGE_SIZE = 10;
+
+  // ── Citas Programadas ──────────────────────────────────────────────────────
+  const [citas, setCitas] = useState<CitaRow[]>([]);
 
   // Refs para evitar stale closures en la suscripcion Realtime
   const plantRef = useRef(plant);
@@ -711,6 +732,14 @@ export default function RegistroPage() {
     const id = setInterval(() => fetchRecent(plant), 90_000);
     return () => clearInterval(id);
   }, [userReady, plant, fetchRecent]);
+
+  // Cargar citas del día + refrescar cada 60s
+  useEffect(() => {
+    if (!userReady || !plant) return;
+    getCitasDelDia(plant).then(setCitas);
+    const id = setInterval(() => getCitasDelDia(plant).then(setCitas), 60_000);
+    return () => clearInterval(id);
+  }, [userReady, plant]);
 
   // Supabase Realtime — actualiza la lista al instante cuando hay cambios en atenciones.
   // Usamos refs (plantRef, fetchRecentRef) para que el callback siempre tenga la planta
@@ -962,6 +991,13 @@ export default function RegistroPage() {
       <div className="grid gap-6 xl:grid-cols-[460px_minmax(0,1fr)] xl:items-start mt-6">
         {/* ── FORM COLUMN ── */}
         <div className="flex flex-col gap-6">
+          <CitasDelDia
+            plant={plant}
+            citas={citas}
+            onToast={(msg) => { setToastMsg(msg); setShowToast(true); setTimeout(() => setShowToast(false), 3200); }}
+            onRefresh={() => { fetchRecent(plant); getCitasDelDia(plant).then(setCitas); }}
+          />
+
           <section className="sg-panel p-4 sm:p-6 md:p-8">
             <div className="mb-6 flex items-center justify-between border-b border-[var(--sg-line)] pb-4">
               <h2 className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">

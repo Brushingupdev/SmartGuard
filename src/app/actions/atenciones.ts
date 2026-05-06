@@ -5,6 +5,8 @@ import { getUserContext } from "@/utils/supabase/user";
 import {
   createAtencionSchema,
   updateAtencionSchema,
+  preRegisterCitaSchema,
+  activateCitaSchema,
   searchSuggestionsSchema,
   atencionPaginationSchema,
   validated,
@@ -815,4 +817,170 @@ export async function importAtenciones(
     logError("importAtenciones", err);
     return { success: false, imported: 0, error: "Error inesperado al importar" };
   }
+}
+
+// ─── Citas Programadas (Pre-registro) ─────────────────────────────────────────
+// Permite crear una cita antes de que el vehículo llegue a portería.
+// El guardia o supervisor crea el pre-registro con hora_cita y al menos un
+// identificador. Cuando el vehículo llega, se activa el registro con h_registro.
+
+export async function preRegisterCita(rawData: unknown) {
+  const v = validated(preRegisterCitaSchema, rawData);
+  if (!v.ok) return { success: false, error: v.error };
+  const data = v.data;
+
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+
+  const writeError = await checkWriteAccess();
+  if (writeError) return { success: false, error: writeError };
+
+  if (!ctx?.companyId) {
+    return { success: false, error: "Debe tener una empresa asignada" };
+  }
+
+  const { date: dateStr, year, month } = nowLima();
+
+  const payload = {
+    fecha: dateStr,
+    h_registro: null,     // ← trigger auto-set estado = 'esperado'
+    hora_cita: data.horaCita + ":00",
+    razon_social: data.razonSocial || null,
+    empresa: data.empresa || null,
+    planta: data.plant,
+    tipo: data.type || "Proveedor",
+    tipo_operacion: data.tipoOperacion || null,
+    responsable: data.responsable || null,
+    agente: data.agente || null,
+    observacion: data.note || null,
+    motivo_demora: null,
+    espera_min: null,
+    es_demora: 0,
+    segmento_orden: 0,
+    anio: year,
+    mes_num: month,
+    company_id: ctx.companyId,
+  };
+
+  const { data: created, error } = await supabase
+    .from("atenciones")
+    .insert(payload)
+    .select("id")
+    .single();
+
+  if (error) {
+    logError("preRegisterCita", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, id: (created as { id: number }).id };
+}
+
+// Activa una cita pre-registrada: el vehículo llegó a portería.
+// El trigger tg_set_atencion_estado cambia automáticamente estado → 'activo'.
+export async function activateCita(rawData: unknown) {
+  const v = validated(activateCitaSchema, rawData);
+  if (!v.ok) return { success: false, error: v.error };
+  const { id } = v.data;
+
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+
+  const writeError = await checkWriteAccess();
+  if (writeError) return { success: false, error: writeError };
+
+  const { time: timeStr } = nowLima();
+
+  let updQuery = supabase
+    .from("atenciones")
+    .update({ h_registro: timeStr })
+    .eq("id", id)
+    .eq("estado", "esperado"); // solo citas no activadas
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    updQuery = updQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { error } = await updQuery;
+  if (error) {
+    logError("activateCita", error, { id });
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// Obtiene las citas del día para una planta.
+// Devuelve registros con estado 'esperado' o 'activo' de hoy.
+export async function getCitasDelDia(plant: string) {
+  const ctx = await getUserContext();
+  const supabase = await createClient();
+  const { date: dateStr } = nowLima();
+
+  let query = supabase
+    .from("atenciones")
+    .select(
+      "id, razon_social, empresa, planta, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min"
+    )
+    .eq("fecha", dateStr)
+    .eq("planta", plant)
+    .in("estado", ["esperado", "activo"])
+    .order("hora_cita", { ascending: true });
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    query = query.eq("company_id", ctx.companyId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logError("getCitasDelDia", error, { plant });
+    return [];
+  }
+
+  return (data ?? []).map((c) => ({
+    id: c.id as number,
+    razonSocial: (c.razon_social as string) || "—",
+    empresa: (c.empresa as string) || "—",
+    planta: c.planta as string,
+    horaCita: c.hora_cita ? (c.hora_cita as string).substring(0, 5) : "—",
+    hRegistro: c.h_registro ? (c.h_registro as string).substring(0, 5) : null,
+    hAtencion: c.h_atencion ? (c.h_atencion as string).substring(0, 5) : null,
+    tipo: (c.tipo as string) || "Proveedor",
+    tipoOperacion: (c.tipo_operacion as string) || null,
+    responsable: (c.responsable as string) || null,
+    agente: (c.agente as string) || null,
+    observacion: (c.observacion as string) || null,
+    estado: c.estado as "esperado" | "activo" | "atendido",
+    esperaMin: c.espera_min as number | null,
+  }));
+}
+
+// Cancela una cita pre-registrada que aún no ha sido activada.
+export async function cancelarCita(rawId: unknown) {
+  const id = typeof rawId === "number" ? rawId : Number(rawId);
+  if (!Number.isInteger(id) || id <= 0) return { success: false, error: "ID inválido" };
+
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+
+  const writeError = await checkWriteAccess();
+  if (writeError) return { success: false, error: writeError };
+
+  let delQuery = supabase
+    .from("atenciones")
+    .delete()
+    .eq("id", id)
+    .eq("estado", "esperado"); // solo citas que aún no se activaron
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    delQuery = delQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { error } = await delQuery;
+  if (error) {
+    logError("cancelarCita", error, { id });
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
 }
