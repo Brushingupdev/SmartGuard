@@ -43,7 +43,23 @@ Deno.serve(async (_req) => {
         .from("companies")
         .select("name, notification_emails, notification_phones")
         .eq("id", alert.company_id)
-        .single();
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (!company) {
+        await supabase
+          .from("alert_queue")
+          .update({
+            status: "failed",
+            last_error: "Empresa eliminada (soft-delete)",
+            processed_at: new Date().toISOString(),
+            processing_started_at: null,
+          })
+          .eq("id", alert.id);
+
+        failed++;
+        continue;
+      }
 
       let emails: string[] = (company?.notification_emails ?? []).filter(Boolean);
 
@@ -204,7 +220,7 @@ async function sendEmailAlert(opts: {
             <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Empresa</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.empresa}</td></tr>
             <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Planta</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.planta}</td></tr>
             <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Hora registro</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.hRegistro}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Espera</td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #d35c4f; font-weight: bold;">${opts.esperaMin} minutos</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Espera</td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #d35c4f; font-weight: bold;">${opts.esperaMin > 0 ? opts.esperaMin + " minutos" : "Cita vencida — esperando atención"}</td></tr>
           </table>
           <p style="color: #666; font-size: 12px; margin-top: 24px;">
             ${opts.companyName} · SmartGuard Control Vehicular
@@ -236,16 +252,21 @@ async function sendWhatsAppAlert(opts: {
   const seg =
     opts.esperaMin >= 90 ? "🔴 Crítico"
     : opts.esperaMin >= 45 ? "🟠 Alto"
-    : "🟡 Moderado";
+    : opts.esperaMin > 0  ? "🟡 Moderado"
+    : "🕐 Cita vencida";
 
   const horaStr = opts.hRegistro ? opts.hRegistro.substring(0, 5) : "—";
+
+  const esperaStr = opts.esperaMin > 0
+    ? `⏱ Espera: *${opts.esperaMin} min*`
+    : "⏱ Cita vencida — esperando atención";
 
   const message =
     `⚠ *SmartGuard — Alerta de Demora*\n\n` +
     `*${opts.razonSocial}*\n` +
     `🏭 ${opts.empresa} · ${opts.planta}\n` +
     `🕐 Ingreso: ${horaStr}\n` +
-    `⏱ Espera: *${opts.esperaMin} min* ${seg}\n\n` +
+    `${esperaStr} ${seg}\n\n` +
     `Ver en plataforma → ${SITE_URL}/alertas`;
 
   const chatId = `${opts.phone.replace(/\D/g, "")}@c.us`;
