@@ -29,8 +29,6 @@ export function AlertasRecientes({ plant, limit = 8 }: { plant: string; limit?: 
     processing:{ icon: Loader2,       color: "var(--sg-accent)",  label: "Enviando..." },
   };
 
-  if (!alertas.length && !loading) return null;
-
   return (
     <div className="border border-[var(--sg-line)] bg-[var(--sg-panel)]">
       <button
@@ -57,6 +55,10 @@ export function AlertasRecientes({ plant, limit = 8 }: { plant: string; limit?: 
         loading ? (
           <div className="flex items-center justify-center py-4 text-[var(--sg-muted)]">
             <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : alertas.length === 0 ? (
+          <div className="px-4 py-3 text-[11px] text-[var(--sg-muted)]">
+            Sin alertas activas hoy.
           </div>
         ) : (
           <div className="divide-y divide-[var(--sg-line)] max-h-[200px] overflow-y-auto">
