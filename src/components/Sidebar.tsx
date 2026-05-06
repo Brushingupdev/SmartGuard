@@ -16,7 +16,7 @@ import { useState, useEffect } from "react";
 const supervisorItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard",  note: "Vista en vivo",      guardia: false },
   { href: "/registro",  icon: ClipboardList,   label: "Registro",   note: "Captura operativa",  guardia: true  },
-  { href: "/alertas",   icon: Bell,            label: "Alertas",    note: "Incidentes activos", guardia: false },
+  { href: "/alertas",   icon: Bell,            label: "Alertas",    note: "Incidentes activos", guardia: true  },
   { href: "/historial", icon: History,         label: "Historial",  note: "Trazabilidad",        guardia: false },
   { href: "/reporte",   icon: BarChart3,       label: "Análisis",   note: "Reporte detallado",  guardia: false },
   { href: "/empresa",   icon: Building2,       label: "Mi Empresa", note: "Configuración",      guardia: false },
