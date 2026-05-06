@@ -1234,7 +1234,7 @@ export default function RegistroPage() {
             </form>
           </section>
 
-          <AlertasRecientes plant={plant} />
+          {userRole === "guardia" && <AlertasRecientes plant={plant} />}
 
           <div className="border border-[var(--sg-line)] bg-[#1B1C1D] p-5">
             <div className="flex items-center gap-3">
