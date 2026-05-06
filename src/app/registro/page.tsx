@@ -6,7 +6,6 @@ import RegistroWizard from "@/components/RegistroWizard";
 import PlacaInput from "@/components/PlacaInput";
 import TarjetaRegistro from "@/components/TarjetaRegistro";
 import CitasDelDia from "@/components/CitasDelDia";
-import { AlertasRecientes } from "@/components/AlertasRecientes";
 import {
   createAtencion,
   closeAtencion,
@@ -32,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CloudUpload,
+  ClipboardList,
   FileCheck2,
   History,
   LogIn,
@@ -1016,197 +1016,225 @@ export default function RegistroPage() {
             onRefresh={() => { fetchRecent(plant); getCitasDelDia(plant).then(setCitas); }}
           />
 
-          <section className="sg-panel p-4 sm:p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between border-b border-[var(--sg-line)] pb-4">
-              <h2 className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-                Nuevo Ingreso
-              </h2>
+          <section className="sg-panel p-5">
+            <div className="mb-5 flex items-center justify-between border-b border-[var(--sg-line)] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center bg-[var(--sg-accent)] text-[var(--sg-canvas)]">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="sg-font-display text-[18px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                    Nuevo Ingreso
+                  </h2>
+                  <p className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    Complete los campos obligatorios
+                  </p>
+                </div>
+              </div>
               <div className="sg-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]" suppressHydrationWarning>
                 {liveTime.substring(0, 5)}
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid gap-5">
-              {/* Placa / Razón Social */}
-              <PlacaInput
-                value={razonSocial}
-                onChange={setRazonSocial}
-                placeholder="TRANSP. PIMENTEL C8E-819"
-                autoFocus
-                onSelect={async (v) => {
-                  const profile = await getVehicleProfile(v);
-                  if (!profile) return;
-                  if (profile.empresa) setEmpresa(profile.empresa);
-                  if (profile.tipo) setType(profile.tipo);
-                  if (profile.tipoOperacion) setTipoOperacion(profile.tipoOperacion);
-                }}
-              />
-              {duplicateWarning ? (
-                <div className="flex items-center gap-3 border-l-[3px] border-[var(--sg-warn)] bg-[rgba(200,160,75,0.08)] px-4 py-3 text-[12px] text-[var(--sg-warn)]">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <div>
-                    <strong>Posible duplicado:</strong> Ya hay un ingreso pendiente registrado a las{" "}
-                    <strong className="text-[var(--sg-ink)]">{duplicateWarning.time}</strong>.{" "}
-                    Verifica antes de continuar.
-                  </div>
+            <form onSubmit={handleSubmit} className="grid gap-4">
+              {/* ── SECCIÓN 1: Datos principales ── */}
+              <div className="bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-4 grid gap-4">
+                <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] mb-1">
+                  Datos del Vehículo
                 </div>
-              ) : (
-                <p className="text-[10px] text-[var(--sg-muted)] -mt-2">
-                  Incluye nombre de empresa transportista y placa al final
-                </p>
-              )}
 
-              {/* Empresa destino */}
-              <div className="sg-field">
-                <label className="sg-label">Empresa Destino / Cliente *</label>
-                <AutocompleteInput
-                  icon={Building2}
-                  value={empresa}
-                  onChange={setEmpresa}
-                  placeholder="Ej: FAB. DE CHOCOLATES LA IBERICA SA"
-                  field="empresa"
-                  required
+                {/* Placa / Razón Social */}
+                <PlacaInput
+                  value={razonSocial}
+                  onChange={setRazonSocial}
+                  placeholder="TRANSP. PIMENTEL C8E-819"
+                  autoFocus
+                  onSelect={async (v) => {
+                    const profile = await getVehicleProfile(v);
+                    if (!profile) return;
+                    if (profile.empresa) setEmpresa(profile.empresa);
+                    if (profile.tipo) setType(profile.tipo);
+                    if (profile.tipoOperacion) setTipoOperacion(profile.tipoOperacion);
+                  }}
                 />
-              </div>
+                {duplicateWarning ? (
+                  <div className="flex items-center gap-3 border-l-[3px] border-[var(--sg-warn)] bg-[rgba(200,160,75,0.08)] px-4 py-3 text-[12px] text-[var(--sg-warn)]">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <div>
+                      <strong>Posible duplicado:</strong> Ya hay un ingreso pendiente registrado a las{" "}
+                      <strong className="text-[var(--sg-ink)]">{duplicateWarning.time}</strong>.{" "}
+                      Verifica antes de continuar.
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-[var(--sg-muted)] -mt-2">
+                    Incluye nombre de empresa transportista y placa al final
+                  </p>
+                )}
 
-              {/* Planta fija */}
-              {plantLocked ? (
+                {/* Empresa destino */}
                 <div className="sg-field">
-                  <label className="sg-label flex items-center gap-2">
-                    Planta
-                    <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
-                      Asignado
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={plant}
-                      disabled
-                      className="sg-input opacity-60 cursor-not-allowed bg-[var(--sg-panel-3)]"
-                    />
+                  <label className="sg-label">Empresa Destino / Cliente *</label>
+                  <AutocompleteInput
+                    icon={Building2}
+                    value={empresa}
+                    onChange={setEmpresa}
+                    placeholder="Ej: FAB. DE CHOCOLATES LA IBERICA SA"
+                    field="empresa"
+                    required
+                  />
+                </div>
+
+                {/* Planta */}
+                {plantLocked ? (
+                  <div className="sg-field">
+                    <label className="sg-label flex items-center gap-2">
+                      Planta
+                      <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
+                        Asignado
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={plant}
+                        disabled
+                        className="sg-input opacity-60 cursor-not-allowed bg-[var(--sg-panel-3)]"
+                      />
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <SelectField
-                  label="Planta"
-                  value={plant}
-                  onChange={setPlant}
-                  options={plants.map(p => ({ value: p, label: p }))}
-                />
-              )}
-
-              {/* Tipo + Operación */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <SelectField
-                  label="Tipo"
-                  value={type}
-                  onChange={setType}
-                  options={[
-                    { value: "Proveedor", label: "Proveedor" },
-                    { value: "Propio", label: "Propio" },
-                    { value: "Cliente", label: "Cliente" },
-                    { value: "Otro", label: "Otro" },
-                  ]}
-                />
-                <SelectField
-                  label="Tipo de Operación"
-                  value={tipoOperacion}
-                  onChange={setTipoOperacion}
-                  options={[
-                    { value: "Carga", label: "Carga" },
-                    { value: "Descarga", label: "Descarga" },
-                    { value: "Visita", label: "Visita" },
-                    { value: "Mantenimiento", label: "Mantenimiento" },
-                    { value: "Traslado entre plantas", label: "Traslado" },
-                    { value: "Otro", label: "Otro" },
-                  ]}
-                />
+                ) : (
+                  <SelectField
+                    label="Planta"
+                    value={plant}
+                    onChange={setPlant}
+                    options={plants.map(p => ({ value: p, label: p }))}
+                  />
+                )}
               </div>
 
-              {/* Responsable de Almacén */}
-              <div className="sg-field">
-                <label className="sg-label">Responsable de Almacén</label>
-                <div className="relative">
-                  <Package className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  {responsablesList.length > 0 ? (
-                    <>
-                      <select
-                        value={responsable}
-                        onChange={(e) => setResponsable(e.target.value)}
-                        className="sg-select appearance-none pl-10 pr-10"
-                      >
-                        {responsablesList.map((r) => (
-                          <option key={r} value={r} className="bg-[var(--sg-panel-2)]">{r}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                    </>
-                  ) : (
-                    <input
-                      type="text"
-                      value={responsable}
-                      onChange={(e) => setResponsable(e.target.value.toUpperCase())}
-                      placeholder="Nombre del responsable"
-                      className="sg-input pl-10 uppercase"
-                    />
-                  )}
+              {/* ── SECCIÓN 2: Clasificación ── */}
+              <div className="bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-4 grid gap-4">
+                <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] mb-1">
+                  Clasificación
                 </div>
-              </div>
 
-              {/* Agente */}
-              <div className="sg-field">
-                <label className="sg-label">Agente Responsable</label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  <input
-                    type="text"
-                    value={agente}
-                    onChange={(e) => setAgente(e.target.value.toUpperCase())}
-                    placeholder="Nombre del guardia"
-                    className="sg-input pl-10 uppercase"
+                <div className="grid grid-cols-2 gap-3">
+                  <SelectField
+                    label="Tipo"
+                    value={type}
+                    onChange={setType}
+                    options={[
+                      { value: "Proveedor", label: "Proveedor" },
+                      { value: "Propio", label: "Propio" },
+                      { value: "Cliente", label: "Cliente" },
+                      { value: "Otro", label: "Otro" },
+                    ]}
+                  />
+                  <SelectField
+                    label="Operación"
+                    value={tipoOperacion}
+                    onChange={setTipoOperacion}
+                    options={[
+                      { value: "Carga", label: "Carga" },
+                      { value: "Descarga", label: "Descarga" },
+                      { value: "Visita", label: "Visita" },
+                      { value: "Mantenimiento", label: "Mantenimiento" },
+                      { value: "Traslado entre plantas", label: "Traslado" },
+                      { value: "Otro", label: "Otro" },
+                    ]}
                   />
                 </div>
               </div>
 
-              {/* Observación */}
-              <div className="sg-field">
-                <label className="sg-label">Observación</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Opcional: detalles del ingreso, incidencias..."
-                  className="sg-textarea min-h-[72px]"
-                />
+              {/* ── SECCIÓN 3: Responsables ── */}
+              <div className="bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-4 grid gap-4">
+                <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] mb-1">
+                  Responsables
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sg-field">
+                    <label className="sg-label text-[10px]">Responsable de Almacén</label>
+                    <div className="relative">
+                      <Package className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                      {responsablesList.length > 0 ? (
+                        <>
+                          <select
+                            value={responsable}
+                            onChange={(e) => setResponsable(e.target.value)}
+                            className="sg-select appearance-none pl-9 pr-8 text-[12px]"
+                          >
+                            {responsablesList.map((r) => (
+                              <option key={r} value={r} className="bg-[var(--sg-panel-2)]">{r}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                        </>
+                      ) : (
+                        <input
+                          type="text"
+                          value={responsable}
+                          onChange={(e) => setResponsable(e.target.value.toUpperCase())}
+                          placeholder="Nombre del responsable"
+                          className="sg-input pl-9 uppercase text-[12px]"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="sg-field">
+                    <label className="sg-label text-[10px]">Agente Responsable</label>
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                      <input
+                        type="text"
+                        value={agente}
+                        onChange={(e) => setAgente(e.target.value.toUpperCase())}
+                        placeholder="Nombre del guardia"
+                        className="sg-input pl-9 uppercase text-[12px]"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Hora de Cita (opcional) */}
-              <div className="sg-field">
-                <label className="sg-label flex items-center gap-2">
-                  Hora de Cita
-                  <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
-                    Opcional
-                  </span>
-                  <span className="sg-font-mono text-[8px] bg-[rgba(200,168,75,0.12)] px-2 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)] uppercase">
+              {/* ── SECCIÓN 4: Extra ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sg-field">
+                  <label className="sg-label text-[10px]">Observación</label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Opcional..."
+                    className="sg-textarea min-h-[60px] text-[12px]"
+                  />
+                </div>
+
+                <div className="sg-field">
+                  <label className="sg-label text-[10px] flex items-center gap-2">
+                    Hora de Cita
+                    <span className="sg-font-mono text-[7px] bg-[var(--sg-panel-3)] px-1.5 py-px border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
+                      Opcional
+                    </span>
+                  </label>
+                  <input
+                    type="time"
+                    value={horaCita}
+                    onChange={(e) => setHoraCita(e.target.value)}
+                    className="sg-input text-[12px]"
+                  />
+                  <p className="text-[9px] text-[var(--sg-muted)] mt-1">
                     Formato 24h — 2 PM = 14:00
-                  </span>
-                </label>
-                <input
-                  type="time"
-                  value={horaCita}
-                  onChange={(e) => setHoraCita(e.target.value)}
-                  className="sg-input"
-                />
-                <p className="text-[10px] text-[var(--sg-muted)]">
-                  Si el vehículo tiene cita, la demora se mide desde esta hora
-                </p>
+                  </p>
+                </div>
               </div>
 
               <motion.button
                 type="submit"
                 whileTap={{ scale: 0.98 }}
                 disabled={isPending || duplicateWarning !== null}
-                className={`sg-btn sg-btn-accent w-full justify-center h-14 text-[15px] font-bold tracking-[0.06em] ${
+                className={`sg-btn sg-btn-accent w-full justify-center h-12 text-[14px] font-bold tracking-[0.06em] mt-2 ${
                   isPending || duplicateWarning ? "opacity-70 cursor-not-allowed" : ""
                 }`}
               >
@@ -1214,27 +1242,25 @@ export default function RegistroPage() {
                   <motion.span
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                    className="flex items-center gap-3"
+                    className="flex items-center gap-2"
                   >
-                    <CloudUpload className="h-5 w-5" />
+                    <CloudUpload className="h-4 w-4" />
                     Registrando...
                   </motion.span>
                 ) : duplicateWarning ? (
-                  <span className="flex items-center gap-3">
-                    <AlertTriangle className="h-5 w-5" />
-                    Verificar duplicado antes de registrar
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Verificar duplicado
                   </span>
                 ) : (
                   <>
-                    <CloudUpload className="h-5 w-5" />
+                    <CloudUpload className="h-4 w-4" />
                     Registrar Ingreso
                   </>
                 )}
               </motion.button>
             </form>
           </section>
-
-          {userRole === "guardia" && <AlertasRecientes plant={plant} />}
 
           <div className="border border-[var(--sg-line)] bg-[#1B1C1D] p-5">
             <div className="flex items-center gap-3">
