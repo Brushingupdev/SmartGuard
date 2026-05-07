@@ -2,6 +2,8 @@ export * from "./atenciones";
 export * from "./alertas";
 export * from "./citas";
 export * from "./dashboard";
+export * from "./historial";
+export * from "./reporte";
 export * from "./users";
 export * from "./companies";
 export * from "./responsables";

@@ -85,6 +85,17 @@ export function logError(context: string, error: unknown, extra?: Record<string,
   }).catch(() => {});
 }
 
+// ─── Date range helper compartido (dashboard + reporte) ─────────────────────
+
+export function dateRange(timeframe: string): { from: string; to: string } {
+  const { date: today } = nowLima();
+  if (timeframe === "Día")    return { from: today, to: today };
+  if (timeframe === "Semana") return { from: daysAgoLima(7), to: today };
+  if (timeframe === "Mes")    return { from: daysAgoLima(30), to: today };
+  if (/^\d{4}$/.test(timeframe)) return { from: `${timeframe}-01-01`, to: `${timeframe}-12-31` };
+  return { from: today, to: today };
+}
+
 // ─── Retry helper para errores transitorios de Supabase ─────────────────────
 
 export async function withRetry<T>(
