@@ -7,10 +7,23 @@ const nextConfig: NextConfig = {
   transpilePackages: ["framer-motion", "motion-dom"],
   experimental: {
     workerThreads: true,
+    // Mantener webpack: Turbopack aún no soporta todos los loaders usados en este proyecto.
     webpackBuildWorker: false,
     serverActions: {
       bodySizeLimit: "10mb",
     },
+  },
+  webpack(config) {
+    // @opentelemetry/instrumentation usa require() dinámico para detección de plataforma.
+    // Es ruido del bundler — funciona bien en runtime. Sentry+Prisma lo arrastran indirectamente.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      {
+        module: /@opentelemetry\/instrumentation/,
+        message: /Critical dependency/,
+      },
+    ];
+    return config;
   },
 };
 

@@ -1,26 +1,15 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, DM_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const barlow = Barlow({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-barlow",
+const inter = localFont({
+  src: [
+    { path: "./fonts/inter-latin-wght-normal.woff2", style: "normal" },
+    { path: "./fonts/inter-latin-wght-italic.woff2", style: "italic" },
+  ],
+  variable: "--font-inter",
   display: "swap",
-});
-
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-barlow-condensed",
-  display: "swap",
-});
-
-const dmMono = DM_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-dm-mono",
-  display: "swap",
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
@@ -38,12 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="es"
-      data-scroll-behavior="smooth"
-      suppressHydrationWarning
-      className={`${barlow.variable} ${barlowCondensed.variable} ${dmMono.variable}`}
-    >
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning className={inter.variable}>
       <body suppressHydrationWarning>{children}</body>
     </html>
   );

@@ -379,8 +379,8 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </>
-                      )}  // close inner Fragment, close ternary
-                    </>     // close outer Fragment
+                      )}
+                    </>
                   )}
                 </div>
               </div>

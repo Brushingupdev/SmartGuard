@@ -252,7 +252,25 @@ export default function PagosPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+
+    void Promise.all([
+      getPayments(),
+      getPendingPayments(),
+      getCompanies(),
+    ]).then(([p, pend, comp]) => {
+      if (!active) return;
+      setPayments(p);
+      setPending(pend);
+      setCompanies(comp);
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSaved = async () => {
     setShowModal(false);

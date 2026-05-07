@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
-import { nowLima, daysAgoLima } from "./_helpers";
+import { nowLima, daysAgoLima, logError } from "./_helpers";
 
 export async function getAlertsData(plant?: string) {
   const ctx = await getUserContext();
@@ -126,4 +126,135 @@ export async function getAlertLogs() {
 
   const { data } = await query;
   return data ?? [];
+}
+
+// ─── Alertas proactivas (llamado por el cron /api/alertas/proactive) ──────────
+export async function checkProactiveAlerts(
+  companyId: string
+): Promise<{ checked: number; alerted: number }> {
+  try {
+    const { createAdminClient } = await import("@/utils/supabase/admin");
+    const supabase = createAdminClient();
+
+    const { date: dateStr, hour, minute, second } = nowLima();
+    const nowMinutes = hour * 60 + minute + second / 60;
+    const nowIso = new Date().toISOString();
+
+    const { data: company } = await supabase
+      .from("companies")
+      .select("alerta_minutos")
+      .eq("id", companyId)
+      .single();
+    const alertaMinutos: number = (company?.alerta_minutos as number | null) ?? 45;
+
+    const { data: pending } = await supabase
+      .from("atenciones")
+      .select("id, h_registro, hora_cita, razon_social, empresa, planta, ultima_alerta_proactiva_at")
+      .eq("company_id", companyId)
+      .eq("fecha", dateStr)
+      .is("h_atencion", null)
+      .not("h_registro", "is", null);
+
+    if (!pending?.length) return { checked: 0, alerted: 0 };
+
+    const { enqueueAlert } = await import("@/utils/alert-queue");
+    let alerted = 0;
+
+    for (const rec of pending) {
+      let baseMinutes: number;
+      const horaCita = rec.hora_cita as string | null;
+
+      if (horaCita) {
+        const parts = horaCita.split(":").map(Number);
+        const citaMin = parts[0] * 60 + parts[1] + (parts[2] ?? 0) / 60;
+        if (nowMinutes < citaMin) continue;
+        baseMinutes = citaMin;
+      } else {
+        const parts = (rec.h_registro as string).split(":").map(Number);
+        baseMinutes = parts[0] * 60 + parts[1] + (parts[2] ?? 0) / 60;
+      }
+
+      let waitMin = Math.round(nowMinutes - baseMinutes);
+      if (waitMin < 0) waitMin += 24 * 60;
+
+      if (waitMin < alertaMinutos) continue;
+
+      const lastAt = rec.ultima_alerta_proactiva_at as string | null;
+      if (lastAt) {
+        const minutesSinceLast = (Date.now() - new Date(lastAt).getTime()) / 60_000;
+        if (minutesSinceLast < alertaMinutos) continue;
+      }
+
+      await enqueueAlert({
+        companyId,
+        atencionId: rec.id as number,
+        razonSocial: (rec.razon_social as string) ?? "Vehículo",
+        empresa:     (rec.empresa as string) ?? "—",
+        planta:      (rec.planta as string) ?? "—",
+        hRegistro:   rec.h_registro as string,
+        esperaMin:   waitMin,
+      });
+
+      await supabase
+        .from("atenciones")
+        .update({ ultima_alerta_proactiva_at: nowIso })
+        .eq("id", rec.id as number);
+
+      alerted++;
+    }
+
+    return { checked: pending.length, alerted };
+  } catch (err) {
+    logError("checkProactiveAlerts", err, { companyId });
+    return { checked: 0, alerted: 0 };
+  }
+}
+
+export type AlertQueueRow = {
+  id: string;
+  razonSocial: string;
+  empresa: string;
+  planta: string;
+  esperaMin: number;
+  status: "sent" | "pending" | "failed" | "processing";
+  createdAt: string | null;
+  processedAt: string | null;
+};
+
+export async function getAlertasRecientes(plant?: string) {
+  const ctx = await getUserContext();
+  if (!ctx) return { alertas: [] as AlertQueueRow[] };
+  const supabase = await createClient();
+  const { date: today } = nowLima();
+
+  let query = supabase
+    .from("alert_queue")
+    .select("id, razon_social, empresa, planta, espera_min, status, created_at, processed_at")
+    .eq("company_id", ctx.companyId!)
+    .gte("created_at", `${today}T00:00:00`)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (plant && plant !== "Todas") {
+    query = query.eq("planta", plant);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logError("getAlertasRecientes", error);
+    return { alertas: [] as AlertQueueRow[] };
+  }
+
+  return {
+    alertas: (data ?? []).map((d) => ({
+      id: d.id,
+      razonSocial: d.razon_social || "",
+      empresa: d.empresa || "",
+      planta: d.planta || "",
+      esperaMin: d.espera_min,
+      status: d.status as "sent" | "pending" | "failed" | "processing",
+      createdAt: d.created_at ? new Date(d.created_at).toISOString() : null,
+      processedAt: d.processed_at ? new Date(d.processed_at).toISOString() : null,
+    })),
+  };
 }

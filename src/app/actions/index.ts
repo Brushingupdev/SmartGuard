@@ -1,5 +1,6 @@
 export * from "./atenciones";
 export * from "./alertas";
+export * from "./citas";
 export * from "./dashboard";
 export * from "./users";
 export * from "./companies";

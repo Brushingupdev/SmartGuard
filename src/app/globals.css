@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  /* fonts (bound in layout.tsx via next/font/google) */
-  --sg-font-body: var(--font-barlow), "Barlow", system-ui, sans-serif;
-  --sg-font-display: var(--font-barlow-condensed), "Barlow Condensed", sans-serif;
-  --sg-font-mono: var(--font-dm-mono), "DM Mono", ui-monospace, monospace;
+  /* fonts — Inter variable (bundled woff2), system stack as fallback */
+  --sg-font-body: var(--font-inter), "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --sg-font-display: Impact, Haettenschweiler, "Arial Narrow Bold", "Franklin Gothic Medium", sans-serif;
+  --sg-font-mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, Consolas, monospace;
 
   /* surfaces */
   --sg-canvas: #0a0c0b;

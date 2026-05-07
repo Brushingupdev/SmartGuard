@@ -61,6 +61,11 @@ describe("registerCompanySchema", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("acepta notificationPhone ausente u opcional vacío", () => {
+    expect(validated(registerCompanySchema, base).ok).toBe(true);
+    expect(validated(registerCompanySchema, { ...base, notificationPhone: "" }).ok).toBe(true);
+  });
+
   it("rechaza más de 20 guardias", () => {
     const guardias = Array.from({ length: 21 }, (_, i) => ({
       email: `g${i}@test.com`,

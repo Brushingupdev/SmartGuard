@@ -33,7 +33,7 @@ function BillingBanner() {
     );
   }
 
-  // Trial expirado — el middleware debería haber redirigido, pero por si acaso
+  // Trial expirado — el proxy debería haber redirigido, pero por si acaso
   if (status.plan === "trial" && status.expired) {
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(3,5,4,0.92)] backdrop-blur-sm">

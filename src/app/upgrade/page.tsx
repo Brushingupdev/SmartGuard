@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, Clock, MessageCircle, Mail, LogOut, CheckCircle2 } from "lucide-react";
 import { logout } from "@/app/login/actions";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Activar plan" };
 
 // Número WhatsApp del fundador (sin + ni espacios)
@@ -21,7 +22,6 @@ export default async function UpgradePage() {
   // Leer estado real del plan
   const companyId = user.user_metadata?.company_id as string | undefined;
   let plan: string = "trial";
-  let trialEndsAt: string | null = null;
   let companyName: string = user.user_metadata?.company as string ?? "tu empresa";
 
   if (companyId) {
@@ -32,15 +32,11 @@ export default async function UpgradePage() {
       .single();
     if (data) {
       plan        = data.plan as string;
-      trialEndsAt = data.trial_ends_at as string | null;
       companyName = data.name as string;
     }
   }
 
   const isSuspended = plan === "suspended";
-  const isExpired   = plan === "trial" && trialEndsAt
-    ? new Date(trialEndsAt + "T23:59:59") < new Date()
-    : false;
 
   // Si el plan está activo, redirigir al dashboard
   if (plan === "active") redirect("/dashboard");

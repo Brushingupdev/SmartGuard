@@ -17,7 +17,7 @@ const RESEND_FROM_EMAIL  = Deno.env.get("RESEND_FROM_EMAIL") ?? "SmartGuard <onb
 
 const BATCH_SIZE = 5;
 
-Deno.serve(async (_req) => {
+Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   // 1. Tomar alertas pendientes y marcarlas "processing" en la misma transacción

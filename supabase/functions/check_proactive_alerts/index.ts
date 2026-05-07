@@ -31,7 +31,7 @@ function diffMin(from: number, to: number): number {
   return d < 0 ? d + 1440 : d;
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const today    = limaToday();
   const { totalMin: nowMin } = limaNow();

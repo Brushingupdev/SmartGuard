@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
-import { sanitizeSearchTerm } from "@/lib/sanitize";
 
 /**
  * GET /api/atenciones
@@ -27,62 +25,42 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl;
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("perPage") ?? "20")));
-  const search = sanitizeSearchTerm(searchParams.get("search") ?? "");
+  const page = searchParams.get("page") ?? "1";
+  const perPage = searchParams.get("perPage") ?? "20";
   const plant = searchParams.get("plant") ?? "Todos";
   const segment = searchParams.get("segment") ?? "Todos";
   const dateFrom = searchParams.get("dateFrom") ?? "";
   const dateTo = searchParams.get("dateTo") ?? "";
-  const sortBy = searchParams.get("sortBy") === "espera_min" ? "espera_min" : "id";
-  const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc";
+  const sortBy = searchParams.get("sortBy") ?? "id";
+  const sortDir = searchParams.get("sortDir") ?? "desc";
+  const search = searchParams.get("search") ?? "";
+  const filterCompanyId = searchParams.get("filterCompanyId") ?? "";
 
-  const supabase = await createClient();
+  const { getAtenciones } = await import("@/app/actions");
+  const result = await getAtenciones({
+    page,
+    perPage,
+    search,
+    plant,
+    segment,
+    dateFrom,
+    dateTo,
+    sortBy,
+    sortDir,
+    filterCompanyId,
+  });
 
-  let query = supabase.from("atenciones").select("*", { count: "exact" });
-
-  // Multi-tenant isolation
-  if (!ctx.isAdmin && ctx.companyId) {
-    query = query.eq("company_id", ctx.companyId);
-  }
-
-  // Filters
-  if (search) {
-    query = query.or(`razon_social.ilike.%${search}%,empresa.ilike.%${search}%`);
-  }
-  if (plant && plant !== "Todos") {
-    query = query.eq("planta", plant);
-  }
-  if (dateFrom) query = query.gte("fecha", dateFrom);
-  if (dateTo) query = query.lte("fecha", dateTo);
-
-  if (segment && segment !== "Todos") {
-    if (segment === "Normal") query = query.lt("espera_min", 30).gt("espera_min", 0);
-    else if (segment === "Moderado") query = query.gte("espera_min", 30).lt("espera_min", 45);
-    else if (segment === "Alto") query = query.gte("espera_min", 45).lt("espera_min", 90);
-    else if (segment === "Crítico") query = query.gte("espera_min", 90);
-    else if (segment === "Pendiente") query = query.is("espera_min", null);
-  }
-
-  // Pagination
-  const from = (page - 1) * perPage;
-  query = query
-    .order(sortBy, { ascending: sortDir === "asc", nullsFirst: sortDir === "asc" })
-    .range(from, from + perPage - 1);
-
-  const { data, count, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
   return NextResponse.json({
-    data: data ?? [],
+    data: result.data ?? [],
     pagination: {
-      page,
-      perPage,
-      total: count ?? 0,
-      totalPages: Math.ceil((count ?? 0) / perPage),
+      page: Number(page),
+      perPage: Number(perPage),
+      total: result.count ?? 0,
+      totalPages: Math.ceil((result.count ?? 0) / Math.max(1, Number(perPage))),
     },
   });
 }

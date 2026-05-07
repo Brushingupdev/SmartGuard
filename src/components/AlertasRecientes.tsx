@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Bell, Clock, CheckCircle2, AlertTriangle, XCircle, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { getAlertasRecientes } from "@/app/actions";
 import type { AlertQueueRow } from "@/app/actions";
 
@@ -10,17 +10,24 @@ export function AlertasRecientes({ plant, limit = 8 }: { plant: string; limit?: 
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
-  const fetchAlertas = useCallback(async () => {
-    const { alertas: list } = await getAlertasRecientes(plant);
-    setAlertas((list ?? []).slice(0, limit));
-    setLoading(false);
-  }, [plant, limit]);
-
   useEffect(() => {
-    fetchAlertas();
-    const id = setInterval(fetchAlertas, 30_000);
-    return () => clearInterval(id);
-  }, [fetchAlertas]);
+    let active = true;
+
+    const load = () => {
+      void getAlertasRecientes(plant).then(({ alertas: list }) => {
+        if (!active) return;
+        setAlertas((list ?? []).slice(0, limit));
+        setLoading(false);
+      });
+    };
+
+    load();
+    const id = setInterval(load, 30_000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [plant, limit]);
 
   const statusConfig: Record<string, { icon: typeof Bell; color: string; label: string }> = {
     sent:      { icon: CheckCircle2, color: "var(--sg-success)", label: "Enviada" },

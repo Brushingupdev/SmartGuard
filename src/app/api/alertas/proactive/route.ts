@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkProactiveAlerts } from "@/app/actions/atenciones";
+import { checkProactiveAlerts } from "@/app/actions/alertas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

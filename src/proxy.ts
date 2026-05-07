@@ -1,8 +1,8 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// SMartGuard RBAC Middleware
+// SmartGuard RBAC Proxy
 //
 // Roles determined STRICTLY from user_metadata.role (no email fallback):
 //   • administrador → /admin (full access, multi-tenant overview)
@@ -21,10 +21,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Public routes: /, /login, /onboarding, /reset-password, /update-password
 // ──────────────────────────────────────────────────────────────────────────────
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
-  })
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,20 +32,20 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
-          })
+          });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
-          )
+          );
         },
       },
     }
-  )
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
@@ -53,7 +53,12 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
+
+  const metaRole    = user?.user_metadata?.role as string | undefined;
+  const isAdmin     = metaRole === 'administrador';
+  const isGuardia   = metaRole === 'guardia';
+  const isSupervisor = metaRole === 'supervisor';
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') ||
                            request.nextUrl.pathname.startsWith('/historial') ||
@@ -65,72 +70,62 @@ export async function middleware(request: NextRequest) {
                            request.nextUrl.pathname.startsWith('/admin')   ||
                            request.nextUrl.pathname.startsWith('/monitor')  ||
                            request.nextUrl.pathname.startsWith('/perfil')   ||
-                           request.nextUrl.pathname.startsWith('/upgrade')
+                           request.nextUrl.pathname.startsWith('/upgrade');
 
   // If the user is not signed in and the current path is a protected route, redirect to the login page
   if (!user && isProtectedRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
 
   // If the user is signed in and trying to access the login page, redirect them based on their role
   if (user && request.nextUrl.pathname === '/login') {
-    const url = request.nextUrl.clone()
-    const metaRole = user.user_metadata?.role as string | undefined;
-    const isGuardia = metaRole === 'guardia';
-    const isAdmin   = metaRole === 'administrador';
-    url.pathname = isGuardia ? '/registro' : isAdmin ? '/admin' : '/dashboard'
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone();
+    url.pathname = isGuardia ? '/registro' : isAdmin ? '/admin' : '/dashboard';
+    return NextResponse.redirect(url);
   }
 
   // Admin visiting /dashboard → redirect to /admin (their home)
   // Exception: if impersonation cookie is set, allow through
   if (user && request.nextUrl.pathname === '/dashboard') {
-    const metaRole = user.user_metadata?.role as string | undefined;
-    const isAdmin  = metaRole === 'administrador';
     const impersonateCookie = request.cookies.get("sg_impersonate");
     if (isAdmin && !impersonateCookie?.value) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/admin'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/admin';
+      return NextResponse.redirect(url);
     }
   }
 
   // Admin on admin-only routes while impersonating → redirect to /dashboard
   if (user) {
-    const metaRole = user.user_metadata?.role as string | undefined;
-    const isAdmin  = metaRole === 'administrador';
     const impersonateCookie = request.cookies.get("sg_impersonate");
     const path = request.nextUrl.pathname;
     if (isAdmin && impersonateCookie?.value) {
       if (path.startsWith('/admin') || path.startsWith('/monitor') || path.startsWith('/usuarios')) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard'
-        return NextResponse.redirect(url)
+        const url = request.nextUrl.clone();
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
       }
     }
   }
 
   // --- ROLE-BASED ACCESS CONTROL (RBAC) ---
   if (user) {
-    const metaRole = user.user_metadata?.role as string | undefined;
-    const isGuardia    = metaRole === 'guardia';
-    const isSupervisor = metaRole === 'supervisor';
     const path = request.nextUrl.pathname;
 
     // Guardias: solo /registro y /alertas
     if (isGuardia && (path.startsWith('/dashboard') || path.startsWith('/historial') || path.startsWith('/usuarios') || path.startsWith('/reporte'))) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/registro'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/registro';
+      return NextResponse.redirect(url);
     }
 
     // Supervisores: sin acceso a /usuarios
     if (isSupervisor && path.startsWith('/usuarios')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -138,8 +133,6 @@ export async function middleware(request: NextRequest) {
   // Only for company users (supervisor / guardia), not admin.
   // Uses a short-lived cookie (sg_plan) to avoid a DB round-trip on every request.
   if (user && isProtectedRoute) {
-    const metaRole    = user.user_metadata?.role as string | undefined;
-    const isAdmin     = metaRole === 'administrador';
     const path        = request.nextUrl.pathname;
     const companyId   = user.user_metadata?.company_id as string | undefined;
 
@@ -196,7 +189,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return supabaseResponse
+  return supabaseResponse;
 }
 
 export const config = {

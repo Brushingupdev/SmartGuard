@@ -325,11 +325,10 @@ export default function AlertasPage() {
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [alertLogs,     setAlertLogs]     = useState<AlertLogRow[]>([]);
   const [logsPage,      setLogsPage]      = useState(1);
-
-  useEffect(() => {
-    setLogsPage(1);
-  }, [alertLogs.length]);
   const LOGS_PAGE_SIZE = 10;
+  const totalLogPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
+  const currentLogsPage = Math.min(logsPage, totalLogPages);
+  const paginatedLogs = alertLogs.slice((currentLogsPage - 1) * LOGS_PAGE_SIZE, currentLogsPage * LOGS_PAGE_SIZE);
   const [isAdmin,       setIsAdmin]       = useState(false);
   const [companiesMap,  setCompaniesMap]  = useState<Record<string, string>>({});
 
@@ -662,11 +661,7 @@ export default function AlertasPage() {
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  const totalPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
-                  const page = Math.min(logsPage, totalPages);
-                  const paginated = alertLogs.slice((page - 1) * LOGS_PAGE_SIZE, page * LOGS_PAGE_SIZE);
-                  return paginated.map((log) => (
+                {paginatedLogs.map((log) => (
                   <tr key={log.id}>
                     <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] whitespace-nowrap">
                       {new Date(log.created_at).toLocaleString("es-PE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
@@ -695,35 +690,30 @@ export default function AlertasPage() {
                       </span>
                     </td>
                   </tr>
-                  ));
-                })()}
+                ))}
               </tbody>
             </table>
-            {(() => {
-              const totalPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
-              if (totalPages <= 1) return null;
-              return (
+            {totalLogPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--sg-line)]">
                   <button
                     onClick={() => setLogsPage(p => Math.max(1, p - 1))}
-                    disabled={logsPage === 1}
+                    disabled={currentLogsPage === 1}
                     className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     ← Anterior
                   </button>
                   <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
-                    {logsPage} / {totalPages}
+                    {currentLogsPage} / {totalLogPages}
                   </span>
                   <button
-                    onClick={() => setLogsPage(p => Math.min(totalPages, p + 1))}
-                    disabled={logsPage === totalPages}
+                    onClick={() => setLogsPage(p => Math.min(totalLogPages, p + 1))}
+                    disabled={currentLogsPage === totalLogPages}
                     className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     Siguiente →
                   </button>
                 </div>
-              );
-            })()}
+            )}
           </div>
         </div>
       )}

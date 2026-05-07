@@ -45,7 +45,7 @@ src/
 │       ├── server.ts     # Server client (cookies)
 │       ├── admin.ts      # Service role client
 │       └── user.ts       # getUserContext (RBAC)
-├── middleware.ts          # RBAC + protección de rutas
+├── proxy.ts               # RBAC + protección de rutas
 └── types/                # Interfaces TypeScript
 ```
 

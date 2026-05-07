@@ -16,7 +16,6 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 type ProgressState = NonNullable<ReturnType<typeof useProgressSaver>["saved"]>;
 type SaveProgressInput = Parameters<ReturnType<typeof useProgressSaver>["save"]>[0];
 import {
-  type ExcelCell,
   type ExcelRow,
   type ExcelMapping,
   type ImportedExcelRow,
@@ -460,7 +459,7 @@ export default function OnboardingPage() {
                   <div className="sg-field">
                     <span className="sg-label">Logo <span className="normal-case text-[var(--sg-muted)]">(opcional)</span></span>
                     <input ref={logoInputRef} id="logo-upload" type="file"
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleLogoChange} className="hidden" />
+                      accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} className="hidden" />
                     {logoPreview ? (
                       <div className="flex items-center gap-4 border border-[var(--sg-accent)] bg-[var(--sg-panel-2)] px-4 py-3">
                         <Image unoptimized width={48} height={48} src={logoPreview} alt="Logo" className="h-12 w-12 object-contain shrink-0 border border-[var(--sg-line)] bg-white p-0.5" />
@@ -479,7 +478,7 @@ export default function OnboardingPage() {
                         </div>
                         <div>
                           <div className="text-[13px] text-[var(--sg-copy)]">Haz clic para subir el logo</div>
-                          <div className="text-[11px] text-[var(--sg-muted)] mt-0.5">PNG, JPG, SVG · máx. 1 MB</div>
+                          <div className="text-[11px] text-[var(--sg-muted)] mt-0.5">PNG, JPG, WEBP · máx. 1 MB</div>
                         </div>
                       </label>
                     )}
