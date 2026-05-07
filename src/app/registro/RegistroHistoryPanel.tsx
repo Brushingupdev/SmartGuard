@@ -51,6 +51,7 @@ export default function RegistroHistoryPanel({
 }: RegistroHistoryPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const canManageClosedRecords = userRole !== "guardia";
 
   const filteredRecords = useMemo(() => {
     const term = searchTerm.trim().toUpperCase();
@@ -162,7 +163,7 @@ export default function RegistroHistoryPanel({
                     reg={record}
                     onClose={() => onClose(record)}
                     onDocs={record.attended && !record.docsDelivered ? () => onDocs(record) : undefined}
-                    onEdit={!record.docsDelivered ? () => onEdit(record) : undefined}
+                    onEdit={!record.docsDelivered || canManageClosedRecords ? () => onEdit(record) : undefined}
                     onDelete={userRole !== "guardia" ? () => onDelete(record.id, record.razonSocial) : undefined}
                     isAbandoned={abandonedRecords.some((abandoned) => abandoned.id === record.id)}
                     closing={closingIds.has(record.id)}

@@ -298,8 +298,7 @@ export default function TarjetaRegistro({
           </button>
         )}
 
-        {/* Editar solo si no está completo */}
-        {state !== "complete" && onEdit && (
+        {onEdit && (
           <div className="flex gap-2">
             <button
               onClick={onEdit}
