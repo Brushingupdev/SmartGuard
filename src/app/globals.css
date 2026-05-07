@@ -3,7 +3,7 @@
 :root {
   /* fonts — Inter variable (bundled woff2), system stack as fallback */
   --sg-font-body: var(--font-inter), "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --sg-font-display: Impact, Haettenschweiler, "Arial Narrow Bold", "Franklin Gothic Medium", sans-serif;
+  --sg-font-display: var(--font-inter), "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --sg-font-mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, Consolas, monospace;
 
   /* surfaces */
@@ -116,6 +116,8 @@ textarea {
 }
 .sg-font-display {
   font-family: var(--sg-font-display);
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 .sg-font-mono {
   font-family: var(--sg-font-mono);
@@ -123,10 +125,10 @@ textarea {
 
 .sg-display {
   font-family: var(--sg-font-display);
-  font-weight: 700;
+  font-weight: 680;
   text-transform: uppercase;
-  letter-spacing: -0.01em;
-  line-height: 0.95;
+  letter-spacing: 0;
+  line-height: 1.02;
   color: var(--sg-ink);
 }
 
@@ -176,11 +178,11 @@ textarea {
 .sg-section-title {
   font-family: var(--sg-font-display);
   font-size: 36px;
-  font-weight: 700;
+  font-weight: 680;
   text-transform: uppercase;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--sg-ink);
-  line-height: 1;
+  line-height: 1.08;
 }
 
 /* ────────────────────────────────────────────────
