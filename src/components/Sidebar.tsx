@@ -61,9 +61,15 @@ function Logo({
         />
       ) : (
         <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-[var(--sg-accent)]">
-          <svg viewBox="0 0 16 16" className="h-4 w-4 fill-[var(--sg-canvas)]">
-            <path d="M1 8h6V2h2v6h6v2h-6v6H7v-6H1z" />
-          </svg>
+          {isPowered ? (
+            <span className="sg-font-display text-[14px] font-bold uppercase text-[var(--sg-canvas)]">
+              {displayName.trim().charAt(0)}
+            </span>
+          ) : (
+            <svg viewBox="0 0 16 16" className="h-4 w-4 fill-[var(--sg-canvas)]">
+              <path d="M1 8h6V2h2v6h6v2h-6v6H7v-6H1z" />
+            </svg>
+          )}
         </div>
       )}
       {!compact && (
@@ -76,7 +82,7 @@ function Logo({
             {displayName}
           </div>
           <div className="sg-font-mono text-[8px] uppercase tracking-[0.18em] text-[var(--sg-muted)] mt-1">
-            {isPowered ? "con tecnología SmartGuard" : "Centro operativo"}
+            {isPowered ? "con tecnología de SmartGuard" : "Centro operativo"}
           </div>
         </div>
       )}

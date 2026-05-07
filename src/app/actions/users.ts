@@ -113,18 +113,20 @@ export async function getUserProfile() {
 
   let companyName: string | null = (user?.user_metadata?.company as string) ?? null;
   let logoUrl: string | null = (user?.user_metadata?.logo_url as string) ?? null;
+  let plantas: string[] = (user?.user_metadata?.plantas as string[]) ?? [];
 
-  // Impersonation: look up target company name
-  if (ctx.isImpersonating && ctx.companyId) {
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-    const { data: c } = await admin.from("companies")
-      .select("name, logo_url")
+  if (ctx.companyId) {
+    const client = ctx.isImpersonating
+      ? (await import("@/utils/supabase/admin")).createAdminClient()
+      : supabase;
+    const { data: c } = await client.from("companies")
+      .select("name, logo_url, plantas")
       .eq("id", ctx.companyId)
-      .single();
+      .maybeSingle();
     if (c) {
       companyName = c.name as string;
       logoUrl = c.logo_url as string | null;
+      if (Array.isArray(c.plantas)) plantas = c.plantas as string[];
     }
   }
 
@@ -136,7 +138,7 @@ export async function getUserProfile() {
     companyId: ctx.companyId,
     companyName,
     logoUrl,
-    plantas: (user?.user_metadata?.plantas as string[]) ?? [],
+    plantas,
     isImpersonating: ctx.isImpersonating,
   };
 }

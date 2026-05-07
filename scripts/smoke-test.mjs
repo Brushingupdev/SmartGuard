@@ -59,7 +59,7 @@ function check(name, ok, detail = "") {
 console.log("\n🔧 1. Environment");
 check("SUPABASE_URL configurado", supabaseUrl?.startsWith("https://"));
 check("SERVICE_ROLE_KEY configurado", serviceKey?.startsWith("sb_secret_"));
-check("ANON_KEY configurado", anonKey?.startsWith("eyJ"));
+check("ANON_KEY configurado", anonKey?.startsWith("eyJ") || anonKey?.startsWith("sb_publishable_"));
 check("RESEND_API_KEY presente", !!process.env.RESEND_API_KEY);
 check("GREEN_API_TOKEN presente", !!process.env.GREEN_API_TOKEN);
 
@@ -150,7 +150,7 @@ console.log("\n🛡️  7. Next.js Environment");
   check("Supabase anon client funcional", !!data, "getSession respondió");
 }
 
-check("NEXT_PUBLIC_SITE_URL configurado", process.env.NEXT_PUBLIC_SITE_URL === "http://localhost:3000");
+check("NEXT_PUBLIC_SITE_URL configurado", /^https?:\/\/.+/.test(process.env.NEXT_PUBLIC_SITE_URL ?? ""));
 
 // ── 8. Auth Flow ─────────────────────────────────────────────────────────────────
 console.log("\n🔑 8. Auth Flow");
