@@ -433,7 +433,7 @@ export default function LandingPage() {
               </h2>
             </div>
             <p className="text-[13px] font-light text-[var(--sg-muted)] max-w-[260px] leading-relaxed">
-              14 días de prueba gratuita en todos los planes. Sin tarjeta de crédito.
+              Piloto gratuito por 14 días. Luego eliges el alcance operativo según sedes, garitas y volumen.
             </p>
           </div>
 
@@ -506,23 +506,24 @@ export default function LandingPage() {
                 Plan Pro
               </div>
               <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
-                Para empresas industriales en operación. Todo lo necesario para controlar el acceso vehicular de tu planta.
+                Para empresas industriales en operación. Ideal para iniciar control vehicular con trazabilidad, KPIs y alertas.
               </p>
 
               <div className="mb-8">
+                <span className="text-[13px] text-[var(--sg-muted)] mr-2">Desde</span>
                 <span className="sg-font-display text-[48px] font-bold text-[var(--sg-ink)] leading-none">S/. 550</span>
                 <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ mes</span>
               </div>
 
               <div className="flex flex-col gap-3 mb-10 flex-1">
                 {[
-                  "Plantas / garitas ilimitadas",
-                  "Usuarios ilimitados",
+                  "Operación inicial multi-garita",
+                  "Usuarios operativos incluidos",
                   "Dashboard KPIs en tiempo real",
                   "Alertas WhatsApp + Email",
                   "Reportes PDF + Excel con logo",
                   "Importación de datos históricos",
-                  "Configuración por sede",
+                  "Configuración por sede/planta",
                   "Soporte prioritario por WhatsApp",
                 ].map((f) => (
                   <div key={f} className="flex items-start gap-3">
@@ -538,7 +539,7 @@ export default function LandingPage() {
               </Link>
 
               <p className="text-center text-[11px] text-[var(--sg-muted)] mt-3">
-                14 días de prueba gratuita incluidos
+                El alcance final se ajusta según sedes, usuarios y volumen operativo
               </p>
             </motion.div>
 
@@ -557,7 +558,7 @@ export default function LandingPage() {
                 Enterprise
               </div>
               <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
-                Para corporaciones con múltiples operaciones, requerimientos de integración o volumen alto de vehículos.
+                Para grupos con varias sedes, alto volumen vehicular, integraciones ERP/WMS o requerimientos de SLA.
               </p>
 
               <div className="mb-8">
@@ -567,8 +568,8 @@ export default function LandingPage() {
               <div className="flex flex-col gap-3 mb-10 flex-1">
                 {[
                   "Todo lo del Plan Pro",
-                  "Configuración personalizada",
-                  "Capacitación al equipo incluida",
+                  "Múltiples sedes y garitas avanzadas",
+                  "Onboarding y capacitación al equipo",
                   "SLA de disponibilidad garantizado",
                   "API de integración con ERP/WMS",
                   "Gerente de cuenta dedicado",
