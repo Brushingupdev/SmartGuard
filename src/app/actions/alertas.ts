@@ -50,7 +50,7 @@ export async function getAlertsData(plant?: string) {
 
   let todayAllQuery = db
     .from("atenciones")
-    .select("espera_min, planta, h_atencion, h_registro")
+    .select("id, espera_min, planta, h_atencion, h_registro")
     .eq("fecha", todayStr);
   if (!ctx?.isAdmin && ctx?.companyId) todayAllQuery = todayAllQuery.eq("company_id", ctx.companyId);
   const { data: todayAll } = await todayAllQuery;
@@ -75,12 +75,16 @@ export async function getAlertsData(plant?: string) {
     .slice(-7);
 
   const allToday = todayAll || [];
+  const liveWaitById = new Map(pendingAlerts.map(d => [d.id, d.espera_min]));
+  const severityWaits = allToday
+    .map(d => liveWaitById.get(d.id) ?? d.espera_min)
+    .filter((wait): wait is number => wait != null);
   const kpis = {
     total: allToday.length,
     enEspera: pendingAlerts.length,
-    criticos: allToday.filter(d => d.espera_min != null && d.espera_min >= 90).length,
-    altos: allToday.filter(d => d.espera_min != null && d.espera_min >= 45 && d.espera_min < 90).length,
-    moderados: allToday.filter(d => d.espera_min != null && d.espera_min >= 30 && d.espera_min < 45).length,
+    criticos: severityWaits.filter(wait => wait >= 90).length,
+    altos: severityWaits.filter(wait => wait >= 45 && wait < 90).length,
+    moderados: severityWaits.filter(wait => wait >= 30 && wait < 45).length,
   };
 
   return { alerts, kpis, histChart };

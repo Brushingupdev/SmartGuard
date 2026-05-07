@@ -115,7 +115,7 @@ export async function activateCita(rawData: unknown) {
   return { success: true };
 }
 
-// Obtiene las citas para una planta: de hoy en adelante, estado esperado/activo.
+// Obtiene las citas programadas del día para una planta.
 export async function getCitasDelDia(plant: string) {
   const ctx = await getUserContext();
   const supabase = await createClient();
@@ -126,8 +126,9 @@ export async function getCitasDelDia(plant: string) {
     .select(
       "id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min"
     )
-    .gte("fecha", dateStr)
+    .eq("fecha", dateStr)
     .eq("planta", plant)
+    .not("hora_cita", "is", null)
     .in("estado", ["esperado", "activo"])
     .order("fecha", { ascending: true })
     .order("hora_cita", { ascending: true });
