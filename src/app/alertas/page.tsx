@@ -200,14 +200,22 @@ function formatFullDate(iso: string) {
   return `${parseInt(dd)} ${MONTHS[parseInt(mm) - 1]}`;
 }
 
-function DayIncidentsModal({ date, onClose }: { date: string; onClose: () => void }) {
+function DayIncidentsModal({ date, plant, onClose }: { date: string; plant?: string; onClose: () => void }) {
   const [rows, setRows] = useState<IncidentAlert[]>([]);
   const [fetching, setFetching] = useState(true);
   const [inner, setInner] = useState<AlertDetail | null>(null);
 
   useEffect(() => {
-    getIncidentsByDate(date).then(data => { setRows(data); setFetching(false); });
-  }, [date]);
+    let active = true;
+    getIncidentsByDate(date, plant).then(data => {
+      if (!active) return;
+      setRows(data);
+      setFetching(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [date, plant]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") { if (inner) setInner(null); else onClose(); }};
@@ -337,7 +345,7 @@ export default function AlertasPage() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [result, logs] = await Promise.all([getAlertsData(userPlant), getAlertLogs()]);
+      const [result, logs] = await Promise.all([getAlertsData(userPlant), getAlertLogs(userPlant)]);
       setData(result);
       setAlertLogs(logs);
     } finally {
@@ -352,7 +360,7 @@ export default function AlertasPage() {
       try {
         const profile = await getUserProfile();
         const plant = profile?.plant ?? undefined;
-        const [result, logs] = await Promise.all([getAlertsData(plant), getAlertLogs()]);
+        const [result, logs] = await Promise.all([getAlertsData(plant), getAlertLogs(plant)]);
         if (!active) return;
 
         setData(result);
@@ -398,7 +406,7 @@ export default function AlertasPage() {
           <AlertDetailModal alert={selectedAlert} onClose={() => setSelectedAlert(null)} />
         )}
         {selectedDay && !selectedAlert && (
-          <DayIncidentsModal date={selectedDay} onClose={() => setSelectedDay(null)} />
+          <DayIncidentsModal date={selectedDay} plant={userPlant} onClose={() => setSelectedDay(null)} />
         )}
       </AnimatePresence>
 

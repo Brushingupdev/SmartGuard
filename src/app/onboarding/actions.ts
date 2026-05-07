@@ -264,9 +264,9 @@ export async function registerCompany(rawData: unknown) {
       ? data.plantasText.split(",").map((p) => p.trim()).filter(Boolean)
       : [];
 
-    // Trial: 14 días desde hoy
+    // Trial: 7 días desde hoy
     const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+    trialEndsAt.setDate(trialEndsAt.getDate() + 7);
     const trialEndsAtStr = trialEndsAt.toISOString().split("T")[0];
 
     const { data: company, error: companyError } = await admin

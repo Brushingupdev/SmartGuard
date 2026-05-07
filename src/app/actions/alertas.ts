@@ -62,6 +62,7 @@ export async function getAlertsData(plant?: string) {
     .gte("espera_min", 30)
     .order("fecha", { ascending: true });
   if (!ctx?.isAdmin && ctx?.companyId) historyQuery = historyQuery.eq("company_id", ctx.companyId);
+  if (plant && plant !== "Todas") historyQuery = historyQuery.eq("planta", plant);
   const { data: history } = await historyQuery;
 
   const histMap: Record<string, { n: number; fullDate: string }> = {};
@@ -90,7 +91,7 @@ export async function getAlertsData(plant?: string) {
   return { alerts, kpis, histChart };
 }
 
-export async function getIncidentsByDate(date: string) {
+export async function getIncidentsByDate(date: string, plant?: string) {
   const ctx = await getUserContext();
   const db = ctx?.isAdmin
     ? (await import("@/utils/supabase/admin")).createAdminClient()
@@ -106,13 +107,16 @@ export async function getIncidentsByDate(date: string) {
   if (!ctx?.isAdmin && ctx?.companyId) {
     query = query.eq("company_id", ctx.companyId);
   }
+  if (plant && plant !== "Todas") {
+    query = query.eq("planta", plant);
+  }
 
   const { data, error } = await query;
   if (error) return [];
   return data ?? [];
 }
 
-export async function getAlertLogs() {
+export async function getAlertLogs(plant?: string) {
   const ctx = await getUserContext();
   const db = ctx?.isAdmin
     ? (await import("@/utils/supabase/admin")).createAdminClient()
@@ -126,6 +130,9 @@ export async function getAlertLogs() {
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     query = query.eq("company_id", ctx.companyId);
+  }
+  if (plant && plant !== "Todas") {
+    query = query.eq("planta", plant);
   }
 
   const { data } = await query;

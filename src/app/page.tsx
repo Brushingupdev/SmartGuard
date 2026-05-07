@@ -433,7 +433,7 @@ export default function LandingPage() {
               </h2>
             </div>
             <p className="text-[13px] font-light text-[var(--sg-muted)] max-w-[260px] leading-relaxed">
-              Piloto gratuito por 14 días. Luego eliges el alcance operativo según sedes, garitas y volumen.
+              Prueba gratuita de 7 días con todo incluido. Luego continúas con el Plan Pro según sedes, garitas y volumen.
             </p>
           </div>
 
@@ -455,21 +455,21 @@ export default function LandingPage() {
                 Prueba Gratuita
               </div>
               <p className="text-[13px] font-light text-[var(--sg-muted)] mb-8 leading-relaxed">
-                Explora SmartGuard sin compromiso. Acceso completo a todas las funcionalidades durante 14 días.
+                Explora SmartGuard sin compromiso. Acceso completo a todas las funcionalidades durante 7 días.
               </p>
 
               <div className="mb-8">
                 <span className="sg-font-display text-[48px] font-bold text-[var(--sg-ink)] leading-none">S/. 0</span>
-                <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ 14 días</span>
+                <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ 7 días</span>
               </div>
 
               <div className="flex flex-col gap-3 mb-10 flex-1">
                 {[
-                  "Acceso completo al sistema",
-                  "1 planta / garita",
-                  "Hasta 3 usuarios",
-                  "Dashboard y alertas incluidos",
-                  "Soporte por WhatsApp",
+                  "Todo el Plan Pro incluido",
+                  "Dashboard, reportes y alertas",
+                  "Usuarios, sedes y garitas para la demo",
+                  "Importación de datos históricos",
+                  "Soporte de activación por WhatsApp",
                 ].map((f) => (
                   <div key={f} className="flex items-start gap-3">
                     <CheckCircle2 className="h-4 w-4 text-[var(--sg-muted)] shrink-0 mt-0.5" />

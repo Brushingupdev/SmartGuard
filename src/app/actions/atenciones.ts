@@ -692,6 +692,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
     .select("id, razon_social, empresa, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita", { count: "exact" })
     .eq("planta", plant)
     .eq("fecha", dateStr)
+    .not("h_registro", "is", null)
     .order("id", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -765,4 +766,3 @@ export async function importAtenciones(
     return { success: false, imported: 0, error: "Error inesperado al importar" };
   }
 }
-
