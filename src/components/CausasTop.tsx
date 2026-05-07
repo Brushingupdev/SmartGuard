@@ -9,7 +9,7 @@ interface Causa {
   pct?: number;
 }
 
-export default function CausasTop({ causas }: { causas: Causa[] }) {
+export default function CausasTop({ causas, totalDemoras = 0 }: { causas: Causa[]; totalDemoras?: number }) {
   const max = Math.max(1, ...causas.map((c) => c.count));
 
   return (
@@ -22,8 +22,24 @@ export default function CausasTop({ causas }: { causas: Causa[] }) {
       </div>
 
       {causas.length === 0 ? (
-        <div className="text-center py-6 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-          Sin demoras registradas
+        <div className="grid min-h-[96px] gap-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
+          <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-3">
+            <div className="sg-font-mono text-[28px] font-bold leading-none text-[var(--sg-danger)]">
+              {totalDemoras}
+            </div>
+            <div className="mt-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+              demoras detectadas
+            </div>
+          </div>
+          <div>
+            <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+              Sin causas registradas
+            </div>
+            <p className="mt-2 max-w-xl text-[12px] leading-5 text-[var(--sg-copy)]">
+              Hay atenciones con espera alta, pero no tienen motivo de demora. Para una revisión gerencial,
+              el siguiente paso es clasificar esas demoras por causa operativa, documentación, programación o almacén.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

@@ -353,8 +353,8 @@ function ReporteContent() {
           </div>
 
           {/* Timeframe filter */}
-          <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
-            {["Día", "Semana", "Mes", ...availableYears].map(t => (
+          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+            {["Día", "Semana", "Mes"].map(t => (
               <button
                 key={t}
                 onClick={() => setTimeframe(t)}
@@ -367,6 +367,27 @@ function ReporteContent() {
                 {t}
               </button>
             ))}
+            {availableYears.length > 0 && (
+              <select
+                aria-label="Seleccionar año"
+                value={/^\d{4}$/.test(timeframe) ? timeframe : ""}
+                onChange={(event) => {
+                  if (event.target.value) setTimeframe(event.target.value);
+                }}
+                className={`h-[24px] min-w-[76px] border-l border-[var(--sg-line)] bg-transparent px-2 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
+                  /^\d{4}$/.test(timeframe)
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                <option value="" className="bg-[var(--sg-panel)] text-[var(--sg-muted)]">Año</option>
+                {availableYears.map(year => (
+                  <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                    {year}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -733,6 +754,16 @@ function ReporteContent() {
               <EmptyMsg />
             ) : (
               <div className="sg-panel p-4 flex flex-col gap-3.5">
+                {d.opTypes.length === 1 && d.opTypes[0]?.tipo.toLowerCase().includes("sin tipo") && (
+                  <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-2">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Clasificación pendiente
+                    </div>
+                    <p className="mt-1 text-[11px] leading-4 text-[var(--sg-copy)]">
+                      La operación ya está medida, pero falta etiquetar tipo de movimiento para comparar despacho, recepción o visita.
+                    </p>
+                  </div>
+                )}
                 {d.opTypes.map((op) => (
                   <div key={op.tipo} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between text-[12px]">
@@ -779,7 +810,18 @@ function ReporteContent() {
               <Skel h="h-[200px]" />
             ) : !d || d.delayReasons.length === 0 ? (
               <div className="sg-panel p-5">
-                <EmptyMsg text="Sin motivos registrados" />
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-3">
+                  <div className="sg-font-mono text-[28px] font-bold leading-none text-[var(--sg-danger)]">
+                    {d?.topCompanies.reduce((sum, company) => sum + company.count, 0) ?? 0}
+                  </div>
+                  <div className="mt-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+                    demoras sin motivo
+                  </div>
+                </div>
+                <p className="mt-4 text-[12px] leading-5 text-[var(--sg-copy)]">
+                  Para que el análisis sea más convincente, conviene registrar motivos estandarizados:
+                  documentación, almacén, rampa, programación, producción o espera de personal.
+                </p>
               </div>
             ) : (
               <div className="sg-panel p-4 flex flex-col gap-3">

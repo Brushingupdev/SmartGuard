@@ -292,7 +292,8 @@ export async function registerCompany(rawData: unknown) {
     const companyId = company.id as string;
 
     // 3. Create supervisor user
-    const { error: userError } = await admin.auth.admin.createUser({
+    const createdUserIds: string[] = [];
+    const { data: supervisorUser, error: userError } = await admin.auth.admin.createUser({
       email: data.supervisorEmail,
       password: data.supervisorPassword,
       email_confirm: true,
@@ -315,6 +316,7 @@ export async function registerCompany(rawData: unknown) {
       }
       return { success: false, error: userError.message };
     }
+    if (supervisorUser.user?.id) createdUserIds.push(supervisorUser.user.id);
 
     // 4. Insert responsables with company_id
     if (data.responsables.length > 0) {
@@ -325,7 +327,7 @@ export async function registerCompany(rawData: unknown) {
     // 5. Create guardia accounts
     if (data.guardias && data.guardias.length > 0) {
       for (const g of data.guardias) {
-        await admin.auth.admin.createUser({
+        const { data: guardiaUser, error: guardiaError } = await admin.auth.admin.createUser({
           email: g.email,
           password: g.password,
           email_confirm: true,
@@ -338,6 +340,13 @@ export async function registerCompany(rawData: unknown) {
             ...(logoUrl ? { logo_url: logoUrl } : {}),
           },
         });
+        if (guardiaError) {
+          await Promise.allSettled(createdUserIds.map((id) => admin.auth.admin.deleteUser(id)));
+          await admin.from("responsables").delete().eq("company_id", companyId);
+          await admin.from("companies").delete().eq("id", companyId);
+          return { success: false, error: guardiaError.message };
+        }
+        if (guardiaUser.user?.id) createdUserIds.push(guardiaUser.user.id);
       }
     }
 
@@ -345,7 +354,14 @@ export async function registerCompany(rawData: unknown) {
     if (data.excelRows && data.excelRows.length > 0) {
       const rows = data.excelRows.slice(0, 10_000).map((r) => ({ ...r, company_id: companyId }));
       for (let i = 0; i < rows.length; i += 500) {
-        await admin.from("atenciones").insert(rows.slice(i, i + 500));
+        const { error: excelError } = await admin.from("atenciones").insert(rows.slice(i, i + 500));
+        if (excelError) {
+          await Promise.allSettled(createdUserIds.map((id) => admin.auth.admin.deleteUser(id)));
+          await admin.from("atenciones").delete().eq("company_id", companyId);
+          await admin.from("responsables").delete().eq("company_id", companyId);
+          await admin.from("companies").delete().eq("id", companyId);
+          return { success: false, error: `No se pudo importar el Excel: ${excelError.message}` };
+        }
       }
     }
 

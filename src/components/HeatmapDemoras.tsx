@@ -34,6 +34,15 @@ export default function HeatmapDemoras({ data }: { data: HeatmapCell[] }) {
   data.forEach((d) => { grid[`${d.dow}-${d.hour}`] = d; });
 
   const hasData = data.length > 0;
+  const activeCells = data.filter((d) => d.total > 0 && d.rate !== null);
+  const worst = [...activeCells].sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0))[0];
+  const busiest = [...activeCells].sort((a, b) => b.total - a.total)[0];
+  const cleanest = [...activeCells]
+    .filter((d) => d.total >= 3)
+    .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0))[0];
+  const total = activeCells.reduce((sum, d) => sum + d.total, 0);
+  const delayed = activeCells.reduce((sum, d) => sum + d.delayed, 0);
+  const labelFor = (cell?: HeatmapCell) => cell ? `${DAYS[cell.dow]} ${String(cell.hour).padStart(2, "0")}:00` : "—";
 
   return (
     <div className="sg-panel p-5">
@@ -49,8 +58,9 @@ export default function HeatmapDemoras({ data }: { data: HeatmapCell[] }) {
           Sin datos suficientes para generar el mapa
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="inline-block min-w-[600px]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-start">
+          <div className="overflow-x-auto">
+          <div className="inline-block min-w-[600px] w-full">
             {/* Header row */}
             <div className="flex mb-1">
               <div className="w-10 shrink-0" />
@@ -108,6 +118,46 @@ export default function HeatmapDemoras({ data }: { data: HeatmapCell[] }) {
                 <div key={l.label} className="flex items-center gap-1.5">
                   <div className="h-3 w-3 rounded-sm" style={{ background: l.bg }} />
                   <span className="sg-font-mono text-[8px] text-[var(--sg-muted)]">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          </div>
+
+          <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+            <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+              Lectura rápida
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div>
+                <div className="sg-font-mono text-[20px] font-bold text-[var(--sg-danger)]">
+                  {total > 0 ? Math.round((delayed / total) * 100) : 0}%
+                </div>
+                <div className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  tasa demora
+                </div>
+              </div>
+              <div>
+                <div className="sg-font-mono text-[20px] font-bold text-[var(--sg-ink)]">
+                  {total}
+                </div>
+                <div className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  registros
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-3 border-t border-[var(--sg-line)] pt-4">
+              {[
+                { label: "Mayor riesgo", value: labelFor(worst), meta: worst ? `${worst.rate}% demora` : "Sin datos", color: "var(--sg-danger)" },
+                { label: "Mayor flujo", value: labelFor(busiest), meta: busiest ? `${busiest.total} registros` : "Sin datos", color: "var(--sg-accent)" },
+                { label: "Ventana estable", value: labelFor(cleanest), meta: cleanest ? `${cleanest.rate}% demora` : "Sin datos", color: "var(--sg-success)" },
+              ].map((item) => (
+                <div key={item.label}>
+                  <div className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">{item.label}</div>
+                  <div className="mt-0.5 flex items-center justify-between gap-3">
+                    <span className="text-[13px] font-semibold text-[var(--sg-ink)]">{item.value}</span>
+                    <span className="sg-font-mono text-[10px] font-bold" style={{ color: item.color }}>{item.meta}</span>
+                  </div>
                 </div>
               ))}
             </div>

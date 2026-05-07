@@ -227,8 +227,8 @@ export default function DashboardClient({
 
           <div className="w-[1px] h-4 bg-[var(--sg-line)]" />
 
-          <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
-            {["Día", "Semana", "Mes", ...availableYears].map((t) => (
+          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+            {["Día", "Semana", "Mes"].map((t) => (
               <button
                 key={t}
                 onClick={() => setSelectedTimeframe(t)}
@@ -241,6 +241,27 @@ export default function DashboardClient({
                 {t}
               </button>
             ))}
+            {availableYears.length > 0 && (
+              <select
+                aria-label="Seleccionar año"
+                value={/^\d{4}$/.test(selectedTimeframe) ? selectedTimeframe : ""}
+                onChange={(event) => {
+                  if (event.target.value) setSelectedTimeframe(event.target.value);
+                }}
+                className={`h-[24px] min-w-[76px] border-l border-[var(--sg-line)] bg-transparent px-2 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
+                  /^\d{4}$/.test(selectedTimeframe)
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                <option value="" className="bg-[var(--sg-panel)] text-[var(--sg-muted)]">Año</option>
+                {availableYears.map((year) => (
+                  <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                    {year}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -476,7 +497,7 @@ export default function DashboardClient({
           />
 
           {/* Causas de demora */}
-          <CausasTop causas={delayReasons} />
+          <CausasTop causas={delayReasons} totalDemoras={kpis.deny + kpis.warn} />
 
           {/* Heatmap de demoras — últimos 6 meses, agrupado por día × hora */}
           <HeatmapDemoras data={heatmapData} />

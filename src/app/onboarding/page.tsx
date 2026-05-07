@@ -20,7 +20,7 @@ import {
   type ExcelMapping,
   type ImportedExcelRow,
   PLATFORM_FIELDS,
-  autoDetectMapping,
+  prepareExcelImport,
   processRows,
 } from "@/utils/excel-import";
 
@@ -146,6 +146,7 @@ export default function OnboardingPage() {
   const [excelMapping, setExcelMapping] = useState<ExcelMapping>({});
   const [excelValidRows, setExcelValidRows] = useState<ImportedExcelRow[]>([]);
   const [excelInvalidCount, setExcelInvalidCount] = useState(0);
+  const [excelDefaultPlant, setExcelDefaultPlant] = useState<string | null>(null);
 
   // Restore saved progress on mount
   useEffect(() => {
@@ -236,23 +237,21 @@ export default function OnboardingPage() {
       const XLSX = await import("@e965/xlsx");
       const buffer = await file.arrayBuffer();
       const wb    = XLSX.read(buffer, { type: "array", cellDates: false });
-      const ws    = wb.Sheets[wb.SheetNames[0]];
-      const raw   = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as ExcelRow[];
+      const sheets = wb.SheetNames.map((name) => ({
+        name,
+        rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null }) as ExcelRow[],
+      }));
+      const prepared = prepareExcelImport(sheets, file.name);
 
-      if (raw.length < 2) { alert("El archivo no contiene datos suficientes."); setExcelParsing(false); return; }
-
-      const headers = raw[0].map((h) => (h?.toString().trim() ?? "")).filter(Boolean) as string[];
-      const rows    = raw.slice(1).filter((r) => r.some((c) => c !== null && c !== ""));
-
-      const mapping = autoDetectMapping(headers);
-      const { valid, invalid } = processRows(rows, headers, mapping);
+      if (!prepared || prepared.rows.length < 1) { alert("No se encontró una hoja con columnas de registros vehiculares."); setExcelParsing(false); return; }
 
       setExcelFileName(file.name);
-      setExcelHeaders(headers);
-      setExcelRawRows(rows);
-      setExcelMapping(mapping);
-      setExcelValidRows(valid);
-      setExcelInvalidCount(invalid);
+      setExcelHeaders(prepared.headers);
+      setExcelRawRows(prepared.rows);
+      setExcelMapping(prepared.mapping);
+      setExcelDefaultPlant(prepared.valid[0]?.planta ?? null);
+      setExcelValidRows(prepared.valid);
+      setExcelInvalidCount(prepared.invalid);
     } catch {
       alert("No se pudo leer el archivo. Asegúrate de que sea un Excel o CSV válido.");
     }
@@ -262,16 +261,16 @@ export default function OnboardingPage() {
   const handleMappingChange = useCallback((field: string, col: string | null) => {
     setExcelMapping((prev) => {
       const next = { ...prev, [field]: col };
-      const { valid, invalid } = processRows(excelRawRows, excelHeaders, next);
+      const { valid, invalid } = processRows(excelRawRows, excelHeaders, next, { planta: excelDefaultPlant });
       setExcelValidRows(valid);
       setExcelInvalidCount(invalid);
       return next;
     });
-  }, [excelRawRows, excelHeaders]);
+  }, [excelRawRows, excelHeaders, excelDefaultPlant]);
 
   const clearExcel = () => {
     setExcelFileName(null); setExcelHeaders([]); setExcelRawRows([]);
-    setExcelMapping({}); setExcelValidRows([]); setExcelInvalidCount(0);
+    setExcelMapping({}); setExcelValidRows([]); setExcelInvalidCount(0); setExcelDefaultPlant(null);
     if (excelFileRef.current) excelFileRef.current.value = "";
   };
 

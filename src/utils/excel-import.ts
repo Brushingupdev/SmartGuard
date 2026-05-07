@@ -26,6 +26,16 @@ export interface ImportedExcelRow {
   observacion: string | null;
 }
 
+export interface PreparedExcelImport {
+  sheetName: string;
+  headerRowIndex: number;
+  headers: string[];
+  rows: ExcelRow[];
+  mapping: ExcelMapping;
+  valid: ImportedExcelRow[];
+  invalid: number;
+}
+
 // ─── Definición de campos ─────────────────────────────────────────────────────
 
 export const PLATFORM_FIELDS: { key: string; label: string; required: boolean }[] = [
@@ -65,17 +75,23 @@ export function autoDetectMapping(headers: string[]): ExcelMapping {
     }
     return null;
   };
+  const findExactOrCol = (exactPatterns: string[], fallbackPatterns: string[]): string | null => {
+    for (let i = 0; i < norm.length; i++) {
+      if (exactPatterns.includes(norm[i])) return headers[i];
+    }
+    return findCol(fallbackPatterns);
+  };
   return {
     fecha:            findCol(["fecha", "date"]),
-    h_registro:       findCol(["hregistro", "llegada", "horaregistro", "hentrada", "hora"]),
+    h_registro:       findCol(["hregistro", "registrovehiculo", "horaregistro", "hentrada", "llegada", "hora"]),
     razon_social:     findCol(["razonsocial", "razon", "transportista", "vehiculo", "unidad"]),
     empresa:          findCol(["empresadestino", "empresa", "cliente", "destino"]),
     planta:           findCol(["planta", "sede", "garita"]),
     tipo:             findCol(["tipo"]),
     tipo_operacion:   findCol(["tipooperacion", "operacion"]),
-    responsable:      findCol(["responsable", "almacen"]),
+    responsable:      findExactOrCol(["responsabledealmacen", "responsablealmacen"], ["responsable"]),
     agente:           findCol(["agente", "guardia"]),
-    h_atencion:       findCol(["hatencion", "atencion"]),
+    h_atencion:       findCol(["hatencion", "atencionalmacen", "atencion"]),
     h_dev_docs:       findCol(["hdevdocs", "docs", "documentos"]),
     espera_min:       findCol(["esperamin", "espera", "tiempoespera"]),
     tiempo_total_min: findCol(["tiempototal", "total", "duracion"]),
@@ -92,11 +108,12 @@ export function parseExcelDate(val: ExcelCell): string | null {
   }
   if (val instanceof Date) return val.toISOString().split("T")[0];
   if (typeof val === "string") {
-    const ddmm = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    const s = val.trim();
+    const ddmm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
     if (ddmm) return `${ddmm[3]}-${ddmm[2].padStart(2, "0")}-${ddmm[1].padStart(2, "0")}`;
-    const iso = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return val.substring(0, 10);
-    const parsed = new Date(val);
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return s.substring(0, 10);
+    const parsed = new Date(s);
     if (!isNaN(parsed.getTime())) return parsed.toISOString().split("T")[0];
   }
   return null;
@@ -104,6 +121,9 @@ export function parseExcelDate(val: ExcelCell): string | null {
 
 export function parseExcelTime(val: ExcelCell): string | null {
   if (val === null || val === undefined || val === "") return null;
+  if (val instanceof Date) {
+    return `${String(val.getHours()).padStart(2, "0")}:${String(val.getMinutes()).padStart(2, "0")}:${String(val.getSeconds()).padStart(2, "0")}`;
+  }
   if (typeof val === "number") {
     const totalSec = Math.round(val * 86400);
     const h = Math.floor(totalSec / 3600) % 24;
@@ -118,10 +138,53 @@ export function parseExcelTime(val: ExcelCell): string | null {
   return null;
 }
 
+function parseMinutes(val: ExcelCell): number | null {
+  if (val === null || val === undefined || val === "") return null;
+  const n = Math.round(parseFloat(String(val)));
+  return isNaN(n) ? null : n;
+}
+
+function minutesBetween(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const [sh, sm, ss] = start.split(":").map(Number);
+  const [eh, em, es] = end.split(":").map(Number);
+  const delta = (eh * 3600 + em * 60 + es) - (sh * 3600 + sm * 60 + ss);
+  if (delta < 0) return null;
+  return Math.round(delta / 60);
+}
+
+function segmentFromWait(esperaMin: number | null) {
+  if (esperaMin === null) return { segmento_espera: null, segmento_orden: 0, es_demora: 0 };
+  if (esperaMin >= 90) return { segmento_espera: "🔴 > 90 min",  segmento_orden: 4, es_demora: 1 };
+  if (esperaMin >= 45) return { segmento_espera: "🟠 45-90 min", segmento_orden: 3, es_demora: 1 };
+  if (esperaMin >= 30) return { segmento_espera: "🟡 30-45 min", segmento_orden: 2, es_demora: 1 };
+  return { segmento_espera: "🟢 < 30 min", segmento_orden: 1, es_demora: 0 };
+}
+
+function normalizeHeaderRow(row: ExcelRow): string[] {
+  return row.map((h, i) => {
+    const value = h?.toString().trim() ?? "";
+    return value || `__EMPTY_${i}`;
+  });
+}
+
+function inferPlant(sourceName: string): string | null {
+  const n = normalizeStr(sourceName);
+  if (n.includes("cajamarquilla")) return "Cajamarquilla";
+  if (n.includes("lomas")) return "Lomas";
+  return null;
+}
+
+function scoreImport(valid: ImportedExcelRow[], mapping: ExcelMapping): number {
+  const mappedCore = ["fecha", "razon_social", "h_registro", "h_atencion"].filter((k) => mapping[k]).length;
+  return valid.length * 10 + mappedCore;
+}
+
 export function transformRow(
   rawRow: ExcelRow,
   headers: string[],
   mapping: ExcelMapping,
+  defaults: { planta?: string | null } = {},
 ): ImportedExcelRow | null {
   const colIdx: Record<string, number> = {};
   headers.forEach((h, i) => { colIdx[h] = i; });
@@ -137,38 +200,30 @@ export function transformRow(
   const razon_social = get("razon_social") ? String(get("razon_social")).toUpperCase().trim() : null;
   if (!fecha || !razon_social) return null;
 
-  const espera_raw       = get("espera_min");
-  const total_raw        = get("tiempo_total_min");
-  const espera_min       = espera_raw  !== null ? Math.round(parseFloat(String(espera_raw)))  : null;
-  const tiempo_total_min = total_raw   !== null ? Math.round(parseFloat(String(total_raw)))   : null;
-
-  let segmento_espera: string | null = null;
-  let segmento_orden = 0;
-  let es_demora = 0;
-  if (espera_min !== null && !isNaN(espera_min)) {
-    if      (espera_min >= 90) { segmento_espera = "🔴 > 90 min";  segmento_orden = 4; es_demora = 1; }
-    else if (espera_min >= 45) { segmento_espera = "🟠 45-90 min"; segmento_orden = 3; es_demora = 1; }
-    else if (espera_min >= 30) { segmento_espera = "🟡 30-45 min"; segmento_orden = 2; es_demora = 1; }
-    else                       { segmento_espera = "🟢 < 30 min";  segmento_orden = 1; }
-  }
+  const h_registro = parseExcelTime(get("h_registro"));
+  const h_atencion = parseExcelTime(get("h_atencion"));
+  const h_dev_docs = parseExcelTime(get("h_dev_docs"));
+  const espera_min = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
+  const tiempo_total_min = parseMinutes(get("tiempo_total_min")) ?? minutesBetween(h_registro, h_dev_docs);
+  const { segmento_espera, segmento_orden, es_demora } = segmentFromWait(espera_min);
 
   const d = new Date(fecha);
   return {
     fecha,
     anio:             d.getFullYear(),
     mes_num:          d.getMonth() + 1,
-    h_registro:       parseExcelTime(get("h_registro")),
-    h_atencion:       parseExcelTime(get("h_atencion")),
-    h_dev_docs:       parseExcelTime(get("h_dev_docs")),
+    h_registro,
+    h_atencion,
+    h_dev_docs,
     razon_social,
     empresa:          get("empresa")       ? String(get("empresa")).toUpperCase().trim() : null,
-    planta:           get("planta")        ? String(get("planta")).trim()                : null,
+    planta:           get("planta")        ? String(get("planta")).trim()                : defaults.planta ?? null,
     tipo:             get("tipo")          ? String(get("tipo")).trim()                  : "Proveedor",
     tipo_operacion:   get("tipo_operacion")? String(get("tipo_operacion")).trim()        : null,
     responsable:      get("responsable")   ? String(get("responsable")).trim()           : null,
     agente:           get("agente")        ? String(get("agente")).trim()                : null,
-    espera_min:       isNaN(espera_min as number) ? null : espera_min,
-    tiempo_total_min: isNaN(tiempo_total_min as number) ? null : tiempo_total_min,
+    espera_min,
+    tiempo_total_min,
     segmento_espera,
     segmento_orden,
     es_demora,
@@ -176,13 +231,53 @@ export function transformRow(
   };
 }
 
-export function processRows(rawRows: ExcelRow[], headers: string[], mapping: ExcelMapping) {
+export function processRows(
+  rawRows: ExcelRow[],
+  headers: string[],
+  mapping: ExcelMapping,
+  defaults: { planta?: string | null } = {},
+) {
   const valid: ImportedExcelRow[] = [];
   let invalid = 0;
   for (const row of rawRows) {
-    const r = transformRow(row, headers, mapping);
+    const r = transformRow(row, headers, mapping, defaults);
     if (r) valid.push(r);
     else invalid++;
   }
   return { valid, invalid };
+}
+
+export function prepareExcelImport(
+  sheets: { name: string; rows: ExcelRow[] }[],
+  fileName = "",
+): PreparedExcelImport | null {
+  let best: PreparedExcelImport | null = null;
+
+  for (const sheet of sheets) {
+    const headerRowIndex = sheet.rows.findIndex((row) => {
+      const normalized = row.map(normalizeStr);
+      return normalized.some((h) => h.includes("fecha")) &&
+        normalized.some((h) => h.includes("razon") || h.includes("transportista") || h.includes("vehiculo") || h.includes("unidad"));
+    });
+    if (headerRowIndex < 0) continue;
+
+    const headers = normalizeHeaderRow(sheet.rows[headerRowIndex]);
+    const rows = sheet.rows.slice(headerRowIndex + 1).filter((r) => r.some((c) => c !== null && c !== ""));
+    const mapping = autoDetectMapping(headers);
+    const defaultPlant = inferPlant(`${fileName} ${sheet.name}`);
+    const valid: ImportedExcelRow[] = [];
+    let invalid = 0;
+    for (const row of rows) {
+      const transformed = transformRow(row, headers, mapping, { planta: defaultPlant });
+      if (transformed) valid.push(transformed);
+      else invalid++;
+    }
+
+    const candidate = { sheetName: sheet.name, headerRowIndex, headers, rows, mapping, valid, invalid };
+    if (!best || scoreImport(candidate.valid, candidate.mapping) > scoreImport(best.valid, best.mapping)) {
+      best = candidate;
+    }
+  }
+
+  return best;
 }
