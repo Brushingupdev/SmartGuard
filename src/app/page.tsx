@@ -510,9 +510,7 @@ export default function LandingPage() {
               </p>
 
               <div className="mb-8">
-                <span className="text-[13px] text-[var(--sg-muted)] mr-2">Desde</span>
-                <span className="sg-font-display text-[48px] font-bold text-[var(--sg-ink)] leading-none">S/. 550</span>
-                <span className="text-[13px] text-[var(--sg-muted)] ml-2">/ mes</span>
+                <span className="sg-font-display text-[32px] font-bold text-[var(--sg-ink)] leading-none">A consultar</span>
               </div>
 
               <div className="flex flex-col gap-3 mb-10 flex-1">
