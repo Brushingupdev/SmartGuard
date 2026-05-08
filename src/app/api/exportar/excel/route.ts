@@ -95,9 +95,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const plant     = searchParams.get("plant")     ?? "Todos";
   const timeframe = searchParams.get("timeframe") ?? "Día";
+  const segment   = searchParams.get("segment")   ?? undefined;
+  const motivo    = searchParams.get("motivo")    ?? undefined;
+  const empresa   = searchParams.get("empresa")   ?? undefined;
 
   const [data, company] = await Promise.all([
-    getReporteData(plant, timeframe),
+    getReporteData(plant, timeframe, segment || undefined, motivo || undefined, empresa || undefined),
     getCompanySettings(),
   ]);
 
@@ -187,6 +190,9 @@ export async function GET(request: NextRequest) {
     ["REPORTE ANALÍTICO DE ACCESO VEHICULAR", ""],
     ["Puerta",  formatGateLabelFromPlant(plant)],
     ["Período",        timeframe],
+    ...(segment && segment !== "Todos" ? [["Segmento", segment]] : []),
+    ...(motivo && motivo !== "Todos" ? [["Motivo", motivo]] : []),
+    ...(empresa ? [["Búsqueda", empresa]] : []),
     ["Generado el",    now],
     ["Sistema",        "SmartGuard — Control Vehicular Industrial"],
   ];
@@ -242,7 +248,12 @@ export async function GET(request: NextRequest) {
   // Encabezado empresa
   const compRow = wsResumen.getRow(r++);
   wsResumen.mergeCells(1, 1, 1, 3);
-  compRow.getCell(1).value = `${companyName} — Reporte ${timeframe} · Puerta: ${formatGateLabelFromPlant(plant)} · ${now}`;
+  const filterParts: string[] = [];
+  if (segment && segment !== "Todos") filterParts.push(`Segmento: ${segment}`);
+  if (motivo && motivo !== "Todos") filterParts.push(`Motivo: ${motivo}`);
+  if (empresa) filterParts.push(`Búsqueda: ${empresa}`);
+  const filterSuffix = filterParts.length > 0 ? ` · ${filterParts.join(" · ")}` : "";
+  compRow.getCell(1).value = `${companyName} — Reporte ${timeframe} · Puerta: ${formatGateLabelFromPlant(plant)}${filterSuffix} · ${now}`;
   compRow.getCell(1).font  = { bold: true, size: 10, color: { argb: "FF" + C.white } };
   compRow.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + C.navy } };
   compRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };

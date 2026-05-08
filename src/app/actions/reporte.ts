@@ -27,7 +27,13 @@ function hasEspera(row: ReporteAtencionRow): row is ReporteAtencionRow & { esper
 
 const MO = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
-export async function getReporteData(plant: string = "Todos", timeframe: string = "Día") {
+export async function getReporteData(
+  plant: string = "Todos",
+  timeframe: string = "Día",
+  segment?: string,
+  motivo?: string,
+  empresaSearch?: string,
+) {
   const supabase = await createClient();
   const ctx = await getUserContext();
   const { from, to } = dateRange(timeframe);
@@ -53,6 +59,27 @@ export async function getReporteData(plant: string = "Todos", timeframe: string 
   let query = dataDb.from("atenciones").select("*");
   if (cid) query = query.eq("company_id", cid);
   if (plant !== "Todos") query = query.eq("planta", plant);
+  
+  // Filtro por segmento (severidad)
+  if (segment && segment !== "Todos") {
+    if (segment === "Normal") query = query.lt("espera_min", 30);
+    else if (segment === "Moderado") query = query.gte("espera_min", 30).lt("espera_min", 45);
+    else if (segment === "Alto") query = query.gte("espera_min", 45).lt("espera_min", 90);
+    else if (segment === "Crítico") query = query.gte("espera_min", 90);
+    else if (segment === "Pendiente") query = query.is("espera_min", null);
+  }
+  
+  // Filtro por motivo de demora
+  if (motivo && motivo !== "Todos") {
+    query = query.eq("motivo_demora", motivo);
+  }
+  
+  // Filtro por empresa/razón social (búsqueda parcial)
+  if (empresaSearch && empresaSearch.trim()) {
+    const term = empresaSearch.trim();
+    query = query.or(`razon_social.ilike.%${term}%,empresa.ilike.%${term}%`);
+  }
+  
   query = query.gte("fecha", from).lte("fecha", to).order("fecha", { ascending: false }).limit(ctx.isAdmin && !cid ? 5000 : 2000);
 
   const { data, error } = await query;
@@ -245,4 +272,26 @@ export async function getReporteData(plant: string = "Todos", timeframe: string 
     plantStats, segments, topCompanies, opTypes, delayReasons, agentStats,
     flowData, trendData, heatmap,
   };
+}
+
+// ─── Motivos de demora disponibles ───────────────────────────────────────────
+
+export async function getMotivosDemora() {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx) return [];
+
+  const client = ctx.isAdmin && !ctx.companyId
+    ? (await import("@/utils/supabase/admin")).createAdminClient()
+    : supabase;
+
+  let query = client.from("atenciones").select("motivo_demora").not("motivo_demora", "is", null);
+  if (ctx.companyId) query = query.eq("company_id", ctx.companyId);
+  query = query.limit(5000);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  const motivos = [...new Set((data as { motivo_demora: string }[]).map((d) => d.motivo_demora))].sort();
+  return motivos;
 }
