@@ -12,7 +12,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,7 +20,6 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -85,12 +83,6 @@ function exportReporteCSV(data: ReporteData, plant: string, timeframe: string, s
   a.download = `reporte_smartguard_${plant.toLowerCase().replace(/ /g, "_")}_${timeframe.toLowerCase()}_${ts}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function formatXLabel(v: string, tf: string) {
-  if (tf === "Día") return `${v}h`;
-  if (/^\d{4}$/.test(tf)) return MONTHS[parseInt(v) - 1] ?? v;
-  return `d.${parseInt(v)}`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -228,32 +220,6 @@ function EmptyMsg({ text = "Sin datos para este período" }: { text?: string }) 
 // ── Recharts custom tooltips ─────────────────────────────────────────────────
 
 interface ChartPayload { dataKey: string; value: number; fill?: string; }
-
-function FlowTip({ active, payload, label, timeframe }: { active?: boolean; payload?: ChartPayload[]; label?: string; timeframe: string }) {
-  if (!active || !payload?.length) return null;
-  const map: Record<string, string> = { ok: "A tiempo", warn: "Revisión", deny: "Con demora" };
-  const col: Record<string, string> = { ok: "var(--sg-success)", warn: "var(--sg-warn)", deny: "var(--sg-danger)" };
-  return (
-    <div className="border border-[var(--sg-line)] bg-[var(--sg-panel)] px-3 py-2 shadow-lg text-[11px]">
-      <div className="sg-slabel mb-1.5">{formatXLabel(label ?? "", timeframe)}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex items-center justify-between gap-5">
-          <span className="flex items-center gap-1.5 text-[var(--sg-copy)]">
-            <span className="h-1.5 w-1.5" style={{ background: col[p.dataKey] }} />
-            {map[p.dataKey]}
-          </span>
-          <span className="sg-font-mono text-[var(--sg-ink)]">{p.value}</span>
-        </div>
-      ))}
-      <div className="mt-1.5 border-t border-[var(--sg-line)] pt-1.5 flex justify-between text-[10px]">
-        <span className="text-[var(--sg-muted)]">Total</span>
-        <span className="sg-font-mono text-[var(--sg-ink)]">
-          {payload.reduce((s, p) => s + (p.value ?? 0), 0)}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function TrendTip({ active, payload, label }: { active?: boolean; payload?: ChartPayload[]; label?: string }) {
   if (!active || !payload?.length) return null;
@@ -678,59 +644,60 @@ function ReporteContent() {
           </Section>
         </div>
 
-        {/* ── Flujo temporal (full width) ──────────────────────────── */}
-        <Section title={`Flujo de Acceso — ${timeframe}`}>
-          <div className="sg-panel p-5">
-            <div className="h-[280px]">
-              {loading ? (
-                <Skel h="h-full" />
-              ) : !d || d.flowData.length === 0 ? (
-                <EmptyMsg />
-              ) : mounted && (
-                <ResponsiveContainer width="100%" height="100%" debounce={200}>
-                  <BarChart data={d.flowData} barCategoryGap={6}>
-                    <CartesianGrid stroke="rgba(196,192,180,0.06)" vertical={false} />
-                    <XAxis
-                      dataKey="h"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "#6a706c", fontSize: 10, fontFamily: "DM Mono" }}
-                      tickFormatter={v => formatXLabel(v, timeframe)}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "#6a706c", fontSize: 10, fontFamily: "DM Mono" }}
-                      width={28}
-                      allowDecimals={false}
-                    />
-                    <Tooltip content={<FlowTip timeframe={timeframe} />} cursor={{ fill: "rgba(196,192,180,0.04)" }} />
-                    <Bar dataKey="ok"   stackId="a" maxBarSize={44} radius={0}>
-                      {d.flowData.map((_, i) => <Cell key={i} fill="var(--sg-success)" fillOpacity={0.85} />)}
-                    </Bar>
-                    <Bar dataKey="warn" stackId="a" maxBarSize={44} radius={0}>
-                      {d.flowData.map((_, i) => <Cell key={i} fill="var(--sg-warn)" fillOpacity={0.85} />)}
-                    </Bar>
-                    <Bar dataKey="deny" stackId="a" maxBarSize={44} radius={0}>
-                      {d.flowData.map((_, i) => <Cell key={i} fill="var(--sg-danger)" fillOpacity={0.8} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+        {/* ── Motivos de Demora (full width) ───────────────────────── */}
+        <Section title="Motivos de Demora">
+          {loading ? (
+            <Skel h="h-[280px]" />
+          ) : !d || d.delayReasons.length === 0 ? (
+            <div className="sg-panel p-5">
+              <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-3">
+                <div className="sg-font-mono text-[28px] font-bold leading-none text-[var(--sg-danger)]">
+                  {d?.topCompanies.reduce((sum, company) => sum + company.count, 0) ?? 0}
+                </div>
+                <div className="mt-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+                  demoras sin motivo
+                </div>
+              </div>
+              <p className="mt-4 text-[12px] leading-5 text-[var(--sg-copy)]">
+                Para que el análisis sea más convincente, conviene registrar motivos estandarizados:
+                documentación, almacén, rampa, programación, producción o espera de personal.
+              </p>
             </div>
-            <div className="mt-3 flex gap-5 border-t border-[var(--sg-line)] pt-3">
-              {[
-                { color: "var(--sg-success)", label: "A tiempo (< 30 min)" },
-                { color: "var(--sg-warn)",    label: "Revisión (30–45 min)" },
-                { color: "var(--sg-danger)",  label: "Con demora (> 45 min)" },
-              ].map(l => (
-                <span key={l.label} className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
-                  <span className="h-2.5 w-2.5" style={{ background: l.color }} />
-                  {l.label}
-                </span>
-              ))}
+          ) : (
+            <div className="sg-panel p-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                {(() => {
+                  const max = Math.max(...d.delayReasons.map((r) => r.count));
+                  return d.delayReasons.map((r, i) => (
+                    <motion.div
+                      key={r.motivo}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03, duration: 0.3 }}
+                      className="flex flex-col gap-1"
+                    >
+                      <div className="flex items-center justify-between text-[12px]">
+                        <span className="text-[var(--sg-copy)] truncate" title={r.motivo}>
+                          {r.motivo}
+                        </span>
+                        <span className="sg-font-mono text-[11px] text-[var(--sg-ink)] shrink-0 ml-2">
+                          {r.count}
+                        </span>
+                      </div>
+                      <div className="h-[3px] bg-[var(--sg-line)]">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(r.count / max) * 100}%` }}
+                          transition={{ duration: 0.5, ease: easeOut, delay: i * 0.03 }}
+                          className="h-[3px] bg-[var(--sg-danger)] opacity-75"
+                        />
+                      </div>
+                    </motion.div>
+                  ));
+                })()}
+              </div>
             </div>
-          </div>
+          )}
         </Section>
 
         {/* ── Tendencia diaria (solo multi-día) ───────────────────── */}
@@ -904,65 +871,8 @@ function ReporteContent() {
           </Section>
         </div>
 
-        {/* ── Motivos de demora + Rendimiento agentes ──────────────── */}
-        <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-
-          {/* Delay reasons */}
-          <Section title="Motivos de Demora">
-            {loading ? (
-              <Skel h="h-[200px]" />
-            ) : !d || d.delayReasons.length === 0 ? (
-              <div className="sg-panel p-5">
-                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-3">
-                  <div className="sg-font-mono text-[28px] font-bold leading-none text-[var(--sg-danger)]">
-                    {d?.topCompanies.reduce((sum, company) => sum + company.count, 0) ?? 0}
-                  </div>
-                  <div className="mt-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
-                    demoras sin motivo
-                  </div>
-                </div>
-                <p className="mt-4 text-[12px] leading-5 text-[var(--sg-copy)]">
-                  Para que el análisis sea más convincente, conviene registrar motivos estandarizados:
-                  documentación, almacén, rampa, programación, producción o espera de personal.
-                </p>
-              </div>
-            ) : (
-              <div className="sg-panel p-4 flex flex-col gap-3">
-                {(() => {
-                  const max = Math.max(...d.delayReasons.map((r) => r.count));
-                  return d.delayReasons.map((r, i) => (
-                    <motion.div
-                      key={r.motivo}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04, duration: 0.3 }}
-                      className="flex flex-col gap-1"
-                    >
-                      <div className="flex items-center justify-between text-[12px]">
-                        <span className="text-[var(--sg-copy)] truncate max-w-[190px]" title={r.motivo}>
-                          {r.motivo}
-                        </span>
-                        <span className="sg-font-mono text-[11px] text-[var(--sg-ink)] shrink-0 ml-2">
-                          {r.count}
-                        </span>
-                      </div>
-                      <div className="h-[3px] bg-[var(--sg-line)]">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(r.count / max) * 100}%` }}
-                          transition={{ duration: 0.5, ease: easeOut, delay: i * 0.04 }}
-                          className="h-[3px] bg-[var(--sg-danger)] opacity-75"
-                        />
-                      </div>
-                    </motion.div>
-                  ));
-                })()}
-              </div>
-            )}
-          </Section>
-
-          {/* Agent stats */}
-          <Section title="Rendimiento de Agentes" sub="top 10 por volumen">
+        {/* ── Rendimiento agentes ──────────────────────────────────── */}
+        <Section title="Rendimiento de Agentes" sub="top 10 por volumen">
             <div className="sg-panel overflow-x-auto">
               {loading ? (
                 <Skel h="h-[200px]" />
@@ -1029,10 +939,9 @@ function ReporteContent() {
                 </table>
               )}
             </div>
-          </Section>
-        </div>
-
-      </div>
+           </Section>
+ 
+       </div>
     </AppLayout>
   );
 }
