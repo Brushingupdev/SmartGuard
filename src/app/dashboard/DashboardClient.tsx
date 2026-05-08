@@ -103,7 +103,6 @@ export default function DashboardClient({
   initialHeatmapData,
   initialLastRefreshAt,
 }: DashboardClientProps) {
-  const [liveTime, setLiveTime]             = useState("--:--:--");
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>(initialTimeframe);
   const [selectedPlant, setSelectedPlant]   = useState<string>(initialPlant);
   const [selectedSite, setSelectedSite]     = useState<string>("Todos");
@@ -151,14 +150,6 @@ export default function DashboardClient({
       if (id !== reqIdRef.current) return;
       if (silent) setRefreshing(false); else setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    const tick = () =>
-      setLiveTime(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-    tick();
-    const clockId = setInterval(tick, 1000);
-    return () => clearInterval(clockId);
   }, []);
 
   // Heatmap: recarga cuando cambia la planta (no en cada tick de 60s)
@@ -300,26 +291,23 @@ export default function DashboardClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1">
           <Link
             href={`/reporte?plant=${selectedPlant}&timeframe=${selectedTimeframe}`}
-            className="flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+            title="Análisis detallado"
+            className="flex h-7 w-7 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
           >
             <BarChart3 className="h-3.5 w-3.5" />
-            Análisis detallado
           </Link>
 
           {lastRefresh && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 px-2">
               <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`} />
               <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                {refreshing ? "Actualizando…" : `↻ ${lastRefresh.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}`}
+                {refreshing ? "…" : lastRefresh.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
               </span>
             </div>
           )}
-          <div className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.12em]" suppressHydrationWarning>
-            {new Date().toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })} · {liveTime}
-          </div>
         </div>
       </div>
 
