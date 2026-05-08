@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoDetectMapping, prepareExcelImport, processRows } from "../excel-import";
+import { autoDetectMapping, inferTipoOperacion, prepareExcelImport, processRows } from "../excel-import";
 
 describe("excel import", () => {
   it("keeps empty leading headers aligned with the source row", () => {
@@ -24,6 +24,33 @@ describe("excel import", () => {
       planta: "Cajamarquilla",
       responsable: "Ana",
     });
+  });
+
+  it("maps Matritech provider/client as type and EMPRESA as destination", () => {
+    const headers = ["AÑO", "Fecha", "Proveedor/ Cliente", "RAZON SOCIAL", "EMPRESA", "H. registro de vehiculo", "H. atención almacén", "Observación"];
+    const mapping = autoDetectMapping(headers);
+
+    expect(mapping.tipo).toBe("Proveedor/ Cliente");
+    expect(mapping.empresa).toBe("EMPRESA");
+
+    const { valid } = processRows(
+      [[2026, "07/05/2026", "Propio", "Camion ABC-123", "TRASLADO ENTRE PLANTAS", "08:00", "08:30", "sin obs"]],
+      headers,
+      mapping,
+    );
+
+    expect(valid[0]).toMatchObject({
+      tipo: "Propio",
+      empresa: "TRASLADO ENTRE PLANTAS",
+      tipo_operacion: "Traslado",
+    });
+  });
+
+  it("infers operation type from common Matritech text when no operation column exists", () => {
+    expect(inferTipoOperacion("TRASLADO ENTRE PLANTAS")).toBe("Traslado");
+    expect(inferTipoOperacion("DEMORA EN ATENCION POR MOTIVO DE DESCARGA DE CONTENEDOR")).toBe("Descarga");
+    expect(inferTipoOperacion("SE ESTUVO DESPACHANDO MERCADERIA")).toBe("Carga");
+    expect(inferTipoOperacion("NO HAY OBSERVACION")).toBeNull();
   });
 
   it("chooses the sheet with vehicle records instead of the first workbook sheet", () => {

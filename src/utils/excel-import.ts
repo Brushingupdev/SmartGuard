@@ -85,9 +85,9 @@ export function autoDetectMapping(headers: string[]): ExcelMapping {
     fecha:            findCol(["fecha", "date"]),
     h_registro:       findCol(["hregistro", "registrovehiculo", "horaregistro", "hentrada", "llegada", "hora"]),
     razon_social:     findCol(["razonsocial", "razon", "transportista", "vehiculo", "unidad"]),
-    empresa:          findCol(["empresadestino", "empresa", "cliente", "destino"]),
+    empresa:          findExactOrCol(["empresa", "empresadestino"], ["destino"]),
     planta:           findCol(["planta", "sede", "garita"]),
-    tipo:             findCol(["tipo"]),
+    tipo:             findExactOrCol(["tipo", "proveedorcliente", "proveedor"], ["tipovehiculo", "tipoproveedor"]),
     tipo_operacion:   findCol(["tipooperacion", "operacion"]),
     responsable:      findExactOrCol(["responsabledealmacen", "responsablealmacen"], ["responsable"]),
     agente:           findCol(["agente", "guardia"]),
@@ -161,6 +161,25 @@ function segmentFromWait(esperaMin: number | null) {
   return { segmento_espera: "🟢 < 30 min", segmento_orden: 1, es_demora: 0 };
 }
 
+export function normalizeTipo(value: unknown): string {
+  const normalized = normalizeStr(value);
+  if (normalized.includes("cliente")) return "Cliente";
+  if (normalized.includes("propio")) return "Propio";
+  if (normalized.includes("proveedor") || normalized.includes("provedoor")) return "Proveedor";
+  return "Proveedor";
+}
+
+export function inferTipoOperacion(...values: unknown[]): string | null {
+  const text = normalizeStr(values.filter(Boolean).join(" "));
+  if (!text) return null;
+  if (text.includes("traslado")) return "Traslado";
+  if (text.includes("descarga") || text.includes("contenedor")) return "Descarga";
+  if (text.includes("carga") || text.includes("despacho") || text.includes("mercaderia")) return "Carga";
+  if (text.includes("mantenimiento")) return "Mantenimiento";
+  if (text.includes("visita")) return "Visita";
+  return null;
+}
+
 function normalizeHeaderRow(row: ExcelRow): string[] {
   return row.map((h, i) => {
     const value = h?.toString().trim() ?? "";
@@ -203,6 +222,9 @@ export function transformRow(
   const h_registro = parseExcelTime(get("h_registro"));
   const h_atencion = parseExcelTime(get("h_atencion"));
   const h_dev_docs = parseExcelTime(get("h_dev_docs"));
+  const empresa = get("empresa") ? String(get("empresa")).toUpperCase().trim() : null;
+  const observacion = get("observacion") ? String(get("observacion")).trim() : null;
+  const explicitTipoOperacion = get("tipo_operacion") ? String(get("tipo_operacion")).trim() : null;
   const espera_min = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
   const tiempo_total_min = parseMinutes(get("tiempo_total_min")) ?? minutesBetween(h_registro, h_dev_docs);
   const { segmento_espera, segmento_orden, es_demora } = segmentFromWait(espera_min);
@@ -216,10 +238,10 @@ export function transformRow(
     h_atencion,
     h_dev_docs,
     razon_social,
-    empresa:          get("empresa")       ? String(get("empresa")).toUpperCase().trim() : null,
+    empresa,
     planta:           get("planta")        ? String(get("planta")).trim()                : defaults.planta ?? null,
-    tipo:             get("tipo")          ? String(get("tipo")).trim()                  : "Proveedor",
-    tipo_operacion:   get("tipo_operacion")? String(get("tipo_operacion")).trim()        : null,
+    tipo:             get("tipo")          ? normalizeTipo(get("tipo"))                  : "Proveedor",
+    tipo_operacion:   explicitTipoOperacion ?? inferTipoOperacion(empresa, observacion, razon_social),
     responsable:      get("responsable")   ? String(get("responsable")).trim()           : null,
     agente:           get("agente")        ? String(get("agente")).trim()                : null,
     espera_min,
@@ -227,7 +249,7 @@ export function transformRow(
     segmento_espera,
     segmento_orden,
     es_demora,
-    observacion:      get("observacion")   ? String(get("observacion")).trim()           : null,
+    observacion,
   };
 }
 
