@@ -3,7 +3,7 @@
 import AppLayout from "@/components/AppLayout";
 import { getReporteData, getUserPlants, getAvailableYears } from "@/app/actions";
 import { motion } from "framer-motion";
-import { ArrowLeft, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -325,7 +325,7 @@ function ReporteContent() {
 
       {/* ── Topbar ──────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sg-line)] pb-5">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           <Link
             href="/dashboard"
             className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] transition-colors"
@@ -336,30 +336,30 @@ function ReporteContent() {
           <div className="h-3.5 w-px bg-[var(--sg-line)]" />
           <div className="sg-kicker">Análisis Detallado</div>
 
-          {/* Gate filter */}
-          <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
-            {["Todos", ...plants].map(p => (
-              <button
-                key={p}
-                onClick={() => setPlant(p)}
-                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                  plant === p
-                    ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                }`}
-              >
-                {p === "Todos" ? "Todos" : formatGateLabelFromPlant(p)}
-              </button>
-            ))}
+          {/* Gate filter (dropdown) */}
+          <div className="relative">
+            <select
+              aria-label="Seleccionar puerta"
+              value={plant}
+              onChange={(e) => setPlant(e.target.value)}
+              className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
+            >
+              {["Todos", ...plants].map((p) => (
+                <option key={p} value={p} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                  {p === "Todos" ? "Todas las puertas" : formatGateLabelFromPlant(p)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
           </div>
 
           {/* Timeframe filter */}
           <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
-            {["Día", "Semana", "Mes"].map(t => (
+            {["Día", "Semana", "Mes"].map((t) => (
               <button
                 key={t}
                 onClick={() => setTimeframe(t)}
-                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
                   timeframe === t
                     ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
@@ -375,14 +375,14 @@ function ReporteContent() {
                 onChange={(event) => {
                   if (event.target.value) setTimeframe(event.target.value);
                 }}
-                className={`h-[24px] min-w-[76px] border-l border-[var(--sg-line)] bg-transparent px-2 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
+                className={`h-[24px] min-w-[60px] border-l border-[var(--sg-line)] bg-transparent px-1.5 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
                   /^\d{4}$/.test(timeframe)
                     ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
                 }`}
               >
                 <option value="" className="bg-[var(--sg-panel)] text-[var(--sg-muted)]">Año</option>
-                {availableYears.map(year => (
+                {availableYears.map((year) => (
                   <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
                     {year}
                   </option>
@@ -392,46 +392,44 @@ function ReporteContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {data && !loading && (
             <>
-              {/* CSV */}
+              {/* CSV icon */}
               <button
                 onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe); setExporting(false); }}
                 disabled={exporting}
                 title="Descargar CSV"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
+                className="flex h-7 w-7 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
-                CSV
               </button>
-              {/* Excel */}
+              {/* Excel icon */}
               <a
                 href={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}`}
                 download
-                title="Descargar Excel (.xlsx) — múltiples hojas con datos completos"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#22c55e] hover:text-[#22c55e] transition-colors"
+                title="Descargar Excel (.xlsx)"
+                className="flex h-7 w-7 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:border-[#22c55e] hover:text-[#22c55e] transition-colors"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel
               </a>
-              {/* PDF */}
+              {/* PDF icon */}
               <a
                 href={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Abrir reporte PDF — diseño industrial con logo de empresa"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
+                title="Abrir reporte PDF"
+                className="flex h-7 w-7 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
               >
                 <FileText className="h-3.5 w-3.5" />
-                PDF
               </a>
             </>
           )}
           <button
             onClick={load}
             disabled={loading}
-            className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] transition-colors"
+            title="Actualizar datos"
+            className="flex h-7 w-7 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:text-[var(--sg-ink)] transition-colors"
           >
             <motion.span
               animate={loading ? { rotate: 360 } : { rotate: 0 }}
@@ -439,7 +437,6 @@ function ReporteContent() {
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </motion.span>
-            Actualizar
           </button>
         </div>
       </div>
