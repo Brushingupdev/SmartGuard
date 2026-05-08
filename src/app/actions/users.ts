@@ -9,6 +9,7 @@ import {
   deleteUserSchema,
   validated,
 } from "@/lib/validations";
+import { normalizeGateAssignments } from "@/lib/gates";
 import { requireAdmin } from "./_helpers";
 
 export async function getUsers() {
@@ -52,6 +53,12 @@ export async function getUsers() {
         assignedPlants: Array.isArray(u.user_metadata?.assigned_plants)
           ? (u.user_metadata.assigned_plants as string[])
           : ((u.user_metadata?.plant as string | undefined) ? [u.user_metadata.plant as string] : []),
+        assignedGates: normalizeGateAssignments(
+          u.user_metadata?.assigned_gates,
+          Array.isArray(u.user_metadata?.assigned_plants)
+            ? (u.user_metadata.assigned_plants as string[])
+            : ((u.user_metadata?.plant as string | undefined) ? [u.user_metadata.plant as string] : [])
+        ),
       };
     }),
   };
@@ -60,17 +67,19 @@ export async function getUsers() {
 export async function createUser(rawData: unknown) {
   const v = validated(createUserSchema, rawData);
   if (!v.ok) return { success: false, error: v.error };
-  const { email, password, role, plant, assignedPlants, companyId, companyName } = v.data;
+  const { email, password, role, plant, assignedPlants, assignedGates, companyId, companyName } = v.data;
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
   const guardiaPlants = role === "guardia"
     ? [...new Set((assignedPlants.length > 0 ? assignedPlants : [plant]).filter(Boolean))]
     : [];
+  const guardiaGates = role === "guardia" ? normalizeGateAssignments(assignedGates, guardiaPlants) : [];
   const metadata: Record<string, unknown> = {
     role,
     plant: guardiaPlants[0] ?? "",
     assigned_plants: guardiaPlants,
+    assigned_gates: guardiaGates,
   };
   if (companyId) { metadata.company_id = companyId; metadata.company = companyName || ""; }
   const { data, error } = await admin.auth.admin.createUser({
@@ -86,17 +95,19 @@ export async function createUser(rawData: unknown) {
 export async function updateUser(rawData: unknown) {
   const v = validated(updateUserSchema, rawData);
   if (!v.ok) return { success: false, error: v.error };
-  const { userId, role, plant, assignedPlants, password, companyId, companyName } = v.data;
+  const { userId, role, plant, assignedPlants, assignedGates, password, companyId, companyName } = v.data;
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
   const guardiaPlants = role === "guardia"
     ? [...new Set((assignedPlants.length > 0 ? assignedPlants : [plant]).filter(Boolean))]
     : [];
+  const guardiaGates = role === "guardia" ? normalizeGateAssignments(assignedGates, guardiaPlants) : [];
   const metadata: Record<string, unknown> = {
     role,
     plant: guardiaPlants[0] ?? "",
     assigned_plants: guardiaPlants,
+    assigned_gates: guardiaGates,
   };
   if (companyId) { metadata.company_id = companyId; metadata.company = companyName || ""; }
   const update: Parameters<typeof admin.auth.admin.updateUserById>[1] = {
@@ -153,6 +164,7 @@ export async function getUserProfile() {
     isAdmin: ctx.isAdmin,
     plant: ctx.plant,
     assignedPlants: ctx.plants,
+    assignedGates: ctx.gates,
     companyId: ctx.companyId,
     companyName,
     logoUrl,

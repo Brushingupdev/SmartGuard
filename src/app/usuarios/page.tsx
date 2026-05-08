@@ -2,9 +2,10 @@
 
 import AppLayout from "@/components/AppLayout";
 import {
-  getUsers, createUser, deleteUser, updateUser, getCompanies, getCompanyPlants,
+  getUsers, createUser, deleteUser, updateUser, getCompanies, getCompanyGateOptions, getCompanyPlants,
   generateUserMagicLink,
 } from "@/app/actions";
+import { formatGateLabel, formatGateLabelFromPlant, normalizeGateAssignments, type GateAssignment } from "@/lib/gates";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -24,6 +25,10 @@ import {
 import { useEffect, useState, useCallback } from "react";
 
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+function formatGateLabelFromPlantTitle(gate: GateAssignment) {
+  return formatGateLabel(gate);
+}
 
 function ConfirmDeleteModal({
   userEmail,
@@ -90,6 +95,7 @@ interface UserRow {
   role: string;
   plant: string;
   assignedPlants: string[];
+  assignedGates: GateAssignment[];
   companyId: string;
   companyName: string;
   createdAt: string | null;
@@ -110,7 +116,7 @@ function EditUserModal({
 }: {
   user: UserRow;
   companies: { id: string; name: string }[];
-  onSave: (role: string, plant: string, assignedPlants: string[], password: string, companyId: string, companyName: string) => void;
+  onSave: (role: string, plant: string, assignedPlants: string[], assignedGates: GateAssignment[], password: string, companyId: string, companyName: string) => void;
   onCancel: () => void;
 }) {
   const currentRole = user.role === "Administrador" ? "administrador" : user.role === "Supervisor" ? "supervisor" : "guardia";
@@ -120,6 +126,7 @@ function EditUserModal({
   const [password, setPassword] = useState("");
   const [showPwd,  setShowPwd]  = useState(false);
   const [availablePlants, setAvailablePlants] = useState<string[]>([]);
+  const [availableGates, setAvailableGates] = useState<GateAssignment[]>([]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
@@ -136,9 +143,10 @@ function EditUserModal({
       };
     }
 
-    void getCompanyPlants(companyId).then(plants => {
+    void Promise.all([getCompanyPlants(companyId), getCompanyGateOptions(companyId)]).then(([plants, gates]) => {
       if (active) {
         setAvailablePlants(plants);
+        setAvailableGates(gates);
       }
     });
 
@@ -220,7 +228,7 @@ function EditUserModal({
                           setAssignedPlants(next);
                         }}
                       />
-                      {p}
+                      {formatGateLabelFromPlant(p, availableGates)}
                     </label>
                   );
                 })}
@@ -255,7 +263,11 @@ function EditUserModal({
               onClick={() => {
                 const selected = companies.find(c => c.id === companyId);
                 const guardiaPlants = role === "guardia" ? assignedPlants : [];
-                onSave(role, guardiaPlants[0] ?? "", guardiaPlants, password, companyId, selected?.name ?? "");
+                const guardiaGates = normalizeGateAssignments(
+                  availableGates.filter((gate) => guardiaPlants.includes(gate.plant)),
+                  guardiaPlants
+                );
+                onSave(role, guardiaPlants[0] ?? "", guardiaPlants, guardiaGates, password, companyId, selected?.name ?? "");
               }}
               disabled={(role === "guardia" && assignedPlants.length === 0) || (!!password && password.length < 8)}
               className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50"
@@ -289,6 +301,7 @@ export default function UsuariosPage() {
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [companyPlants, setCompanyPlants] = useState<string[]>([]);
+  const [companyGates, setCompanyGates] = useState<GateAssignment[]>([]);
   const [showPwd, setShowPwd] = useState(false);
   const [creating, setCreating] = useState(false);
   const [toast,         setToast]        = useState<{ show: boolean; msg: string; ok: boolean }>({ show: false, msg: "", ok: true });
@@ -319,9 +332,10 @@ export default function UsuariosPage() {
 
     let active = true;
 
-    void getCompanyPlants(companyId).then(plants => {
+    void Promise.all([getCompanyPlants(companyId), getCompanyGateOptions(companyId)]).then(([plants, gates]) => {
       if (active) {
         setCompanyPlants(plants);
+        setCompanyGates(gates);
         setAssignedPlants((current) => current.filter((plant) => plants.includes(plant)));
       }
     });
@@ -358,6 +372,9 @@ export default function UsuariosPage() {
       email, password, role,
       plant: role === "guardia" ? (assignedPlants[0] ?? plant) : "",
       assignedPlants: role === "guardia" ? assignedPlants : [],
+      assignedGates: role === "guardia"
+        ? normalizeGateAssignments(companyGates.filter((gate) => assignedPlants.includes(gate.plant)), assignedPlants)
+        : [],
       companyId: companyId || undefined,
       companyName: selectedCompany?.name,
     });
@@ -402,12 +419,13 @@ export default function UsuariosPage() {
     showToast("Enlace copiado — ábrelo en una ventana incógnito.", true);
   };
 
-  const handleSaveEdit = async (role: string, plant: string, assignedPlants: string[], password: string, companyId: string, companyName: string) => {
+  const handleSaveEdit = async (role: string, plant: string, assignedPlants: string[], assignedGates: GateAssignment[], password: string, companyId: string, companyName: string) => {
     if (!editingUser) return;
     const result = await updateUser({
       userId: editingUser.id,
       role, plant,
       assignedPlants,
+      assignedGates,
       password: password || undefined,
       companyId: companyId || undefined,
       companyName: companyName || undefined,
@@ -549,7 +567,7 @@ export default function UsuariosPage() {
                                 setPlant(next[0] ?? "");
                               }}
                             />
-                            {p}
+                            {formatGateLabelFromPlant(p, companyGates)}
                           </label>
                         );
                       })}
@@ -657,8 +675,10 @@ export default function UsuariosPage() {
                         </span>
                       </td>
                       <td className="text-[12px] text-[var(--sg-copy)]">{u.companyName || "—"}</td>
-                      <td className="max-w-[180px] truncate text-[12px] text-[var(--sg-copy)]" title={(u.assignedPlants ?? []).join(", ")}>
-                        {u.role === "Guardia" ? (u.assignedPlants?.join(", ") || u.plant || "—") : "—"}
+                      <td className="max-w-[220px] truncate text-[12px] text-[var(--sg-copy)]" title={(u.assignedGates ?? []).map(formatGateLabelFromPlantTitle).join(", ")}>
+                        {u.role === "Guardia"
+                          ? ((u.assignedGates?.length ? u.assignedGates.map(formatGateLabelFromPlantTitle).join(", ") : u.assignedPlants?.join(", ")) || u.plant || "—")
+                          : "—"}
                       </td>
                       <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.createdAt)}</td>
                       <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.lastSignIn)}</td>

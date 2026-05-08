@@ -8,6 +8,7 @@ import {
   companySettingsSchema,
   validated,
 } from "@/lib/validations";
+import { normalizeGateAssignments, type GateAssignment } from "@/lib/gates";
 import { nowLima, daysAgoLima, requireAdmin, checkWriteAccess } from "./_helpers";
 import { signValue } from "@/utils/cookie-signing";
 
@@ -150,6 +151,11 @@ export async function getCompanyPlants(companyId: string): Promise<string[]> {
   return [];
 }
 
+export async function getCompanyGateOptions(companyId: string): Promise<GateAssignment[]> {
+  const plants = await getCompanyPlants(companyId);
+  return normalizeGateAssignments(null, plants);
+}
+
 export async function getCompaniesMap(): Promise<Record<string, string>> {
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return {};
@@ -205,6 +211,15 @@ export async function getUserPlants(): Promise<string[]> {
   const { data } = await supabase.from("atenciones").select("planta").not("planta", "is", null).order("planta").limit(5000);
   if (!data) return [];
   return [...new Set(data.map((r: { planta: string }) => r.planta).filter(Boolean))] as string[];
+}
+
+export async function getUserGateOptions(): Promise<GateAssignment[]> {
+  const ctx = await getUserContext();
+  if (ctx?.role === "guardia" && ctx.gates.length > 0) {
+    return ctx.gates;
+  }
+  const plants = await getUserPlants();
+  return normalizeGateAssignments(null, plants);
 }
 
 export async function getAdminOverview() {

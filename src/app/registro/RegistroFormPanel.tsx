@@ -12,6 +12,7 @@ import {
   Package,
   User,
 } from "lucide-react";
+import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import type { CitaRow, RecentRegistration } from "./types";
 
 interface RegistroFormValues {
@@ -28,6 +29,7 @@ interface RegistroFormValues {
 interface RegistroFormPanelProps {
   plant: string;
   plants: string[];
+  gateOptions: GateAssignment[];
   plantLocked: boolean;
   citas: CitaRow[];
   liveTime: string;
@@ -202,6 +204,7 @@ function AutocompleteInput({
 export default function RegistroFormPanel({
   plant,
   plants,
+  gateOptions,
   plantLocked,
   citas,
   liveTime,
@@ -294,7 +297,7 @@ export default function RegistroFormPanel({
             {plantLocked ? (
               <div className="sg-field">
                 <label className="sg-label flex items-center gap-2">
-                  Planta
+                  Sede / Puerta
                   <span className="sg-font-mono border border-[var(--sg-line)] bg-[var(--sg-panel-3)] px-2 py-0.5 text-[8px] uppercase text-[var(--sg-muted)]">
                     Asignado
                   </span>
@@ -302,7 +305,7 @@ export default function RegistroFormPanel({
                 <div className="relative">
                   <input
                     type="text"
-                    value={plant}
+                    value={formatGateLabelFromPlant(plant, gateOptions)}
                     disabled
                     className="sg-input cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60"
                   />
@@ -310,10 +313,13 @@ export default function RegistroFormPanel({
               </div>
             ) : (
               <SelectField
-                label="Planta"
+                label="Sede / Puerta"
                 value={plant}
                 onChange={onPlantChange}
-                options={plants.map((currentPlant) => ({ value: currentPlant, label: currentPlant }))}
+                options={plants.map((currentPlant) => ({
+                  value: currentPlant,
+                  label: formatGateLabelFromPlant(currentPlant, gateOptions),
+                }))}
               />
             )}
           </div>

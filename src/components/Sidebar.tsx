@@ -11,6 +11,7 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { formatGateLabel } from "@/lib/gates";
 
 // Ítems para supervisores y guardias
 const supervisorItems = [
@@ -176,7 +177,8 @@ export default function Sidebar() {
         setCompanyName(profile.companyName);
         setLogoUrl(profile.logoUrl);
         setIsImpersonating(profile.isImpersonating ?? false);
-        if (profile.plant) setDetectedPlant(profile.plant);
+        const firstGateLabel = profile.assignedGates?.[0] ? formatGateLabel(profile.assignedGates[0]) : "";
+        if (firstGateLabel || profile.plant) setDetectedPlant(firstGateLabel || profile.plant);
         setAssignedPlantCount(profile.assignedPlants?.length ?? (profile.plant ? 1 : 0));
       }
       setProfileLoaded(true);

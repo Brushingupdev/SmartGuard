@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { normalizeGateAssignments, type GateAssignment } from "@/lib/gates";
 import { cookies } from "next/headers";
 import { verifyValue } from "@/utils/cookie-signing";
 
@@ -28,6 +29,7 @@ export interface UserContext {
   isAdmin: boolean;
   plant: string;
   plants: string[];
+  gates: GateAssignment[];
   isImpersonating: boolean;
   isReadOnly: boolean;
 }
@@ -78,6 +80,7 @@ export async function getUserContext(): Promise<UserContext | null> {
           isAdmin: false,
           plant: "",
           plants: [],
+          gates: [],
           isImpersonating: true,
           isReadOnly: true,
         };
@@ -89,6 +92,7 @@ export async function getUserContext(): Promise<UserContext | null> {
   const assignedPlants = Array.isArray(user.user_metadata?.assigned_plants)
     ? (user.user_metadata.assigned_plants as unknown[]).filter((p): p is string => typeof p === "string" && p.trim().length > 0)
     : metadataPlant ? [metadataPlant] : [];
+  const assignedGates = normalizeGateAssignments(user.user_metadata?.assigned_gates, assignedPlants);
 
   return {
     userId: user.id,
@@ -99,6 +103,7 @@ export async function getUserContext(): Promise<UserContext | null> {
     isAdmin: realIsAdmin,
     plant: metadataPlant,
     plants: assignedPlants,
+    gates: assignedGates,
     isImpersonating: false,
     isReadOnly: false,
   };

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { humanizeError } from "@/lib/humanizeError";
+import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import { useRegistroData } from "./useRegistroData";
 import RegistroFormPanel from "./RegistroFormPanel";
 import RegistroHistoryPanel from "./RegistroHistoryPanel";
@@ -42,6 +43,7 @@ interface RegistroClientProps {
   initialAgente: string;
   initialPlant: string;
   initialPlants: string[];
+  initialGateOptions: GateAssignment[];
   initialResponsablesList: string[];
   initialRecentRegistrations: RecentRegistration[];
   initialRecentTotal: number;
@@ -483,6 +485,7 @@ export default function RegistroClient({
   initialAgente,
   initialPlant,
   initialPlants,
+  initialGateOptions,
   initialResponsablesList,
   initialRecentRegistrations,
   initialRecentTotal,
@@ -501,6 +504,7 @@ export default function RegistroClient({
   const [responsable, setResponsable] = useState<string>(bootstrapResponsablesList[0] ?? "");
   const [agente, setAgente] = useState(initialAgente);
   const [plant, setPlant] = useState(initialPlant);
+  const gateLabel = formatGateLabelFromPlant(plant, initialGateOptions);
   const [plants] = useState<string[]>(initialPlants);
   const [note, setNote] = useState("");
   const [horaCita, setHoraCita] = useState("");
@@ -737,7 +741,7 @@ export default function RegistroClient({
           <div className="sg-kicker">Registro Operativo</div>
           <span className="sg-live-pill">
             <span className="sg-live-dot sg-pulse" />
-            Garita {plant}
+            {gateLabel || `Garita ${plant}`}
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -762,6 +766,7 @@ export default function RegistroClient({
         <RegistroFormPanel
           plant={plant}
           plants={plants}
+          gateOptions={initialGateOptions}
           plantLocked={plantLocked}
           citas={citas}
           liveTime={liveTime}

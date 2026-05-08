@@ -2,6 +2,7 @@ import {
   getCitasDelDia,
   getRecentRegistrations,
   getResponsables,
+  getUserGateOptions,
   getUserPlants,
 } from "@/app/actions";
 import { createClient } from "@/utils/supabase/server";
@@ -17,9 +18,10 @@ export default async function RegistroPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [responsablesList, plants] = await Promise.all([
+  const [responsablesList, plants, gateOptions] = await Promise.all([
     getResponsables(),
     getUserPlants(),
+    getUserGateOptions(),
   ]);
 
   const userRole = (user?.user_metadata?.role as string | undefined) ?? "guardia";
@@ -45,6 +47,7 @@ export default async function RegistroPage() {
       initialAgente={agente}
       initialPlant={initialPlant}
       initialPlants={plants}
+      initialGateOptions={gateOptions}
       initialResponsablesList={responsablesList}
       initialRecentRegistrations={records}
       initialRecentTotal={total}
