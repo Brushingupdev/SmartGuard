@@ -4,6 +4,7 @@ import { CalendarClock, LogIn, Pencil, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { preRegisterCita, activateCita, cancelarCita, updateAtencion } from "@/app/actions";
 import { humanizeError } from "@/lib/humanizeError";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 export type CitaRow = {
   id: number;
@@ -138,7 +139,7 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
               Citas del Día
             </h2>
             <p className="text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-              {plant} · {citas.length} cita{citas.length !== 1 ? "s" : ""}
+              {formatGateLabelFromPlant(plant)} · {citas.length} cita{citas.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -223,7 +224,7 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
 
       {citas.length === 0 ? (
         <p className="text-[12px] text-[var(--sg-muted)] py-2">
-          No hay citas programadas para hoy en {plant}.
+          No hay citas programadas para hoy en {formatGateLabelFromPlant(plant)}.
         </p>
       ) : (
         <div className="grid gap-2 max-h-[340px] overflow-y-auto">

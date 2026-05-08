@@ -261,7 +261,7 @@ export default function DashboardClient({
                       : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
                   }`}
                 >
-                  {gate.gate}
+                  {formatGateLabelFromPlant(gate.plant, gateOptions)}
                 </button>
               ))}
             </div>
@@ -487,7 +487,7 @@ export default function DashboardClient({
                     <th>Razón Social</th>
                     <th>Estado</th>
                     <th>Empresa</th>
-                    <th>Planta</th>
+                    <th>Puerta</th>
                     <th>Hora</th>
                   </tr>
                 </thead>
@@ -517,7 +517,7 @@ export default function DashboardClient({
                         <span className={`sg-badge sg-badge-${e.status}`}>{e.label}</span>
                       </td>
                       <td className="text-[var(--sg-copy)]">{e.info}</td>
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.08em]">{e.gate}</td>
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.08em]">{formatGateLabelFromPlant(e.gate)}</td>
                       <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{e.time}</td>
                     </tr>
                   ))}
@@ -534,7 +534,7 @@ export default function DashboardClient({
               status: e.status,
               label: e.label,
               info: e.info,
-              gate: e.gate,
+              gate: formatGateLabelFromPlant(e.gate),
             }))}
           />
 
@@ -549,7 +549,7 @@ export default function DashboardClient({
         <aside className="flex flex-col gap-4">
           <RankingPlantas
             plantas={zones.map(z => ({
-              name: z.name,
+              name: formatGateLabelFromPlant(z.name),
               count: z.count,
               pct: z.pct,
               tone: z.tone,

@@ -18,11 +18,11 @@ export default function RankingPlantas({ plantas }: { plantas: PlantData[] }) {
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="h-4 w-4 text-[var(--sg-accent)]" />
           <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
-            Comparativa Plantas
+            Comparativa Puertas
           </span>
         </div>
         <div className="text-center py-6 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-          Configura múltiples plantas para ver comparativa
+          Configura múltiples puertas para ver comparativa
         </div>
       </div>
     );
@@ -41,13 +41,13 @@ export default function RankingPlantas({ plantas }: { plantas: PlantData[] }) {
       <div className="flex items-center gap-2 mb-4">
         <Building2 className="h-4 w-4 text-[var(--sg-accent)]" />
         <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
-          Comparativa Plantas
+          Comparativa Puertas
         </span>
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
         <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-3">
-          <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Mejor planta</div>
+          <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Mejor puerta</div>
           <div className="mt-1 truncate text-[13px] font-semibold text-[var(--sg-ink)]" title={best.name}>{best.name}</div>
           <div className="sg-font-mono text-[12px] font-bold text-[var(--sg-success)]">{best.pct}% a tiempo</div>
         </div>
@@ -72,7 +72,7 @@ export default function RankingPlantas({ plantas }: { plantas: PlantData[] }) {
           />
         </div>
         <p className="mt-2 text-[11px] leading-4 text-[var(--sg-muted)]">
-          Diferencia entre la mejor y peor planta por porcentaje a tiempo.
+          Diferencia entre la mejor y peor puerta por porcentaje a tiempo.
         </p>
       </div>
 

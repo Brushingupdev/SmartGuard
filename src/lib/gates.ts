@@ -67,6 +67,7 @@ export function formatGateLabel(gate: GateAssignment | null | undefined): string
 }
 
 export function formatGateLabelFromPlant(plant: string, gates: GateAssignment[] = []): string {
+  if (!plant || plant === "Todos") return "Todos";
   const gate = gates.find((item) => item.plant === plant) ?? gateFromPlant(plant);
   return formatGateLabel(gate);
 }

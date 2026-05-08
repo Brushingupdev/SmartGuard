@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { FileDown, Loader2 } from "lucide-react";
 import { getReporteData } from "@/app/actions";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 interface Props {
   plant: string;
@@ -55,7 +56,7 @@ export default function ExportPDFButton({ plant, timeframe, kpis, puntualidad }:
         <body>
           <div class="header">
             <h1>SmartGuard</h1>
-            <p>Reporte Operativo — ${fecha} | Planta: ${plant} | Período: ${timeframe}</p>
+            <p>Reporte Operativo — ${fecha} | Puerta: ${formatGateLabelFromPlant(plant)} | Período: ${timeframe}</p>
           </div>
           <div class="kpis">
             <div class="kpi"><div class="val" style="color:#6bbd8a">${kpis.ok}</div><div class="lbl">A tiempo (&lt;30 min)</div></div>

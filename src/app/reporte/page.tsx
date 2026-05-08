@@ -7,6 +7,7 @@ import { ArrowLeft, Download, FileSpreadsheet, FileText, RefreshCw } from "lucid
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 import {
   Bar,
   BarChart,
@@ -32,7 +33,7 @@ function exportReporteCSV(data: ReporteData, plant: string, timeframe: string) {
   const bom = "﻿";
   const lines: string[] = [
     `SmartGuard — Reporte Analítico`,
-    `Planta: ${plant} | Período: ${timeframe} | Generado: ${ts}`,
+    `Puerta: ${formatGateLabelFromPlant(plant)} | Período: ${timeframe} | Generado: ${ts}`,
     ``,
     `RESUMEN GENERAL`,
     `Total,A tiempo,Moderado,Alto,Crítico,Pendiente,% A tiempo,Prom. espera (min),Máx. espera (min),P90 (min)`,
@@ -335,7 +336,7 @@ function ReporteContent() {
           <div className="h-3.5 w-px bg-[var(--sg-line)]" />
           <div className="sg-kicker">Análisis Detallado</div>
 
-          {/* Plant filter */}
+          {/* Gate filter */}
           <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
             {["Todos", ...plants].map(p => (
               <button
@@ -347,7 +348,7 @@ function ReporteContent() {
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
                 }`}
               >
-                {p}
+                {p === "Todos" ? "Todos" : formatGateLabelFromPlant(p)}
               </button>
             ))}
           </div>
@@ -482,14 +483,14 @@ function ReporteContent() {
         <div className="grid gap-6 lg:grid-cols-2">
 
           {/* Plant comparison */}
-          <Section title="Comparativo por Planta">
+          <Section title="Comparativo por Puerta">
             {loading ? <Skel h="h-[220px]" /> : !d ? <EmptyMsg /> : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {d.plantStats.map((p) => (
                   <div key={p.planta} className="sg-panel p-5">
                     <div className="flex items-center justify-between mb-4">
                       <span className="sg-font-display text-[16px] font-bold uppercase tracking-[0.14em] text-[var(--sg-ink)]">
-                        {p.planta}
+                        {formatGateLabelFromPlant(p.planta)}
                       </span>
                       <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
                         {p.total} registros

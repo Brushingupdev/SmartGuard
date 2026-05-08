@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Bell, Building2, Clock, Mail, MessageSquare, RefreshCw, Timer, TrendingUp, X } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from "recharts";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -109,7 +110,7 @@ function AlertDetailModal({ alert: a, onClose }: { alert: AlertDetail; onClose: 
                 {sev.label} — {a.espera_min} min
               </div>
               <div className="sg-font-mono text-[10px] text-[var(--sg-muted)] mt-0.5">
-                {a.planta} · {a.isLive ? "Actualmente en espera" : "Atención registrada"}
+                {formatGateLabelFromPlant(a.planta ?? "")} · {a.isLive ? "Actualmente en espera" : "Atención registrada"}
               </div>
             </div>
           </div>
@@ -137,7 +138,7 @@ function AlertDetailModal({ alert: a, onClose }: { alert: AlertDetail; onClose: 
             <div className="grid grid-cols-2 gap-4">
               <Field label="Razón Social" value={a.razon_social} />
               <Field label="Empresa" value={a.empresa} />
-              <Field label="Planta" value={a.planta} />
+              <Field label="Sede / Puerta" value={formatGateLabelFromPlant(a.planta ?? "")} />
               <Field label="Tipo de operación" value={a.tipo_operacion} />
             </div>
           </section>
@@ -180,7 +181,7 @@ function AlertDetailModal({ alert: a, onClose }: { alert: AlertDetail; onClose: 
         {/* Footer */}
         <div className="border-t border-[var(--sg-line)] px-5 py-4 flex items-center justify-between">
           <div className="sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
-            Incidente #{a.id} · {a.planta}
+            Incidente #{a.id} · {formatGateLabelFromPlant(a.planta ?? "")}
           </div>
           <button onClick={onClose} className="sg-btn sg-btn-ghost sg-btn-sm">
             Cerrar
@@ -293,7 +294,7 @@ function DayIncidentsModal({ date, plant, onClose }: { date: string; plant?: str
                     </span>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-[11px] text-[var(--sg-copy)]">{r.empresa || "Sin empresa"} · {r.planta}</span>
+                    <span className="text-[11px] text-[var(--sg-copy)]">{r.empresa || "Sin empresa"} · {formatGateLabelFromPlant(r.planta ?? "")}</span>
                     <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
                       {r.h_registro?.substring(0, 5)} → {r.h_atencion?.substring(0, 5) ?? "—"}
                     </span>
@@ -541,7 +542,7 @@ export default function AlertasPage() {
                         )}
                         <span className="flex items-center gap-1.5 text-[12px] text-[var(--sg-copy)]">
                           <Building2 className="h-3 w-3 text-[var(--sg-muted)]" />
-                          {a.empresa || "Sin empresa"} · {a.planta}
+                          {a.empresa || "Sin empresa"} · {formatGateLabelFromPlant(a.planta ?? "")}
                         </span>
                         <span className="flex items-center gap-1.5 text-[12px] text-[var(--sg-muted)]">
                           <Clock className="h-3 w-3" />
@@ -662,7 +663,7 @@ export default function AlertasPage() {
                   <th>Fecha</th>
                   <th>Canal</th>
                   <th>Vehículo</th>
-                  <th>Planta</th>
+                  <th>Puerta</th>
                   <th>Espera</th>
                   <th>Destinatario</th>
                   <th>Estado</th>
@@ -683,7 +684,7 @@ export default function AlertasPage() {
                       </span>
                     </td>
                     <td className="max-w-[160px] truncate text-[12px]">{log.razon_social}</td>
-                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)]">{log.planta || "—"}</td>
+                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)]">{formatGateLabelFromPlant(log.planta ?? "") || "—"}</td>
                     <td>
                       <span className="sg-font-mono text-[12px] font-bold" style={{
                         color: log.espera_min >= 90 ? "var(--sg-danger)" : log.espera_min >= 45 ? "#e07b3a" : "var(--sg-warn)"

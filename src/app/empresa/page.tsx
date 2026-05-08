@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, CheckCircle2, ChevronDown, ChevronUp, Globe, Mail, MapPin, MessageSquare, Plus, Save, Trash2 } from "lucide-react";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 type CompanySettings = Awaited<ReturnType<typeof getCompanySettings>>;
 
@@ -98,7 +99,7 @@ function PlantSection({ companyId, planta, initial }: {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--sg-panel-2)] transition-colors">
         <div className="flex items-center gap-3 min-w-0">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--sg-accent)]" />
-          <span className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{planta}</span>
+          <span className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{formatGateLabelFromPlant(planta)}</span>
           <span className="flex items-center gap-2 text-[var(--sg-muted)] hidden sm:flex">
             <Mail className="h-3 w-3" />
             <span className="sg-font-mono text-[9px]">{emails.length}</span>
@@ -119,13 +120,13 @@ function PlantSection({ companyId, planta, initial }: {
             exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
             <div className="px-4 pb-4 pt-3 border-t border-[var(--sg-line)] grid gap-4">
               <p className="text-[10px] text-[var(--sg-muted)]">
-                Solo reciben alertas cuando el incidente ocurre en <strong className="text-[var(--sg-copy)]">{planta}</strong>.
+                Solo reciben alertas cuando el incidente ocurre en <strong className="text-[var(--sg-copy)]">{formatGateLabelFromPlant(planta)}</strong>.
               </p>
               <TagInput label="Correos" placeholder="guardia@empresa.com" type="email"
                 items={emails} onChange={setEmails} />
               <TagInput label="WhatsApp" placeholder="51987654321"
                 items={phones} onChange={setPhones} hint="Sin + ni espacios" />
-              <SaveBtn saving={saving} saved={saved} onClick={handleSave} label={`Guardar ${planta}`} />
+              <SaveBtn saving={saving} saved={saved} onClick={handleSave} label={`Guardar ${formatGateLabelFromPlant(planta)}`} />
             </div>
           </motion.div>
         )}

@@ -28,6 +28,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { getAtenciones, getAtencionesForExport, getHistorialStats, getUserPlants, getUserProfile, getCompaniesMap, getCompanies } from "../actions";
 import { importAtenciones, updateAtencion } from "../actions/atenciones";
 import { autoDetectMapping, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 const fmt = new Intl.NumberFormat("en-US");
 
@@ -133,7 +134,7 @@ function RecordDetailModal({ record, onClose }: { record: HistorialRecord; onClo
                 Registro #{record.id}
               </div>
               <div className="sg-font-mono text-[10px] text-[var(--sg-muted)] mt-0.5">
-                {record.fecha} · {record.planta}
+                {record.fecha} · {formatGateLabelFromPlant(record.planta ?? "")}
               </div>
             </div>
           </div>
@@ -235,7 +236,7 @@ function RecordDetailModal({ record, onClose }: { record: HistorialRecord; onClo
         {/* Footer */}
         <div className="border-t border-[var(--sg-line)] px-5 py-4 flex items-center justify-between">
           <div className="sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
-            Planta {record.planta} · ID {record.id}
+            Puerta {formatGateLabelFromPlant(record.planta ?? "")} · ID {record.id}
           </div>
           <button onClick={onClose} className="sg-btn sg-btn-ghost sg-btn-sm">
             Cerrar
@@ -310,7 +311,7 @@ function EditRecordModal({
                 Editar registro #{record.id}
               </div>
               <div className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
-                {record.fecha} · {record.planta}
+                {record.fecha} · {formatGateLabelFromPlant(record.planta ?? "")}
               </div>
             </div>
           </div>
@@ -752,7 +753,7 @@ export default function HistorialPage() {
         {[
           { label: "Eventos disponibles",  val: stats ? fmt.format(stats.total) : "—",   suffix: "" },
           { label: "Espera promedio",       val: stats ? stats.avg.toString() : "—",       suffix: " min" },
-          { label: "Plantas monitoreadas", val: stats ? stats.plants.toString() : "—",    suffix: "" },
+          { label: "Puertas monitoreadas", val: stats ? stats.plants.toString() : "—",    suffix: "" },
           { label: "Espera máxima",         val: stats ? fmt.format(stats.max) : "—",      suffix: " min" },
         ].map((s, i) => (
           <div
@@ -850,7 +851,7 @@ export default function HistorialPage() {
                 </div>
               )}
               <div className="sg-field">
-                <label className="sg-label">Planta</label>
+                <label className="sg-label">Puerta</label>
                 <div className="relative">
                   <select value={plant} onChange={e => { setPlant(e.target.value); setPage(1); }} className="sg-select appearance-none pr-8">
                     {["Todos", ...plants].map(p => <option key={p} value={p} className="bg-[var(--sg-panel-2)]">{p}</option>)}
@@ -903,7 +904,7 @@ export default function HistorialPage() {
                 <th>Razón Social</th>
                 <th>Empresa</th>
                 {isAdmin && <th>Cliente</th>}
-                <th>Planta</th>
+                <th>Puerta</th>
                 <th>Tipo Op.</th>
                 <th>
                   <button
@@ -955,7 +956,7 @@ export default function HistorialPage() {
                       </td>
                     )}
                     <td>
-                      <span className="sg-mono text-[10px] uppercase tracking-[0.12em] text-[var(--sg-muted)]">{r.planta}</span>
+                      <span className="sg-mono text-[10px] uppercase tracking-[0.12em] text-[var(--sg-muted)]">{formatGateLabelFromPlant(r.planta ?? "")}</span>
                     </td>
                     <td className="sg-mono text-[11px] text-[var(--sg-copy)]">
                       {r.tipo_operacion || r.motivo_demora || "-"}

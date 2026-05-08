@@ -14,6 +14,7 @@ import {
   Clock, CreditCard, Eye, Globe, MapPin, Plus, Save, Trash2, Users,
 } from "lucide-react";
 import { adminUpdatePlan } from "@/app/actions";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 type AdminOverview = Awaited<ReturnType<typeof getAdminOverview>>;
 type AdminCompany = NonNullable<AdminOverview>["companies"][number];
@@ -94,7 +95,7 @@ function PlantSection({ companyId, planta, initial }: {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--sg-panel-2)] transition-colors">
         <div className="flex items-center gap-3">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--sg-accent)]" />
-          <span className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{planta}</span>
+          <span className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{formatGateLabelFromPlant(planta)}</span>
           <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">{emails.length}✉ · {phones.length}📱</span>
           {(emails.length + phones.length) > 0 && <span className="h-1.5 w-1.5 rounded-full bg-[var(--sg-success)]" />}
         </div>
@@ -251,7 +252,7 @@ export default function AdminCompanyPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { icon: Users,    label: "Usuarios",      value: company.users,        sub: `${company.guardias}g · ${company.supervisors}s` },
-          { icon: Building2,label: "Sedes",          value: company.plantas.length, sub: company.plantas.join(" · ") || "Sin configurar" },
+          { icon: Building2,label: "Sedes",          value: company.plantas.length, sub: company.plantas.map((p: string) => formatGateLabelFromPlant(p)).join(" · ") || "Sin configurar" },
           { icon: Clock,    label: "Total registros",value: company.totalRecords.toLocaleString(), sub: `+${company.recentRecords} últimos 30 días` },
           { icon: Bell,     label: "Alertas config.", value: company.hasContacts ? "✓ Ok" : "✗ Falta", sub: company.hasContacts ? "Email y/o WhatsApp" : "Sin contactos" },
         ].map(stat => (
