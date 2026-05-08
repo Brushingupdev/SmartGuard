@@ -21,16 +21,18 @@ export interface DashboardFlowRow {
 // ─── Event rows ────────────────────────────────────────────────────────────────
 
 export interface DashboardEvent {
+  id?: number;
   plate: string;
   status: "ok" | "warn" | "deny" | "pending";
   label: string;
   info: string;
   gate: string;
   time: string;
+  espera_min?: number | null;
 }
 
 export interface DashboardEventFull extends DashboardEvent {
-  espera_min: number;
+  espera_min: number | null;
 }
 
 // ─── Alerts ────────────────────────────────────────────────────────────────────
