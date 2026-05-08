@@ -8,6 +8,7 @@ import CausasTop from "@/components/CausasTop";
 import RankingPlantas from "@/components/RankingPlantas";
 import ExportPDFButton from "@/components/ExportPDFButton";
 import { getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
+import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
@@ -43,6 +44,7 @@ interface DashboardClientProps {
   initialPlant: string;
   initialTimeframe: string;
   initialPlants: string[];
+  initialGateOptions: GateAssignment[];
   initialAvailableYears: string[];
   initialStats: DashboardStatsResult;
   initialTrends: DashboardTrendState;
@@ -94,6 +96,7 @@ export default function DashboardClient({
   initialPlant,
   initialTimeframe,
   initialPlants,
+  initialGateOptions,
   initialAvailableYears,
   initialStats,
   initialTrends,
@@ -103,7 +106,9 @@ export default function DashboardClient({
   const [liveTime, setLiveTime]             = useState("--:--:--");
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>(initialTimeframe);
   const [selectedPlant, setSelectedPlant]   = useState<string>(initialPlant);
+  const [selectedSite, setSelectedSite]     = useState<string>("Todos");
   const [plants]                            = useState<string[]>(initialPlants);
+  const [gateOptions]                       = useState<GateAssignment[]>(initialGateOptions);
   const [availableYears]                    = useState<string[]>(initialAvailableYears);
   const [kpis, setKpis]                     = useState<DashboardKpis>(initialStats.kpis);
   const [recentEvents, setRecentEvents]     = useState<DashboardEvent[]>(initialStats.events);
@@ -183,6 +188,13 @@ export default function DashboardClient({
   }, [selectedPlant, selectedTimeframe, fetchStats]);
 
   const puntualidad = kpis.total > 0 ? Math.round((kpis.ok / kpis.total) * 100) : null;
+  const sites = groupGatesBySite(gateOptions.length ? gateOptions : plants.map((plant) => ({ site: plant, gate: plant, plant })));
+  const currentSiteGates = selectedSite === "Todos" ? [] : sites.find((site) => site.site === selectedSite)?.gates ?? [];
+  const selectedLabel = selectedPlant === "Todos"
+    ? "Global"
+    : selectedPlant.startsWith("site:")
+      ? `Sede ${selectedPlant.replace("site:", "")}`
+      : formatGateLabelFromPlant(selectedPlant, gateOptions);
 
   return (
     <AppLayout>
@@ -210,20 +222,50 @@ export default function DashboardClient({
           <div className="sg-kicker">Dashboard</div>
 
           <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-wrap">
-            {["Todos", ...plants].map((p) => (
+            {["Todos", ...sites.map((site) => site.site)].map((site) => (
               <button
-                key={p}
-                onClick={() => setSelectedPlant(p)}
+                key={site}
+                onClick={() => {
+                  setSelectedSite(site);
+                  setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
+                }}
                 className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                  selectedPlant === p
+                  selectedSite === site
                     ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
                 }`}
               >
-                {p}
+                {site}
               </button>
             ))}
           </div>
+          {currentSiteGates.length > 0 && (
+            <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-wrap">
+              <button
+                onClick={() => setSelectedPlant(`site:${selectedSite}`)}
+                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                  selectedPlant === `site:${selectedSite}`
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                Todas las puertas
+              </button>
+              {currentSiteGates.map((gate) => (
+                <button
+                  key={gate.plant}
+                  onClick={() => setSelectedPlant(gate.plant)}
+                  className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                    selectedPlant === gate.plant
+                      ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                      : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                  }`}
+                >
+                  {gate.gate}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="w-[1px] h-4 bg-[var(--sg-line)]" />
 
@@ -296,7 +338,7 @@ export default function DashboardClient({
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="sg-slabel">
-                Resumen {selectedPlant === "Todos" ? "Global" : `Planta ${selectedPlant}`}
+                Resumen {selectedLabel}
                 {!loading && (
                   <span className="ml-3 text-[var(--sg-muted)]">
                     {puntualidad !== null && <span className="text-[var(--sg-success)]">{puntualidad}% a tiempo</span>}

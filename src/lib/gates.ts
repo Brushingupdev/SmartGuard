@@ -70,3 +70,17 @@ export function formatGateLabelFromPlant(plant: string, gates: GateAssignment[] 
   const gate = gates.find((item) => item.plant === plant) ?? gateFromPlant(plant);
   return formatGateLabel(gate);
 }
+
+export function groupGatesBySite(gates: GateAssignment[]): { site: string; gates: GateAssignment[] }[] {
+  const siteMap = new Map<string, GateAssignment[]>();
+  for (const gate of gates) {
+    const current = siteMap.get(gate.site) ?? [];
+    current.push(gate);
+    siteMap.set(gate.site, current);
+  }
+  return Array.from(siteMap.entries()).map(([site, siteGates]) => ({ site, gates: siteGates }));
+}
+
+export function plantsForSite(site: string, gates: GateAssignment[]): string[] {
+  return gates.filter((gate) => gate.site === site).map((gate) => gate.plant);
+}

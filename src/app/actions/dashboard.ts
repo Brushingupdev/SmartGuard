@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
+import { normalizeGateAssignments, plantsForSite } from "@/lib/gates";
 import { nowLima, daysAgoLima, logError, withRetry, dateRange } from "./_helpers";
 import type {
   DashboardKpis,
@@ -19,6 +20,87 @@ function groupByMode(timeframe: string): "hour" | "day" | "month" {
   if (timeframe === "Día") return "hour";
   if (/^\d{4}$/.test(timeframe)) return "month";
   return "day";
+}
+
+async function resolveSitePlants(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ctx: Awaited<ReturnType<typeof getUserContext>>,
+  plant: string
+): Promise<string[] | null> {
+  if (!plant.startsWith("site:")) return null;
+  const site = plant.replace("site:", "");
+  let plants: string[] = [];
+
+  if (ctx?.gates.length) {
+    plants = ctx.gates.map((gate) => gate.plant);
+  } else if (ctx?.companyId) {
+    const client = ctx.isAdmin
+      ? (await import("@/utils/supabase/admin")).createAdminClient()
+      : supabase;
+    const { data: company } = await client
+      .from("companies")
+      .select("plantas")
+      .eq("id", ctx.companyId)
+      .maybeSingle();
+    plants = Array.isArray(company?.plantas) ? company.plantas as string[] : [];
+  } else if (ctx?.isAdmin) {
+    const { createAdminClient } = await import("@/utils/supabase/admin");
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("atenciones")
+      .select("planta")
+      .not("planta", "is", null)
+      .limit(5000);
+    plants = [...new Set((data ?? []).map((row: { planta: string }) => row.planta).filter(Boolean))];
+  }
+
+  return plantsForSite(site, normalizeGateAssignments(null, plants));
+}
+
+function mergeDashboardStats(results: DashboardStatsResult[]): DashboardStatsResult {
+  const kpis = results.reduce<DashboardKpis>((acc, current) => ({
+    ok: acc.ok + current.kpis.ok,
+    deny: acc.deny + current.kpis.deny,
+    warn: acc.warn + current.kpis.warn,
+    pending: acc.pending + current.kpis.pending,
+    total: acc.total + current.kpis.total,
+    anticipado: (acc.anticipado ?? 0) + (current.kpis.anticipado ?? 0),
+  }), { ok: 0, deny: 0, warn: 0, pending: 0, total: 0, anticipado: 0 });
+
+  const flowMap: Record<string, DashboardFlowRow> = {};
+  const delayReasonMap: Record<string, number> = {};
+  const breakdown: Record<string, DashboardBreakdownEntry> = {};
+  const zones: DashboardZone[] = [];
+
+  for (const result of results) {
+    for (const row of result.flowData) {
+      if (!flowMap[row.h]) flowMap[row.h] = { h: row.h, ok: 0, warn: 0, deny: 0 };
+      flowMap[row.h].ok += row.ok;
+      flowMap[row.h].warn += row.warn;
+      flowMap[row.h].deny += row.deny;
+    }
+    for (const [plant, value] of Object.entries(result.breakdown)) {
+      if (!breakdown[plant]) breakdown[plant] = { total: 0, ok: 0 };
+      breakdown[plant].total += value.total;
+      breakdown[plant].ok += value.ok;
+    }
+    zones.push(...result.zones);
+    for (const reason of result.delayReasons ?? []) {
+      delayReasonMap[reason.motivo] = (delayReasonMap[reason.motivo] ?? 0) + reason.count;
+    }
+  }
+
+  return {
+    kpis,
+    events: results.flatMap((result) => result.events).slice(0, 6),
+    alerts: results.flatMap((result) => result.alerts).slice(0, 3),
+    breakdown,
+    zones: zones.sort((a, b) => b.count - a.count),
+    flowData: Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h)),
+    delayReasons: Object.entries(delayReasonMap)
+      .map(([motivo, count]) => ({ motivo, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 }
 
 // ─── DASHBOARD STATS (SQL-powered, direct RPC calls) ────────────────────────
@@ -88,6 +170,15 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 },
       breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [],
     };
+  }
+
+  const sitePlants = await resolveSitePlants(supabase, ctx, plant);
+  if (sitePlants) {
+    if (sitePlants.length === 0) {
+      return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
+    }
+    const results = await Promise.all(sitePlants.map((sitePlant) => getDashboardStats(sitePlant, timeframe)));
+    return mergeDashboardStats(results);
   }
 
   if (ctx.isAdmin && !ctx.companyId) {
@@ -319,10 +410,24 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
       : 30;
     const prevFrom = daysAgoLima(days * 2);
     const prevTo   = daysAgoLima(days + 1);
+    const sitePlants = await resolveSitePlants(supabase, ctx, plant);
+
+    const fetchKpis = async (fromDate: string, toDate: string) => {
+      if (!sitePlants) return _getDashboardKpis(supabase, companyId, fromDate, toDate, plant);
+      const rows = await Promise.all(sitePlants.map((sitePlant) => _getDashboardKpis(supabase, companyId, fromDate, toDate, sitePlant)));
+      const total = rows.flatMap((row) => row ?? []).reduce((acc, row) => ({
+        ok: acc.ok + Number(row?.ok ?? 0),
+        deny: acc.deny + Number(row?.deny ?? 0),
+        warn: acc.warn + Number(row?.warn ?? 0),
+        pending: acc.pending + Number(row?.pending ?? 0),
+        total: acc.total + Number(row?.total ?? 0),
+      }), { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 });
+      return [total];
+    };
 
     const [currData, prevData] = await Promise.all([
-      _getDashboardKpis(supabase, companyId, from, to, plant),
-      _getDashboardKpis(supabase, companyId, prevFrom, prevTo, plant),
+      fetchKpis(from, to),
+      fetchKpis(prevFrom, prevTo),
     ]);
 
     const currRow = currData?.[0] ?? null;
@@ -369,6 +474,7 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
     if (!ctx?.companyId) return [];
 
     const supabase = await createClient();
+    const sitePlants = await resolveSitePlants(supabase, ctx, plant);
     const sixMonthsAgo = daysAgoLima(180);
     const { date: today } = nowLima();
 
@@ -381,7 +487,12 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
       .not("h_registro", "is", null)
       .not("fecha", "is", null);
 
-    if (plant !== "Todos") query = query.eq("planta", plant);
+    if (sitePlants) {
+      if (sitePlants.length === 0) return [];
+      query = query.in("planta", sitePlants);
+    } else if (plant !== "Todos") {
+      query = query.eq("planta", plant);
+    }
 
     const { data } = await query.limit(5000);
     if (!data?.length) return [];

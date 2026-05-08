@@ -3,6 +3,7 @@ import {
   getDashboardHeatmap,
   getDashboardStats,
   getDashboardTrends,
+  getUserGateOptions,
   getUserPlants,
 } from "@/app/actions";
 import DashboardClient from "./DashboardClient";
@@ -13,10 +14,11 @@ const DEFAULT_PLANT = "Todos";
 const DEFAULT_TIMEFRAME = "Día";
 
 export default async function DashboardPage() {
-  const [stats, trends, plants, availableYears, heatmapData] = await Promise.all([
+  const [stats, trends, plants, gateOptions, availableYears, heatmapData] = await Promise.all([
     getDashboardStats(DEFAULT_PLANT, DEFAULT_TIMEFRAME),
     getDashboardTrends(DEFAULT_PLANT, DEFAULT_TIMEFRAME),
     getUserPlants(),
+    getUserGateOptions(),
     getAvailableYears(),
     getDashboardHeatmap(DEFAULT_PLANT),
   ]);
@@ -26,6 +28,7 @@ export default async function DashboardPage() {
       initialPlant={DEFAULT_PLANT}
       initialTimeframe={DEFAULT_TIMEFRAME}
       initialPlants={plants}
+      initialGateOptions={gateOptions}
       initialAvailableYears={availableYears}
       initialStats={stats}
       initialTrends={trends.trend}
