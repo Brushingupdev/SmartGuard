@@ -39,10 +39,10 @@ function exportReporteCSV(data: ReporteData, plant: string, timeframe: string) {
     `Total,A tiempo,Moderado,Alto,Crítico,Pendiente,% A tiempo,Prom. espera (min),Máx. espera (min),P90 (min)`,
     `${data.total},${data.ok},${data.warn},${data.alto},${data.critico},${data.pending},${data.pctOnTime ?? ""},${data.avgEspera},${data.maxEspera},${data.p90Espera}`,
     ``,
-    `COMPARATIVO POR PLANTA`,
-    `Planta,Total,A tiempo,Moderado,Alto,Crítico,Pendiente,% A tiempo,Prom. espera (min)`,
+    `COMPARATIVO POR PUERTA`,
+    `Puerta,Total,A tiempo,Moderado,Alto,Crítico,Pendiente,% A tiempo,Prom. espera (min)`,
     ...data.plantStats.map((p) =>
-      `${p.planta},${p.total},${p.ok},${p.warn},${p.alto},${p.critico},${p.pending},${p.pctOnTime ?? ""},${p.avg}`
+      `${formatGateLabelFromPlant(p.planta)},${p.total},${p.ok},${p.warn},${p.alto},${p.critico},${p.pending},${p.pctOnTime ?? ""},${p.avg}`
     ),
     ``,
     `EMPRESAS CON MAYOR DEMORA`,

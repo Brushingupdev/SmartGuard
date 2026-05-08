@@ -74,7 +74,7 @@ export async function createAtencion(rawData: unknown) {
     .maybeSingle();
 
   if (existing) {
-    return { success: false, error: "Ya existe un registro pendiente para este vehículo hoy en esta planta." };
+    return { success: false, error: "Ya existe un registro pendiente para este vehículo hoy en esta puerta." };
   }
 
   // Si no especificó hora_cita, verificar si hay una cita programada para este vehículo

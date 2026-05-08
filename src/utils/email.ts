@@ -1,6 +1,7 @@
 "use server";
 
 import { Resend } from "resend";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 export async function sendWhatsAppAlert(opts: {
   phone: string;
@@ -23,7 +24,7 @@ export async function sendWhatsAppAlert(opts: {
   const message =
     `⚠ *SmartGuard — Alerta de Demora*\n\n` +
     `*${opts.razonSocial}*\n` +
-    `🏭 ${opts.empresa} · ${opts.planta}\n` +
+    `🏭 ${opts.empresa} · ${formatGateLabelFromPlant(opts.planta)}\n` +
     `🕐 Ingreso: ${opts.hRegistro.substring(0, 5)}\n` +
     `⏱ Espera: *${opts.esperaMin} min* ${seg}\n\n` +
     `Ver en plataforma → ${process.env.NEXT_PUBLIC_SITE_URL}/alertas`;
@@ -98,7 +99,7 @@ export async function sendCriticalDelayAlert(opts: {
             <h1 style="margin:0 0 6px;color:#e8e4da;font-size:26px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;">
               ${opts.razonSocial}
             </h1>
-            <p style="margin:0;color:#8a8f8b;font-size:13px;">${opts.empresa} · ${opts.planta}</p>
+            <p style="margin:0;color:#8a8f8b;font-size:13px;">${opts.empresa} · ${formatGateLabelFromPlant(opts.planta)}</p>
           </td>
         </tr>
 

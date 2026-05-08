@@ -64,14 +64,14 @@ function getWaitLabel(wait: number | null) {
 }
 
 function exportCSV(rows: HistorialRecord[]) {
-  const headers = ["ID", "Fecha", "H.Registro", "H.Atencion", "H.Dev.Docs", "Razon_Social", "Empresa", "Planta", "Tipo", "Tipo_Operacion", "Motivo_Demora", "Espera_Min", "Tiempo_Total_Min", "Segmento", "Responsable", "Agente", "Observacion"];
+  const headers = ["ID", "Fecha", "H.Registro", "H.Atencion", "H.Dev.Docs", "Razon_Social", "Empresa", "Puerta", "Tipo", "Tipo_Operacion", "Motivo_Demora", "Espera_Min", "Tiempo_Total_Min", "Segmento", "Responsable", "Agente", "Observacion"];
   const lines = [headers.join(",")];
   for (const r of rows) {
     lines.push([
       r.id, r.fecha, r.h_registro ?? "", r.h_atencion ?? "", r.h_dev_docs ?? "",
       `"${(r.razon_social ?? "").replace(/"/g, '""')}"`,
       `"${(r.empresa ?? "").replace(/"/g, '""')}"`,
-      r.planta ?? "", r.tipo ?? "", r.tipo_operacion ?? "", r.motivo_demora ?? "",
+      formatGateLabelFromPlant(r.planta ?? ""), r.tipo ?? "", r.tipo_operacion ?? "", r.motivo_demora ?? "",
       r.espera_min ?? "", r.tiempo_total_min ?? "", r.segmento_espera ?? "",
       r.responsable ?? "", r.agente ?? "",
       `"${(r.observacion ?? "").replace(/"/g, '""')}"`,

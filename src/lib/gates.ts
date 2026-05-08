@@ -6,7 +6,7 @@ export interface GateAssignment {
 
 const KNOWN_GATE_MAP: Record<string, Omit<GateAssignment, "plant">> = {
   Cajamarquilla: { site: "Cajamarquilla", gate: "Principal" },
-  Sanitario: { site: "Cajamarquilla", gate: "Sanitario" },
+  Sanitario: { site: "Cajamarquilla", gate: "Santuario" },
   Lomas: { site: "Lomas", gate: "Principal" },
   "Lomas 02": { site: "Lomas", gate: "Lomas 02" },
 };

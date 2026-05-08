@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReporteData, getCompanySettings } from "@/app/actions";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 export const runtime = "nodejs";
 
@@ -132,7 +133,7 @@ function buildHtml(
   // Plant stats table
   const plantRows = data.plantStats.map((p, i) => `
     <tr class="${i % 2 === 0 ? "even" : ""}">
-      <td><strong>${p.planta}</strong></td>
+      <td><strong>${formatGateLabelFromPlant(p.planta)}</strong></td>
       <td class="num">${p.total}</td>
       <td class="num ok">${p.ok}</td>
       <td class="num warn">${p.warn}</td>
@@ -593,7 +594,7 @@ function buildHtml(
         <div class="header-company">${companyName}</div>
         <div class="header-meta">
           ${sector ? `<span class="header-pill">SECTOR: ${sector}</span>` : ""}
-          <span class="header-pill">PLANTA: ${plant}</span>
+          <span class="header-pill">PUERTA: ${formatGateLabelFromPlant(plant)}</span>
           <span class="header-pill">PERÍODO: ${timeframe}</span>
         </div>
         <div class="header-timestamp">Generado el ${now}${contactName ? ` · Responsable: ${contactName}` : ""}</div>
@@ -645,10 +646,10 @@ function buildHtml(
     <!-- Plant comparison -->
     ${data.plantStats.length > 0 ? `
     <div class="section">
-      <div class="section-title">Comparativo por Planta</div>
+      <div class="section-title">Comparativo por Puerta</div>
       <table>
         <thead><tr>
-          <th>Planta</th>
+          <th>Puerta</th>
           <th style="text-align:right">Total</th>
           <th style="text-align:right">A tiempo</th>
           <th style="text-align:right">Moderado</th>
@@ -748,7 +749,7 @@ function buildHtml(
     <!-- Footer -->
     <div class="report-footer">
       <span><span class="footer-brand">SMARTGUARD</span> · Control de Acceso Vehicular Industrial${sector ? ` · ${sector}` : ""}</span>
-      <span>${companyName} · ${plant} · ${timeframe}</span>
+      <span>${companyName} · ${formatGateLabelFromPlant(plant)} · ${timeframe}</span>
       <span>Generado ${now}</span>
     </div>
 

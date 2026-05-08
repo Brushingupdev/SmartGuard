@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReporteData, getCompanySettings } from "@/app/actions";
 import ExcelJS from "exceljs";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 export const runtime = "nodejs";
 
@@ -184,7 +185,7 @@ export async function GET(request: NextRequest) {
   // Metadatos del reporte
   const meta = [
     ["REPORTE ANALÍTICO DE ACCESO VEHICULAR", ""],
-    ["Planta / Sede",  plant],
+    ["Puerta",  formatGateLabelFromPlant(plant)],
     ["Período",        timeframe],
     ["Generado el",    now],
     ["Sistema",        "SmartGuard — Control Vehicular Industrial"],
@@ -241,7 +242,7 @@ export async function GET(request: NextRequest) {
   // Encabezado empresa
   const compRow = wsResumen.getRow(r++);
   wsResumen.mergeCells(1, 1, 1, 3);
-  compRow.getCell(1).value = `${companyName} — Reporte ${timeframe} · Planta: ${plant} · ${now}`;
+  compRow.getCell(1).value = `${companyName} — Reporte ${timeframe} · Puerta: ${formatGateLabelFromPlant(plant)} · ${now}`;
   compRow.getCell(1).font  = { bold: true, size: 10, color: { argb: "FF" + C.white } };
   compRow.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + C.navy } };
   compRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
@@ -305,7 +306,7 @@ export async function GET(request: NextRequest) {
   // ════════════════════════════════════════════════════════════════════════
   // HOJA 2 — POR PLANTA
   // ════════════════════════════════════════════════════════════════════════
-  const wsPlanta = wb.addWorksheet("Por Planta", { properties: { tabColor: { argb: "FF3B82F6" } } });
+  const wsPlanta = wb.addWorksheet("Por Puerta", { properties: { tabColor: { argb: "FF3B82F6" } } });
   wsPlanta.columns = [
     { width: 24 }, { width: 10 }, { width: 12 }, { width: 16 },
     { width: 12 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 20 },
@@ -313,7 +314,7 @@ export async function GET(request: NextRequest) {
 
   const ph = wsPlanta.getRow(1);
   wsPlanta.mergeCells(1, 1, 1, 9);
-  ph.getCell(1).value = `${companyName} — Comparativo por Planta · ${timeframe}`;
+  ph.getCell(1).value = `${companyName} — Comparativo por Puerta · ${timeframe}`;
   ph.getCell(1).font  = { bold: true, size: 10, color: { argb: "FF" + C.white } };
   ph.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + C.navy } };
   ph.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
@@ -321,7 +322,7 @@ export async function GET(request: NextRequest) {
 
   wsPlanta.addRow([]);
   const plantHeader = wsPlanta.addRow([
-    "Planta", "Total", "A tiempo", "Moderado (30–45)", "Alto (45–90)",
+    "Puerta", "Total", "A tiempo", "Moderado (30–45)", "Alto (45–90)",
     "Crítico (>90)", "Pendientes", "% A tiempo", "Prom. espera (min)",
   ]);
   styleHeaderRow(plantHeader, C.navy);
@@ -329,7 +330,7 @@ export async function GET(request: NextRequest) {
 
   data.plantStats.forEach((p, i) => {
     const row = wsPlanta.addRow([
-      p.planta, p.total, p.ok, p.warn, p.alto,
+      formatGateLabelFromPlant(p.planta), p.total, p.ok, p.warn, p.alto,
       p.critico, p.pending,
       p.pctOnTime !== null ? `${p.pctOnTime}%` : "N/A",
       p.avg,

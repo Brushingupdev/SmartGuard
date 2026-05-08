@@ -17,6 +17,19 @@ const RESEND_FROM_EMAIL  = Deno.env.get("RESEND_FROM_EMAIL") ?? "SmartGuard <onb
 
 const BATCH_SIZE = 5;
 
+// Helper para formatear planta → Sede · Puerta
+function formatGateLabelFromPlant(plant: string): string {
+  if (!plant || plant === "Todos") return "Todos";
+  const known: Record<string, { site: string; gate: string }> = {
+    Cajamarquilla: { site: "Cajamarquilla", gate: "Principal" },
+    Sanitario: { site: "Cajamarquilla", gate: "Santuario" },
+    Lomas: { site: "Lomas", gate: "Principal" },
+    "Lomas 02": { site: "Lomas", gate: "Lomas 02" },
+  };
+  const k = known[plant.trim()];
+  return k ? `${k.site} · ${k.gate}` : plant.trim();
+}
+
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -302,7 +315,7 @@ async function sendWhatsAppAlert(opts: {
   const message =
     `⚠ *SmartGuard — Alerta de Demora*\n\n` +
     `*${opts.razonSocial}*\n` +
-    `🏭 ${opts.empresa} · ${opts.planta}\n` +
+    `🏭 ${opts.empresa} · ${formatGateLabelFromPlant(opts.planta)}\n` +
     `🕐 Ingreso: ${horaStr}\n` +
     `${esperaStr} ${seg}\n\n` +
     `Ver en plataforma → ${SITE_URL}/alertas`;

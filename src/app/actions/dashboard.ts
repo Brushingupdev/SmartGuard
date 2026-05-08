@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
-import { normalizeGateAssignments, plantsForSite } from "@/lib/gates";
+import { normalizeGateAssignments, plantsForSite, formatGateLabelFromPlant } from "@/lib/gates";
 import { nowLima, daysAgoLima, logError, withRetry, dateRange } from "./_helpers";
 import type {
   DashboardKpis,
@@ -247,7 +247,7 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
     if (delayEvents.length > 0) {
       alerts = delayEvents.slice(0, 3).map(e => ({
         title: "Alerta de Demora",
-        sub: `${e.plate} · ${e.espera_min ?? "?"} min · ${e.gate}`,
+        sub: `${e.plate} · ${e.espera_min ?? "?"} min · ${formatGateLabelFromPlant(e.gate)}`,
         tone: "deny" as const,
       }));
     } else {
@@ -260,7 +260,7 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       const { data: delayRows } = await q2;
       alerts = (delayRows ?? []).map((d: Record<string, unknown>) => ({
         title: "Alerta de Demora",
-        sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${d.planta}`,
+        sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${formatGateLabelFromPlant(d.planta as string)}`,
         tone: "deny" as const,
       }));
     }
@@ -350,7 +350,7 @@ async function getDashboardStatsAdmin(
     const alerts: DashboardAlert[] = data
     .filter((d) => d.espera_min && d.espera_min >= 45)
     .slice(0, 3)
-    .map((d) => ({ title: "Alerta de Demora", sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${d.planta}`, tone: "deny" }));
+    .map((d) => ({ title: "Alerta de Demora", sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${formatGateLabelFromPlant(d.planta as string)}`, tone: "deny" }));
 
   const groupingMap: Record<string, DashboardFlowRow> = {};
   data.forEach((d) => {
