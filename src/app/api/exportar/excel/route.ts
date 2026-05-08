@@ -93,14 +93,16 @@ function addSectionTitle(ws: ExcelJS.Worksheet, title: string, colSpan: number, 
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const plant     = searchParams.get("plant")     ?? "Todos";
-  const timeframe = searchParams.get("timeframe") ?? "Día";
-  const segment   = searchParams.get("segment")   ?? undefined;
-  const motivo    = searchParams.get("motivo")    ?? undefined;
-  const empresa   = searchParams.get("empresa")   ?? undefined;
+  const plant       = searchParams.get("plant")       ?? "Todos";
+  const timeframe   = searchParams.get("timeframe")   ?? "Día";
+  const segmentsRaw = searchParams.get("segments")    ?? undefined;
+  const soloDemoras = searchParams.get("soloDemoras") === "1";
+  const site        = searchParams.get("site")        ?? undefined;
+
+  const segments = segmentsRaw ? segmentsRaw.split(",") : undefined;
 
   const [data, company] = await Promise.all([
-    getReporteData(plant, timeframe, segment || undefined, motivo || undefined, empresa || undefined),
+    getReporteData(plant, timeframe, segments, soloDemoras, site),
     getCompanySettings(),
   ]);
 
@@ -190,9 +192,9 @@ export async function GET(request: NextRequest) {
     ["REPORTE ANALÍTICO DE ACCESO VEHICULAR", ""],
     ["Puerta",  formatGateLabelFromPlant(plant)],
     ["Período",        timeframe],
-    ...(segment && segment !== "Todos" ? [["Segmento", segment]] : []),
-    ...(motivo && motivo !== "Todos" ? [["Motivo", motivo]] : []),
-    ...(empresa ? [["Búsqueda", empresa]] : []),
+    ...(site && site !== "Todas" ? [["Sede", site]] : []),
+    ...(segments && segments.length > 0 ? [["Segmentos", segments.join(", ")]] : []),
+    ...(soloDemoras ? [["Filtro", "Solo demoras"]] : []),
     ["Generado el",    now],
     ["Sistema",        "SmartGuard — Control Vehicular Industrial"],
   ];
@@ -249,9 +251,9 @@ export async function GET(request: NextRequest) {
   const compRow = wsResumen.getRow(r++);
   wsResumen.mergeCells(1, 1, 1, 3);
   const filterParts: string[] = [];
-  if (segment && segment !== "Todos") filterParts.push(`Segmento: ${segment}`);
-  if (motivo && motivo !== "Todos") filterParts.push(`Motivo: ${motivo}`);
-  if (empresa) filterParts.push(`Búsqueda: ${empresa}`);
+  if (site && site !== "Todas") filterParts.push(`Sede: ${site}`);
+  if (segments && segments.length > 0) filterParts.push(`Segmentos: ${segments.join(", ")}`);
+  if (soloDemoras) filterParts.push("Solo demoras");
   const filterSuffix = filterParts.length > 0 ? ` · ${filterParts.join(" · ")}` : "";
   compRow.getCell(1).value = `${companyName} — Reporte ${timeframe} · Puerta: ${formatGateLabelFromPlant(plant)}${filterSuffix} · ${now}`;
   compRow.getCell(1).font  = { bold: true, size: 10, color: { argb: "FF" + C.white } };

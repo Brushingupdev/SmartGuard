@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { dateRange } from "./_helpers";
 import type { ReporteStatsRow } from "@/types/dashboard";
+import { getPlantsForSite } from "@/lib/gates";
 
 interface AtencionRaw {
   espera_min: number | null;
@@ -30,9 +31,9 @@ const MO = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","D
 export async function getReporteData(
   plant: string = "Todos",
   timeframe: string = "Día",
-  segment?: string,
-  motivo?: string,
-  empresaSearch?: string,
+  segments?: string[],
+  soloDemoras?: boolean,
+  site?: string,
 ) {
   const supabase = await createClient();
   const ctx = await getUserContext();
@@ -45,8 +46,13 @@ export async function getReporteData(
   let baseStats: ReporteStatsRow | null = null;
 
   if (cid) {
-    const { data: rpcData } = await supabase.rpc("get_reporte_stats", { p_company_id: cid, p_date_from: from, p_date_to: to, p_planta: plant });
-    baseStats = (rpcData?.[0] ?? null) as ReporteStatsRow | null;
+    // Skip RPC when filtering by site (RPC only supports single plant or all)
+    if (site && site !== "Todos") {
+      baseStats = null;
+    } else {
+      const { data: rpcData } = await supabase.rpc("get_reporte_stats", { p_company_id: cid, p_date_from: from, p_date_to: to, p_planta: plant });
+      baseStats = (rpcData?.[0] ?? null) as ReporteStatsRow | null;
+    }
   }
 
   const dataDb = ctx.isAdmin && !cid
@@ -58,26 +64,35 @@ export async function getReporteData(
 
   let query = dataDb.from("atenciones").select("*");
   if (cid) query = query.eq("company_id", cid);
-  if (plant !== "Todos") query = query.eq("planta", plant);
-  
-  // Filtro por segmento (severidad)
-  if (segment && segment !== "Todos") {
-    if (segment === "Normal") query = query.lt("espera_min", 30);
-    else if (segment === "Moderado") query = query.gte("espera_min", 30).lt("espera_min", 45);
-    else if (segment === "Alto") query = query.gte("espera_min", 45).lt("espera_min", 90);
-    else if (segment === "Crítico") query = query.gte("espera_min", 90);
-    else if (segment === "Pendiente") query = query.is("espera_min", null);
+
+  // Site filter takes precedence over plant filter
+  if (site && site !== "Todos") {
+    const sitePlants = getPlantsForSite(site);
+    if (sitePlants.length > 0) {
+      query = query.in("planta", sitePlants);
+    }
+  } else if (plant !== "Todos") {
+    query = query.eq("planta", plant);
   }
   
-  // Filtro por motivo de demora
-  if (motivo && motivo !== "Todos") {
-    query = query.eq("motivo_demora", motivo);
+  // Filtro por segmentos (selección múltiple)
+  if (segments && segments.length > 0) {
+    const conditions: string[] = [];
+    for (const seg of segments) {
+      if (seg === "Normal") conditions.push("espera_min.lt.30");
+      else if (seg === "Moderado") conditions.push("and(espera_min.gte.30,espera_min.lt.45)");
+      else if (seg === "Alto") conditions.push("and(espera_min.gte.45,espera_min.lt.90)");
+      else if (seg === "Crítico") conditions.push("espera_min.gte.90");
+      else if (seg === "Pendiente") conditions.push("espera_min.is.null");
+    }
+    if (conditions.length > 0) {
+      query = query.or(conditions.join(","));
+    }
   }
   
-  // Filtro por empresa/razón social (búsqueda parcial)
-  if (empresaSearch && empresaSearch.trim()) {
-    const term = empresaSearch.trim();
-    query = query.or(`razon_social.ilike.%${term}%,empresa.ilike.%${term}%`);
+  // Filtro "Solo demoras" — oculta Normal
+  if (soloDemoras) {
+    query = query.gte("espera_min", 30);
   }
   
   query = query.gte("fecha", from).lte("fecha", to).order("fecha", { ascending: false }).limit(ctx.isAdmin && !cid ? 5000 : 2000);
@@ -134,7 +149,7 @@ export async function getReporteData(
     });
 
   // Segments
-  const segments = [
+  const segmentDistribution = [
     { name: "Normal",    range: "< 30 min",   count: ok,      color: "var(--sg-success)" },
     { name: "Moderado",  range: "30–45 min",  count: warn,    color: "var(--sg-warn)" },
     { name: "Alto",      range: "45–90 min",  count: alto,    color: "#e07b3a" },
@@ -269,7 +284,7 @@ export async function getReporteData(
   return {
     total, ok, warn, alto, critico, pending,
     avgEspera, maxEspera, p90Espera, pctOnTime,
-    plantStats, segments, topCompanies, opTypes, delayReasons, agentStats,
+    plantStats, segments: segmentDistribution, topCompanies, opTypes, delayReasons, agentStats,
     flowData, trendData, heatmap,
   };
 }

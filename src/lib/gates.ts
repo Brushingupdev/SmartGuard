@@ -85,3 +85,9 @@ export function groupGatesBySite(gates: GateAssignment[]): { site: string; gates
 export function plantsForSite(site: string, gates: GateAssignment[]): string[] {
   return gates.filter((gate) => gate.site === site).map((gate) => gate.plant);
 }
+
+export function getPlantsForSite(site: string): string[] {
+  return Object.entries(KNOWN_GATE_MAP)
+    .filter(([, g]) => g.site === site)
+    .map(([plant]) => plant);
+}

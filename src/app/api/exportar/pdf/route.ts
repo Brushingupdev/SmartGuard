@@ -37,9 +37,9 @@ function buildHtml(
   logoUrl: string | null,
   plant: string,
   timeframe: string,
-  segment?: string | null,
-  motivo?: string | null,
-  empresaSearch?: string | null,
+  segments?: string[] | null,
+  soloDemoras?: boolean,
+  site?: string | null,
   sector?: string | null,
   contactName?: string | null,
 ): string {
@@ -599,9 +599,9 @@ function buildHtml(
           ${sector ? `<span class="header-pill">SECTOR: ${sector}</span>` : ""}
           <span class="header-pill">PUERTA: ${formatGateLabelFromPlant(plant)}</span>
           <span class="header-pill">PERÍODO: ${timeframe}</span>
-          ${segment && segment !== "Todos" ? `<span class="header-pill">SEGMENTO: ${segment}</span>` : ""}
-          ${motivo && motivo !== "Todos" ? `<span class="header-pill">MOTIVO: ${motivo}</span>` : ""}
-          ${empresaSearch ? `<span class="header-pill">BÚSQUEDA: ${empresaSearch}</span>` : ""}
+          ${site && site !== "Todas" ? `<span class="header-pill">SEDE: ${site}</span>` : ""}
+          ${segments && segments.length > 0 ? `<span class="header-pill">SEGMENTOS: ${segments.join(", ")}</span>` : ""}
+          ${soloDemoras ? `<span class="header-pill">SOLO DEMORAS</span>` : ""}
         </div>
         <div class="header-timestamp">Generado el ${now}${contactName ? ` · Responsable: ${contactName}` : ""}</div>
       </div>
@@ -775,14 +775,16 @@ function buildHtml(
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const plant     = searchParams.get("plant")     ?? "Todos";
-  const timeframe = searchParams.get("timeframe") ?? "Día";
-  const segment   = searchParams.get("segment")   ?? undefined;
-  const motivo    = searchParams.get("motivo")    ?? undefined;
-  const empresa   = searchParams.get("empresa")   ?? undefined;
+  const plant       = searchParams.get("plant")       ?? "Todos";
+  const timeframe   = searchParams.get("timeframe")   ?? "Día";
+  const segmentsRaw = searchParams.get("segments")    ?? undefined;
+  const soloDemoras = searchParams.get("soloDemoras") === "1";
+  const site        = searchParams.get("site")        ?? undefined;
+
+  const segments = segmentsRaw ? segmentsRaw.split(",") : undefined;
 
   const [data, company] = await Promise.all([
-    getReporteData(plant, timeframe, segment || undefined, motivo || undefined, empresa || undefined),
+    getReporteData(plant, timeframe, segments, soloDemoras, site),
     getCompanySettings(),
   ]);
 
@@ -798,7 +800,7 @@ export async function GET(request: NextRequest) {
   const sector      = company?.sector       ?? null;
   const contactName = company?.contact_name ?? null;
 
-  const html = buildHtml(data, companyName, logoUrl, plant, timeframe, segment, motivo, empresa, sector, contactName);
+  const html = buildHtml(data, companyName, logoUrl, plant, timeframe, segments, soloDemoras, site, sector, contactName);
 
   return new NextResponse(html, {
     headers: {

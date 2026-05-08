@@ -1,9 +1,9 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
-import { getReporteData, getUserPlants, getAvailableYears, getMotivosDemora } from "@/app/actions";
+import { getReporteData, getUserPlants, getAvailableYears } from "@/app/actions";
 import { motion } from "framer-motion";
-import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, FileText, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -28,13 +28,13 @@ const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 type ReporteData = NonNullable<Awaited<ReturnType<typeof getReporteData>>>;
 
-function exportReporteCSV(data: ReporteData, plant: string, timeframe: string, segment?: string, motivo?: string, empresaSearch?: string) {
+function exportReporteCSV(data: ReporteData, plant: string, timeframe: string, selectedSegments: string[], soloDemoras: boolean, compareMode?: string) {
   const ts  = new Date().toLocaleDateString("en-CA");
-  const bom = "﻿";
+  const bom = "\ufeff";
   const filters: string[] = [];
-  if (segment && segment !== "Todos") filters.push(`Segmento: ${segment}`);
-  if (motivo && motivo !== "Todos") filters.push(`Motivo: ${motivo}`);
-  if (empresaSearch && empresaSearch.trim()) filters.push(`Búsqueda: ${empresaSearch.trim()}`);
+  if (compareMode && compareMode !== "Todas") filters.push(`Sede: ${compareMode}`);
+  if (selectedSegments.length > 0) filters.push(`Segmentos: ${selectedSegments.join(", ")}`);
+  if (soloDemoras) filters.push("Solo demoras");
   const filtersLine = filters.length > 0 ? `Filtros: ${filters.join(" | ")}` : "";
 
   const lines: string[] = [
@@ -281,38 +281,36 @@ function ReporteContent() {
   const [plant,          setPlant]          = useState(searchParams.get("plant")     ?? "Todos");
   const [plants,         setPlants]         = useState<string[]>([]);
   const [timeframe,      setTimeframe]      = useState(searchParams.get("timeframe") ?? "Día");
-  const [segment,        setSegment]        = useState("Todos");
-  const [motivo,         setMotivo]         = useState("Todos");
-  const [empresaSearch,  setEmpresaSearch]  = useState("");
-  const [motivosList,    setMotivosList]    = useState<string[]>([]);
+  const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
+  const [soloDemoras,    setSoloDemoras]    = useState(false);
+  const [compareMode,    setCompareMode]    = useState<string>("Todas");
   const [data,           setData]           = useState<ReporteData | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [mounted,   setMounted]   = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const activeFilterCount = [segment !== "Todos", motivo !== "Todos", empresaSearch.trim() !== ""].filter(Boolean).length;
+  const activeFilterCount = selectedSegments.length + (soloDemoras ? 1 : 0);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await getReporteData(plant, timeframe, segment, motivo, empresaSearch));
+      setData(await getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode));
     } finally {
       setLoading(false);
     }
-  }, [plant, timeframe, segment, motivo, empresaSearch]);
+  }, [plant, timeframe, selectedSegments, soloDemoras, compareMode]);
 
   useEffect(() => {
     getUserPlants().then(setPlants);
     getAvailableYears().then(setAvailableYears);
-    getMotivosDemora().then(setMotivosList);
   }, []);
   useEffect(() => {
     let active = true;
 
     const bootstrap = async () => {
       try {
-        const report = await getReporteData(plant, timeframe, segment, motivo, empresaSearch);
+        const report = await getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode);
         if (active) {
           setData(report);
           setLoading(false);
@@ -329,7 +327,7 @@ function ReporteContent() {
     return () => {
       active = false;
     };
-  }, [plant, timeframe, segment, motivo, empresaSearch]);
+  }, [plant, timeframe, selectedSegments, soloDemoras, compareMode]);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -353,13 +351,37 @@ function ReporteContent() {
           <div className="h-3.5 w-px bg-[var(--sg-line)]" />
           <div className="sg-kicker">Análisis Detallado</div>
 
+          {/* Site comparison buttons */}
+          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+            {["Todas", "Lomas", "Cajamarquilla"].map((s) => (
+              <button
+                key={s}
+                onClick={() => {
+                  setCompareMode(s);
+                  if (s !== "Todas") setPlant("Todos");
+                }}
+                className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                  compareMode === s
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
           {/* Gate filter (dropdown) */}
           <div className="relative">
             <select
               aria-label="Seleccionar puerta"
               value={plant}
-              onChange={(e) => setPlant(e.target.value)}
-              className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
+              onChange={(e) => {
+                setPlant(e.target.value);
+                setCompareMode("Todas");
+              }}
+              disabled={compareMode !== "Todas"}
+              className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {["Todos", ...plants].map((p) => (
                 <option key={p} value={p} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
@@ -414,7 +436,7 @@ function ReporteContent() {
             <>
               {/* CSV */}
               <button
-                onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe, segment, motivo, empresaSearch); setExporting(false); }}
+                onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe, selectedSegments, soloDemoras, compareMode); setExporting(false); }}
                 disabled={exporting}
                 title="Descargar CSV"
                 className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
@@ -424,7 +446,7 @@ function ReporteContent() {
               </button>
               {/* Excel */}
               <a
-                href={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${segment !== "Todos" ? `&segment=${encodeURIComponent(segment)}` : ""}${motivo !== "Todos" ? `&motivo=${encodeURIComponent(motivo)}` : ""}${empresaSearch.trim() ? `&empresa=${encodeURIComponent(empresaSearch.trim())}` : ""}`}
+                href={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
                 download
                 title="Descargar Excel (.xlsx)"
                 className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#22c55e] hover:text-[#22c55e] transition-colors"
@@ -434,7 +456,7 @@ function ReporteContent() {
               </a>
               {/* PDF */}
               <a
-                href={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${segment !== "Todos" ? `&segment=${encodeURIComponent(segment)}` : ""}${motivo !== "Todos" ? `&motivo=${encodeURIComponent(motivo)}` : ""}${empresaSearch.trim() ? `&empresa=${encodeURIComponent(empresaSearch.trim())}` : ""}`}
+                href={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Abrir reporte PDF"
@@ -464,60 +486,61 @@ function ReporteContent() {
 
       {/* ── Filters row ─────────────────────────────────────────────── */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        {/* Segment filter */}
-        <div className="relative">
-          <select
-            aria-label="Segmento"
-            value={segment}
-            onChange={(e) => setSegment(e.target.value)}
-            className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
-          >
-            {["Todos", "Normal", "Moderado", "Alto", "Crítico", "Pendiente"].map((s) => (
-              <option key={s} value={s} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">{s}</option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+        {/* Segment pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { key: "Normal",    label: "Normal",    color: "var(--sg-success)" },
+            { key: "Moderado",  label: "Moderado",  color: "var(--sg-warn)" },
+            { key: "Alto",      label: "Alto",      color: "#e07b3a" },
+            { key: "Crítico",   label: "Crítico",   color: "var(--sg-danger)" },
+            { key: "Pendiente", label: "Pendiente", color: "var(--sg-info)" },
+          ].map((seg) => {
+            const count = d?.segments.find((s) => s.name === seg.key)?.count ?? 0;
+            const isActive = selectedSegments.includes(seg.key);
+            return (
+              <button
+                key={seg.key}
+                onClick={() => {
+                  setSelectedSegments((prev) =>
+                    prev.includes(seg.key)
+                      ? prev.filter((s) => s !== seg.key)
+                      : [...prev, seg.key]
+                  );
+                }}
+                className={`flex items-center gap-1.5 border px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                  isActive
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)] border-[var(--sg-ink)]"
+                    : "border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
+                }`}
+                title={`${seg.label} (${count})`}
+              >
+                <span className="h-2 w-2 shrink-0" style={{ background: seg.color }} />
+                {seg.label}
+                <span className="sg-font-mono text-[9px] opacity-70">({count})</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Motivo filter */}
-        <div className="relative">
-          <select
-            aria-label="Motivo de demora"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
-          >
-            <option value="Todos" className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">Todos los motivos</option>
-            {motivosList.map((m) => (
-              <option key={m} value={m} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">{m}</option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
-        </div>
-
-        {/* Empresa search */}
-        <div className="flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5">
-          <input
-            type="text"
-            value={empresaSearch}
-            onChange={(e) => setEmpresaSearch(e.target.value)}
-            placeholder="Buscar vehículo o empresa..."
-            className="h-[24px] w-[180px] bg-transparent text-[10px] text-[var(--sg-ink)] outline-none placeholder:text-[var(--sg-muted)]"
-          />
-          {empresaSearch && (
-            <button onClick={() => setEmpresaSearch("")} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+        {/* Solo demoras toggle */}
+        <button
+          onClick={() => setSoloDemoras((v) => !v)}
+          className={`flex items-center gap-1.5 border px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+            soloDemoras
+              ? "bg-[var(--sg-danger)] text-white border-[var(--sg-danger)]"
+              : "border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-muted)] hover:text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
+          }`}
+        >
+          Solo demoras
+        </button>
 
         {/* Active filters badge + clear */}
         {activeFilterCount > 0 && (
           <button
-            onClick={() => { setSegment("Todos"); setMotivo("Todos"); setEmpresaSearch(""); }}
+            onClick={() => { setSelectedSegments([]); setSoloDemoras(false); }}
             className="flex items-center gap-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-danger)] transition-colors"
           >
-            <X className="h-3 w-3" />
+            <RefreshCw className="h-3 w-3" />
             Limpiar {activeFilterCount} filtro{activeFilterCount !== 1 ? "s" : ""}
           </button>
         )}
