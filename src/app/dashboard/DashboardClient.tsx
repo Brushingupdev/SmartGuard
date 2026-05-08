@@ -11,7 +11,7 @@ import { getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/ap
 import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { BarChart3, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
 import type {
   DashboardKpis,
   DashboardFlowRow,
@@ -240,30 +240,23 @@ export default function DashboardClient({
             ))}
           </div>
           {currentSiteGates.length > 0 && (
-            <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-wrap">
-              <button
-                onClick={() => setSelectedPlant(`site:${selectedSite}`)}
-                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                  selectedPlant === `site:${selectedSite}`
-                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                }`}
+            <div className="relative">
+              <select
+                aria-label="Seleccionar puerta"
+                value={selectedPlant}
+                onChange={(e) => setSelectedPlant(e.target.value)}
+                className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
               >
-                Todas las puertas
-              </button>
-              {currentSiteGates.map((gate) => (
-                <button
-                  key={gate.plant}
-                  onClick={() => setSelectedPlant(gate.plant)}
-                  className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                    selectedPlant === gate.plant
-                      ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                      : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                  }`}
-                >
-                  {formatGateLabelFromPlant(gate.plant, gateOptions)}
-                </button>
-              ))}
+                <option value={`site:${selectedSite}`} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                  Todas las puertas
+                </option>
+                {currentSiteGates.map((gate) => (
+                  <option key={gate.plant} value={gate.plant} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                    {gate.gate}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
             </div>
           )}
 
