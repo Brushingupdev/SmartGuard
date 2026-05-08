@@ -14,8 +14,10 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Pencil,
   RefreshCw,
   Search,
+  Save,
   Timer,
   Truck,
   Upload,
@@ -24,7 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getAtenciones, getAtencionesForExport, getHistorialStats, getUserPlants, getUserProfile, getCompaniesMap, getCompanies } from "../actions";
-import { importAtenciones } from "../actions/atenciones";
+import { importAtenciones, updateAtencion } from "../actions/atenciones";
 import { autoDetectMapping, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
 
 const fmt = new Intl.NumberFormat("en-US");
@@ -41,6 +43,7 @@ interface HistorialRecord {
   planta: string | null;
   tipo: string | null;
   tipo_operacion: string | null;
+  hora_cita?: string | null;
   motivo_demora: string | null;
   espera_min: number | null;
   tiempo_total_min: number | null;
@@ -243,11 +246,159 @@ function RecordDetailModal({ record, onClose }: { record: HistorialRecord; onClo
   );
 }
 
+function EditRecordModal({
+  record,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  record: HistorialRecord;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (record: HistorialRecord, data: {
+    razonSocial: string;
+    empresa: string;
+    type: string;
+    tipoOperacion: string;
+    responsable: string;
+    agente: string;
+    note: string;
+    hAtencion: string | null;
+    hDevDocs: string | null;
+    horaCita: string | null;
+  }) => void;
+}) {
+  const [razonSocial, setRazonSocial] = useState(record.razon_social ?? "");
+  const [empresa, setEmpresa] = useState(record.empresa ?? "");
+  const [type, setType] = useState(record.tipo ?? "Proveedor");
+  const [tipoOperacion, setTipoOperacion] = useState(record.tipo_operacion ?? record.motivo_demora ?? "Ingreso");
+  const [responsable, setResponsable] = useState(record.responsable ?? "");
+  const [agente, setAgente] = useState(record.agente ?? "");
+  const [note, setNote] = useState(record.observacion ?? "");
+  const [hAtencion, setHAtencion] = useState(record.h_atencion?.substring(0, 5) ?? "");
+  const [hDevDocs, setHDevDocs] = useState(record.h_dev_docs?.substring(0, 5) ?? "");
+  const [horaCita, setHoraCita] = useState(record.hora_cita?.substring(0, 5) ?? "");
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.78)] px-4 py-8 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ scale: 0.96, y: 12 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.96, y: 12 }}
+        className="w-full max-w-[640px] border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-7 w-7 items-center justify-center bg-[var(--sg-accent)]">
+              <Pencil className="h-3.5 w-3.5 text-[var(--sg-canvas)]" />
+            </div>
+            <div>
+              <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.14em] text-[var(--sg-ink)]">
+                Editar registro #{record.id}
+              </div>
+              <div className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                {record.fecha} · {record.planta}
+              </div>
+            </div>
+          </div>
+          <button onClick={onCancel} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="sg-field md:col-span-2">
+            <label className="sg-label">Razón social / vehículo *</label>
+            <input value={razonSocial} onChange={e => setRazonSocial(e.target.value.toUpperCase())} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">Empresa destino / cliente *</label>
+            <input value={empresa} onChange={e => setEmpresa(e.target.value.toUpperCase())} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">Tipo *</label>
+            <select value={type} onChange={e => setType(e.target.value)} className="sg-select">
+              {["Proveedor", "Propio", "Cliente", "Otro"].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">Tipo de operación *</label>
+            <input value={tipoOperacion} onChange={e => setTipoOperacion(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">Responsable</label>
+            <input value={responsable} onChange={e => setResponsable(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">Agente</label>
+            <input value={agente} onChange={e => setAgente(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">H. atención</label>
+            <input type="time" value={hAtencion} onChange={e => setHAtencion(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field">
+            <label className="sg-label">H. dev. docs</label>
+            <input type="time" value={hDevDocs} onChange={e => setHDevDocs(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field md:col-span-2">
+            <label className="sg-label">Hora de cita</label>
+            <input type="time" value={horaCita} onChange={e => setHoraCita(e.target.value)} className="sg-input" />
+          </div>
+          <div className="sg-field md:col-span-2">
+            <label className="sg-label">Observación</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} className="sg-textarea min-h-[80px]" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 border-t border-[var(--sg-line)] px-5 py-4">
+          <button onClick={onCancel} className="sg-btn sg-btn-ghost flex-1 justify-center">
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(record, {
+              razonSocial,
+              empresa,
+              type,
+              tipoOperacion,
+              responsable,
+              agente,
+              note,
+              hAtencion: hAtencion || null,
+              hDevDocs: hDevDocs || null,
+              horaCita: horaCita || null,
+            })}
+            disabled={saving}
+            className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50"
+          >
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Guardar cambios
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function HistorialPage() {
   // Admin
   const [isAdmin,       setIsAdmin]       = useState(false);
+  const [userRole,      setUserRole]      = useState<string | null>(null);
   const [companiesMap,  setCompaniesMap]  = useState<Record<string, string>>({});
   const [companiesList, setCompaniesList] = useState<{ id: string; name: string }[]>([]);
   const [filterCompany, setFilterCompany] = useState("");
@@ -280,6 +431,8 @@ export default function HistorialPage() {
 
   // Detail modal
   const [selectedRecord, setSelectedRecord] = useState<HistorialRecord | null>(null);
+  const [editingRecord, setEditingRecord] = useState<HistorialRecord | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Import modal
   const [showImport,      setShowImport]      = useState(false);
@@ -329,6 +482,7 @@ export default function HistorialPage() {
     getHistorialStats().then(setStats);
     getUserPlants().then(setPlants);
     getUserProfile().then(p => {
+      setUserRole(p?.role ?? null);
       if (p?.isAdmin) {
         setIsAdmin(true);
         getCompaniesMap().then(setCompaniesMap);
@@ -410,6 +564,35 @@ export default function HistorialPage() {
     }
   };
 
+  const canEditRecords = Boolean(userRole && userRole !== "guardia");
+
+  const handleEditSave = async (
+    record: HistorialRecord,
+    data: {
+      razonSocial: string;
+      empresa: string;
+      type: string;
+      tipoOperacion: string;
+      responsable: string;
+      agente: string;
+      note: string;
+      hAtencion: string | null;
+      hDevDocs: string | null;
+      horaCita: string | null;
+    }
+  ) => {
+    setSavingEdit(true);
+    const result = await updateAtencion(record.id, data);
+    setSavingEdit(false);
+    if (!result.success) {
+      alert(result.error ?? "No se pudo actualizar el registro");
+      return;
+    }
+    setEditingRecord(null);
+    setSelectedRecord(null);
+    void fetchRecords();
+  };
+
   const closeImport = () => {
     setShowImport(false);
     setImportFileName(null);
@@ -423,6 +606,14 @@ export default function HistorialPage() {
       <AnimatePresence>
         {selectedRecord && (
           <RecordDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        )}
+        {editingRecord && (
+          <EditRecordModal
+            record={editingRecord}
+            saving={savingEdit}
+            onCancel={() => setEditingRecord(null)}
+            onSave={handleEditSave}
+          />
         )}
       </AnimatePresence>
 
@@ -731,6 +922,7 @@ export default function HistorialPage() {
                 </th>
                 <th>T. Total</th>
                 <th>Estado</th>
+                {canEditRecords && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -779,12 +971,26 @@ export default function HistorialPage() {
                     <td>
                       <span className={`sg-badge ${wl.badge}`}>{wl.text}</span>
                     </td>
+                    {canEditRecords && (
+                      <td>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEditingRecord(r);
+                          }}
+                          className="inline-flex items-center gap-1.5 border border-[var(--sg-line)] px-2.5 py-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Editar
+                        </button>
+                      </td>
+                    )}
                   </motion.tr>
                 );
               })}
               {!loading && records.length === 0 && (
                 <tr>
-                  <td colSpan={isAdmin ? 13 : 12} className="py-10 text-center text-[var(--sg-muted)]">
+                  <td colSpan={(isAdmin ? 13 : 12) + (canEditRecords ? 1 : 0)} className="py-10 text-center text-[var(--sg-muted)]">
                     No se encontraron registros con los filtros aplicados
                   </td>
                 </tr>
