@@ -27,6 +27,7 @@ export interface UserContext {
   companyId: string | null;
   isAdmin: boolean;
   plant: string;
+  plants: string[];
   isImpersonating: boolean;
   isReadOnly: boolean;
 }
@@ -76,12 +77,18 @@ export async function getUserContext(): Promise<UserContext | null> {
           companyId,
           isAdmin: false,
           plant: "",
+          plants: [],
           isImpersonating: true,
           isReadOnly: true,
         };
       }
     }
   }
+
+  const metadataPlant = (user.user_metadata?.plant as string | undefined) ?? "";
+  const assignedPlants = Array.isArray(user.user_metadata?.assigned_plants)
+    ? (user.user_metadata.assigned_plants as unknown[]).filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+    : metadataPlant ? [metadataPlant] : [];
 
   return {
     userId: user.id,
@@ -90,7 +97,8 @@ export async function getUserContext(): Promise<UserContext | null> {
       ? null
       : (user.user_metadata?.company_id as string | undefined) ?? null,
     isAdmin: realIsAdmin,
-    plant: (user.user_metadata?.plant as string) ?? "",
+    plant: metadataPlant,
+    plants: assignedPlants,
     isImpersonating: false,
     isReadOnly: false,
   };

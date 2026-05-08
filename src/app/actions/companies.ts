@@ -165,6 +165,10 @@ export async function getUserPlants(): Promise<string[]> {
   const ctx = await getUserContext();
   const supabase = await createClient();
 
+  if (ctx?.role === "guardia" && ctx.plants.length > 0) {
+    return ctx.plants;
+  }
+
   if (ctx?.isAdmin) {
     const { createAdminClient } = await import("@/utils/supabase/admin");
     const admin = createAdminClient();

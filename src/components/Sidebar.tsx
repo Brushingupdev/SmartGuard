@@ -163,6 +163,7 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [detectedPlant, setDetectedPlant] = useState("Sede Central");
+  const [assignedPlantCount, setAssignedPlantCount] = useState(0);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -176,6 +177,7 @@ export default function Sidebar() {
         setLogoUrl(profile.logoUrl);
         setIsImpersonating(profile.isImpersonating ?? false);
         if (profile.plant) setDetectedPlant(profile.plant);
+        setAssignedPlantCount(profile.assignedPlants?.length ?? (profile.plant ? 1 : 0));
       }
       setProfileLoaded(true);
     });
@@ -399,6 +401,7 @@ export default function Sidebar() {
                 <div className={`sg-font-mono text-[9px] uppercase tracking-[0.16em] ${isAdmin || isImpersonating ? "text-[var(--sg-accent)]" : "text-[var(--sg-muted)]"}`}>
                   {isAdmin ? "Administrador · SmartGuard"
                    : isImpersonating ? "Admin · viendo empresa"
+                   : isGuardia && assignedPlantCount > 1 ? `Guardia · ${assignedPlantCount} puertas`
                    : isGuardia ? "Guardia · " + detectedPlant
                    : "Supervisor · " + detectedPlant}
                 </div>

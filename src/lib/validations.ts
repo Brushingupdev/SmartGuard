@@ -28,6 +28,12 @@ export const plantSchema = z
   .transform((v) => v.trim())
   .or(z.literal(""));
 
+export const assignedPlantsSchema = z
+  .array(plantSchema)
+  .max(20, "Máximo 20 puertas asignadas")
+  .optional()
+  .transform((plants) => plants?.filter(Boolean) ?? []);
+
 export const uuidSchema = z
   .string()
   .uuid("Identificador inválido");
@@ -166,6 +172,7 @@ export const createUserSchema = z.object({
   password: passwordSchema,
   role: roleSchema.default("guardia"),
   plant: plantSchema,
+  assignedPlants: assignedPlantsSchema,
   companyId: uuidSchema.optional(),
   companyName: z.string().max(200).optional(),
 });
@@ -174,6 +181,7 @@ export const updateUserSchema = z.object({
   userId: uuidSchema,
   role: roleSchema,
   plant: plantSchema,
+  assignedPlants: assignedPlantsSchema,
   password: passwordSchema.optional(),
   companyId: uuidSchema.optional(),
   companyName: z.string().max(200).optional(),

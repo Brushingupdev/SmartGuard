@@ -24,8 +24,11 @@ export default async function RegistroPage() {
 
   const userRole = (user?.user_metadata?.role as string | undefined) ?? "guardia";
   const metaPlant = user?.user_metadata?.plant as string | undefined;
-  const initialPlant = metaPlant || plants[0] || "";
-  const plantAssigned = Boolean(metaPlant);
+  const assignedPlants = Array.isArray(user?.user_metadata?.assigned_plants)
+    ? (user.user_metadata.assigned_plants as string[]).filter(Boolean)
+    : metaPlant ? [metaPlant] : [];
+  const initialPlant = assignedPlants[0] || metaPlant || plants[0] || "";
+  const plantAssigned = userRole === "guardia" && assignedPlants.length <= 1 && Boolean(initialPlant);
   const agente = user?.email
     ? user.email.split("@")[0].toUpperCase().replace(/\./g, " ").replace(/_/g, " ")
     : "";

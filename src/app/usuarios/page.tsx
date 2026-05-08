@@ -89,6 +89,7 @@ interface UserRow {
   email: string;
   role: string;
   plant: string;
+  assignedPlants: string[];
   companyId: string;
   companyName: string;
   createdAt: string | null;
@@ -109,12 +110,12 @@ function EditUserModal({
 }: {
   user: UserRow;
   companies: { id: string; name: string }[];
-  onSave: (role: string, plant: string, password: string, companyId: string, companyName: string) => void;
+  onSave: (role: string, plant: string, assignedPlants: string[], password: string, companyId: string, companyName: string) => void;
   onCancel: () => void;
 }) {
   const currentRole = user.role === "Administrador" ? "administrador" : user.role === "Supervisor" ? "supervisor" : "guardia";
   const [role,     setRole]     = useState(currentRole);
-  const [plant,    setPlant]    = useState(user.plant ?? "");
+  const [assignedPlants, setAssignedPlants] = useState<string[]>(user.assignedPlants?.length ? user.assignedPlants : user.plant ? [user.plant] : []);
   const [companyId, setCompanyId] = useState(user.companyId ?? "");
   const [password, setPassword] = useState("");
   const [showPwd,  setShowPwd]  = useState(false);
@@ -190,7 +191,7 @@ function EditUserModal({
               value={companyId}
               onChange={e => {
                 setCompanyId(e.target.value);
-                setPlant("");
+                setAssignedPlants([]);
               }}
               className="sg-select"
             >
@@ -203,12 +204,27 @@ function EditUserModal({
 
           {role === "guardia" && (
             <div className="sg-field">
-              <label className="sg-label">Planta *</label>
-              <select value={plant} onChange={e => setPlant(e.target.value)} className="sg-select">
-                {availablePlants.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              <label className="sg-label">Puertas asignadas *</label>
+              <div className="grid gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-3">
+                {availablePlants.map(p => {
+                  const checked = assignedPlants.includes(p);
+                  return (
+                    <label key={p} className="flex items-center gap-2 text-[12px] text-[var(--sg-copy)]">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? assignedPlants.filter(item => item !== p)
+                            : [...assignedPlants, p];
+                          setAssignedPlants(next);
+                        }}
+                      />
+                      {p}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -238,9 +254,10 @@ function EditUserModal({
             <button
               onClick={() => {
                 const selected = companies.find(c => c.id === companyId);
-                onSave(role, role === "guardia" ? plant : "", password, companyId, selected?.name ?? "");
+                const guardiaPlants = role === "guardia" ? assignedPlants : [];
+                onSave(role, guardiaPlants[0] ?? "", guardiaPlants, password, companyId, selected?.name ?? "");
               }}
-              disabled={!!password && password.length < 8}
+              disabled={(role === "guardia" && assignedPlants.length === 0) || (!!password && password.length < 8)}
               className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" />
@@ -268,6 +285,7 @@ export default function UsuariosPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("guardia");
   const [plant, setPlant] = useState("");
+  const [assignedPlants, setAssignedPlants] = useState<string[]>([]);
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [companyPlants, setCompanyPlants] = useState<string[]>([]);
@@ -304,6 +322,7 @@ export default function UsuariosPage() {
     void getCompanyPlants(companyId).then(plants => {
       if (active) {
         setCompanyPlants(plants);
+        setAssignedPlants((current) => current.filter((plant) => plants.includes(plant)));
       }
     });
 
@@ -337,14 +356,15 @@ export default function UsuariosPage() {
     const selectedCompany = companies.find(c => c.id === companyId);
     const result = await createUser({
       email, password, role,
-      plant: role === "guardia" ? plant : "",
+      plant: role === "guardia" ? (assignedPlants[0] ?? plant) : "",
+      assignedPlants: role === "guardia" ? assignedPlants : [],
       companyId: companyId || undefined,
       companyName: selectedCompany?.name,
     });
     setCreating(false);
     if (result.success) {
       showToast(`Usuario ${email} creado correctamente.`);
-      setEmail(""); setPassword(""); setRole("guardia"); setPlant(""); setCompanyId(""); setShowForm(false);
+      setEmail(""); setPassword(""); setRole("guardia"); setPlant(""); setAssignedPlants([]); setCompanyId(""); setShowForm(false);
       loadUsers();
     } else {
       showToast(result.error ?? "Error al crear usuario.", false);
@@ -382,11 +402,12 @@ export default function UsuariosPage() {
     showToast("Enlace copiado — ábrelo en una ventana incógnito.", true);
   };
 
-  const handleSaveEdit = async (role: string, plant: string, password: string, companyId: string, companyName: string) => {
+  const handleSaveEdit = async (role: string, plant: string, assignedPlants: string[], password: string, companyId: string, companyName: string) => {
     if (!editingUser) return;
     const result = await updateUser({
       userId: editingUser.id,
       role, plant,
+      assignedPlants,
       password: password || undefined,
       companyId: companyId || undefined,
       companyName: companyName || undefined,
@@ -497,6 +518,7 @@ export default function UsuariosPage() {
                     onChange={e => {
                       setCompanyId(e.target.value);
                       setPlant("");
+                      setAssignedPlants([]);
                     }}
                     className="sg-select"
                     required
@@ -510,16 +532,28 @@ export default function UsuariosPage() {
 
                 {role === "guardia" && companyId && (
                   <div className="sg-field">
-                    <label className="sg-label">Planta *</label>
-                    <select
-                      value={plant}
-                      onChange={e => setPlant(e.target.value)}
-                      className="sg-select"
-                    >
-                      {companyPlants.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                    <label className="sg-label">Puertas asignadas *</label>
+                    <div className="grid max-h-[150px] gap-2 overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-3">
+                      {companyPlants.map(p => {
+                        const checked = assignedPlants.includes(p);
+                        return (
+                          <label key={p} className="flex items-center gap-2 text-[12px] text-[var(--sg-copy)]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? assignedPlants.filter(item => item !== p)
+                                  : [...assignedPlants, p];
+                                setAssignedPlants(next);
+                                setPlant(next[0] ?? "");
+                              }}
+                            />
+                            {p}
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -549,7 +583,7 @@ export default function UsuariosPage() {
                 <motion.button
                   type="submit"
                   whileTap={{ scale: 0.98 }}
-                  disabled={creating}
+                  disabled={creating || (role === "guardia" && assignedPlants.length === 0)}
                   className={`sg-btn sg-btn-accent h-[42px] justify-center ${creating ? "opacity-70" : ""}`}
                 >
                   {creating ? (
@@ -597,6 +631,7 @@ export default function UsuariosPage() {
                   <th>Correo electrónico</th>
                   <th>Rol</th>
                   <th>Empresa</th>
+                  <th>Puertas</th>
                   <th>Creado</th>
                   <th>Último acceso</th>
                   <th className="text-right">Acciones</th>
@@ -622,6 +657,9 @@ export default function UsuariosPage() {
                         </span>
                       </td>
                       <td className="text-[12px] text-[var(--sg-copy)]">{u.companyName || "—"}</td>
+                      <td className="max-w-[180px] truncate text-[12px] text-[var(--sg-copy)]" title={(u.assignedPlants ?? []).join(", ")}>
+                        {u.role === "Guardia" ? (u.assignedPlants?.join(", ") || u.plant || "—") : "—"}
+                      </td>
                       <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.createdAt)}</td>
                       <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.lastSignIn)}</td>
                       <td className="text-right">

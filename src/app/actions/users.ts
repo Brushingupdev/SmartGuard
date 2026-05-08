@@ -49,6 +49,9 @@ export async function getUsers() {
         companyId: (u.user_metadata?.company_id as string) ?? null,
         companyName: (u.user_metadata?.company as string) ?? null,
         plant: (u.user_metadata?.plant as string) ?? null,
+        assignedPlants: Array.isArray(u.user_metadata?.assigned_plants)
+          ? (u.user_metadata.assigned_plants as string[])
+          : ((u.user_metadata?.plant as string | undefined) ? [u.user_metadata.plant as string] : []),
       };
     }),
   };
@@ -57,11 +60,18 @@ export async function getUsers() {
 export async function createUser(rawData: unknown) {
   const v = validated(createUserSchema, rawData);
   if (!v.ok) return { success: false, error: v.error };
-  const { email, password, role, plant, companyId, companyName } = v.data;
+  const { email, password, role, plant, assignedPlants, companyId, companyName } = v.data;
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
-  const metadata: Record<string, unknown> = { role, plant };
+  const guardiaPlants = role === "guardia"
+    ? [...new Set((assignedPlants.length > 0 ? assignedPlants : [plant]).filter(Boolean))]
+    : [];
+  const metadata: Record<string, unknown> = {
+    role,
+    plant: guardiaPlants[0] ?? "",
+    assigned_plants: guardiaPlants,
+  };
   if (companyId) { metadata.company_id = companyId; metadata.company = companyName || ""; }
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -76,11 +86,18 @@ export async function createUser(rawData: unknown) {
 export async function updateUser(rawData: unknown) {
   const v = validated(updateUserSchema, rawData);
   if (!v.ok) return { success: false, error: v.error };
-  const { userId, role, plant, password, companyId, companyName } = v.data;
+  const { userId, role, plant, assignedPlants, password, companyId, companyName } = v.data;
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
-  const metadata: Record<string, unknown> = { role, plant: role === "guardia" ? plant : "" };
+  const guardiaPlants = role === "guardia"
+    ? [...new Set((assignedPlants.length > 0 ? assignedPlants : [plant]).filter(Boolean))]
+    : [];
+  const metadata: Record<string, unknown> = {
+    role,
+    plant: guardiaPlants[0] ?? "",
+    assigned_plants: guardiaPlants,
+  };
   if (companyId) { metadata.company_id = companyId; metadata.company = companyName || ""; }
   const update: Parameters<typeof admin.auth.admin.updateUserById>[1] = {
     user_metadata: metadata,
@@ -135,6 +152,7 @@ export async function getUserProfile() {
     role: ctx.role,
     isAdmin: ctx.isAdmin,
     plant: ctx.plant,
+    assignedPlants: ctx.plants,
     companyId: ctx.companyId,
     companyName,
     logoUrl,
