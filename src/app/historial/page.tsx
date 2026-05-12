@@ -27,7 +27,7 @@ import {
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getAtenciones, getAtencionesForExport, getHistorialStats, getUserPlants, getUserProfile, getCompaniesMap, getCompanies } from "../actions";
 import { importAtenciones, updateAtencion, previewImportAtenciones, type ImportPreview } from "../actions/atenciones";
-import { autoDetectMapping, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
+import { prepareExcelImport, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
 import { formatGateLabelFromPlant } from "@/lib/gates";
 
 const fmt = new Intl.NumberFormat("en-US");
@@ -538,25 +538,31 @@ export default function HistorialPage() {
     try {
       const XLSX = await import("@e965/xlsx");
       const buffer = await file.arrayBuffer();
-      const wb  = XLSX.read(buffer, { type: "array", cellDates: false });
-      const ws  = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as ExcelRow[];
-      if (raw.length < 2) { alert("El archivo no contiene datos suficientes."); setImportParsing(false); return; }
-      const headers = raw[0].map(h => (h?.toString().trim() ?? "")).filter(Boolean) as string[];
-      const rows    = raw.slice(1).filter(r => r.some(c => c !== null && c !== ""));
-      const mapping = autoDetectMapping(headers);
-      const { valid, invalid } = processRows(rows, headers, mapping);
+      const wb = XLSX.read(buffer, { type: "array", cellDates: false });
+
+      // Leer todas las hojas y dejar que prepareExcelImport elija la correcta
+      // (maneja columnas vacías al inicio y selecciona la hoja con datos reales)
+      const sheets = wb.SheetNames.map(name => ({
+        name,
+        rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null }) as ExcelRow[],
+      }));
+      const prepared = prepareExcelImport(sheets, file.name);
+      if (!prepared || prepared.headers.length === 0) {
+        alert("No se encontró una hoja con datos válidos. Verifica que el Excel tenga columnas Fecha y Razón Social.");
+        setImportParsing(false);
+        return;
+      }
       setImportFileName(file.name);
-      setImportHeaders(headers);
-      setImportRawRows(rows);
-      setImportMapping(mapping);
-      setImportValidRows(valid);
-      setImportInvalid(invalid);
+      setImportHeaders(prepared.headers);
+      setImportRawRows(prepared.rows);
+      setImportMapping(prepared.mapping);
+      setImportValidRows(prepared.valid);
+      setImportInvalid(prepared.invalid);
 
       // Generar preview automáticamente
-      if (valid.length > 0) {
+      if (prepared.valid.length > 0) {
         setImportPreviewLoading(true);
-        const previewResult = await previewImportAtenciones(valid);
+        const previewResult = await previewImportAtenciones(prepared.valid);
         setImportPreviewLoading(false);
         if (previewResult.preview) {
           setImportPreview(previewResult.preview);
