@@ -666,13 +666,13 @@ export default function DashboardClient({
                           dataKey="value"
                           position="outside"
                           offset={10}
-                          formatter={(value: number) => value > 0 ? value : ''}
+                          formatter={(value) => Number(value) > 0 ? value : ''}
                           className="sg-font-mono text-[11px] font-bold"
                           fill="var(--sg-ink)"
                         />
                       </Pie>
                       <Tooltip
-                        formatter={(value: number, name: string) => [`${value} registros`, name]}
+                        formatter={(value, name) => [`${value} registros`, String(name)]}
                         contentStyle={{
                           backgroundColor: 'var(--sg-panel)',
                           border: '1px solid var(--sg-line)',
