@@ -7,27 +7,27 @@
   --sg-font-mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, Consolas, monospace;
 
   /* surfaces */
-  --sg-canvas: #0a0c0b;
-  --sg-canvas-2: #111413;
-  --sg-panel: #14171a;
-  --sg-panel-2: #1b1f22;
-  --sg-panel-3: #252a2d;
+  --sg-canvas: #09090b;
+  --sg-canvas-2: #18181b;
+  --sg-panel: #18181b;
+  --sg-panel-2: #27272a;
+  --sg-panel-3: #3f3f46;
 
   /* ink */
-  --sg-ink: #f4f2ec;
-  --sg-ink-soft: #e8e5dc;
-  --sg-copy: #a8ada8;
-  --sg-muted: #6a706c;
+  --sg-ink: #fafafa;
+  --sg-ink-soft: #e4e4e7;
+  --sg-copy: #a1a1aa;
+  --sg-muted: #71717a;
 
   /* lines */
-  --sg-line: rgba(196, 192, 180, 0.14);
-  --sg-line-strong: rgba(196, 192, 180, 0.28);
+  --sg-line: rgba(255, 255, 255, 0.12);
+  --sg-line-strong: rgba(255, 255, 255, 0.24);
 
   /* accent + status (gold industrial) */
   --sg-accent: #c8a84b;
   --sg-accent-soft: #dcc480;
   --sg-success: #6bbd8a;
-  --sg-warn: #c8a84b;
+  --sg-warn: #d4864a;
   --sg-danger: #d35c4f;
   --sg-info: #7fa7c8;
 
@@ -478,8 +478,8 @@ textarea {
   color: var(--sg-success);
 }
 .sg-badge-warn {
-  background: rgba(200, 168, 75, 0.16);
-  color: var(--sg-accent);
+  background: rgba(212, 134, 74, 0.16);
+  color: var(--sg-warn);
 }
 .sg-badge-deny {
   background: rgba(211, 92, 79, 0.16);
@@ -587,42 +587,44 @@ textarea {
   color: var(--sg-muted);
   font-weight: 500;
 }
-.sg-input,
-.sg-select,
-.sg-textarea {
-  width: 100%;
-  background: var(--sg-panel-2);
-  border: 1px solid var(--sg-line);
-  color: var(--sg-ink);
-  font-family: var(--sg-font-body);
-  font-size: 14px;
-  outline: none;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease;
-}
-.sg-input,
-.sg-select {
-  height: 48px;
-  padding: 0 14px;
-}
-.sg-textarea {
-  min-height: 120px;
-  padding: 12px 14px;
-  resize: vertical;
-  line-height: 1.5;
-}
-.sg-input::placeholder,
-.sg-textarea::placeholder {
-  color: rgba(168, 173, 168, 0.48);
-}
-.sg-input:focus,
-.sg-select:focus,
-.sg-textarea:focus {
-  border-color: var(--sg-accent);
-  background: var(--sg-panel);
-  box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.12);
+@layer components {
+  .sg-input,
+  .sg-select,
+  .sg-textarea {
+    width: 100%;
+    background: var(--sg-panel-2);
+    border: 1px solid var(--sg-line);
+    color: var(--sg-ink);
+    font-family: var(--sg-font-body);
+    font-size: 14px;
+    outline: none;
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background-color 160ms ease;
+  }
+  .sg-input,
+  .sg-select {
+    height: 48px;
+    padding: 0 14px;
+  }
+  .sg-textarea {
+    min-height: 120px;
+    padding: 12px 14px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .sg-input::placeholder,
+  .sg-textarea::placeholder {
+    color: rgba(168, 173, 168, 0.48);
+  }
+  .sg-input:focus,
+  .sg-select:focus,
+  .sg-textarea:focus {
+    border-color: var(--sg-accent);
+    background: var(--sg-panel);
+    box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.12);
+  }
 }
 
 /* ────────────────────────────────────────────────
