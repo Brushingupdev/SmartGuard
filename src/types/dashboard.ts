@@ -59,6 +59,13 @@ export interface DashboardZone {
 
 // ─── Dashboard full return ─────────────────────────────────────────────────────
 
+export interface DashboardTopProvider {
+  empresa: string;
+  rate: number;
+  total: number;
+  delayed: number;
+}
+
 export interface DashboardStatsResult {
   events: DashboardEvent[];
   kpis: DashboardKpis;
@@ -67,6 +74,7 @@ export interface DashboardStatsResult {
   zones: DashboardZone[];
   alerts: DashboardAlert[];
   delayReasons: { motivo: string; count: number }[];
+  topProvider?: DashboardTopProvider | null;
 }
 
 // ─── Active personnel ──────────────────────────────────────────────────────────

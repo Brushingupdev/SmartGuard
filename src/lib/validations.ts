@@ -83,6 +83,7 @@ export const createAtencionSchema = z.object({
   responsable: z.string().max(150).transform((v) => v.trim()).optional(),
   agente: z.string().max(150).transform((v) => v.trim()).optional(),
   note: z.string().max(1000).transform((v) => v.trim()).optional(),
+  forceDuplicate: z.boolean().optional(),
   horaCita: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "Formato HH:MM")
@@ -118,6 +119,11 @@ export const updateAtencionSchema = z.object({
 export const closeAtencionSchema = z.object({
   id: z.number().int().positive("ID inválido"),
   motivoDemora: optionalString.nullable(),
+  hSalida: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Formato HH:MM")
+    .optional()
+    .nullable(),
 });
 
 export const closeAtencionDocsSchema = z.object({
