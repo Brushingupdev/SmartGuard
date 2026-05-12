@@ -104,32 +104,11 @@ export async function getAgentes(): Promise<string[]> {
   const supabase = await createClient();
   const ctx = await getUserContext();
 
-  const currentYear = new Date().getFullYear();
-
-  let activeQuery = supabase
-    .from("atenciones")
-    .select("agente")
-    .not("agente", "is", null)
-    .eq("anio", currentYear)
-    .limit(5000);
-
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    activeQuery = activeQuery.eq("company_id", ctx.companyId);
-  }
-
-  const { data: activeData } = await activeQuery;
-
-  if (activeData && activeData.length > 0) {
-    const unique = [...new Set(activeData.map((r: { agente: string }) => r.agente).filter(Boolean))].sort() as string[];
-    if (unique.length > 0) return unique;
-  }
-
-  // Fallback: tabla agentes completa
   let query = supabase
     .from("agentes")
     .select("nombre")
     .eq("activo", true)
-    .order("nombre");
+    .order("id", { ascending: true });
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     query = query.eq("company_id", ctx.companyId);
