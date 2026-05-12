@@ -267,14 +267,14 @@ export function inferTipoOperacion(...values: unknown[]): string | null {
   return null;
 }
 
-function normalizeHeaderRow(row: ExcelRow): string[] {
+export function normalizeHeaderRow(row: ExcelRow): string[] {
   return row.map((h, i) => {
     const value = h?.toString().trim() ?? "";
     return value || `__EMPTY_${i}`;
   });
 }
 
-function inferPlant(sourceName: string): string | null {
+export function inferPlant(sourceName: string): string | null {
   const n = normalizeStr(sourceName);
   if (n.includes("cajamarquilla")) return "Cajamarquilla";
   if (n.includes("lomas")) return "Lomas";

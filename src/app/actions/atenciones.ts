@@ -729,16 +729,24 @@ export async function getVehicleProfile(razonSocial: string): Promise<{
 export async function getAvailableYears(): Promise<string[]> {
   const supabase = await createClient();
   const ctx = await getUserContext();
+  const filterCompany = !ctx?.isAdmin && ctx?.companyId ? ctx.companyId : null;
 
-  let query = supabase.from("atenciones").select("anio").not("anio", "is", null);
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    query = query.eq("company_id", ctx.companyId);
-  }
+  const makeQuery = () => {
+    let q = supabase.from("atenciones").select("anio").not("anio", "is", null);
+    if (filterCompany) q = q.eq("company_id", filterCompany);
+    return q;
+  };
 
-  const { data } = await query;
-  if (!data) return [];
-  const years = [...new Set(data.map((r: { anio: number }) => r.anio).filter(Boolean))].sort() as number[];
-  return years.map(y => String(y));
+  const [{ data: minData }, { data: maxData }] = await Promise.all([
+    makeQuery().order("anio", { ascending: true }).limit(1),
+    makeQuery().order("anio", { ascending: false }).limit(1),
+  ]);
+
+  const minYear = minData?.[0]?.anio as number | undefined;
+  const maxYear = maxData?.[0]?.anio as number | undefined;
+  if (!minYear || !maxYear) return [];
+
+  return Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(minYear + i));
 }
 
 export async function getRecentRegistrations(plant: string, limit = 20, offset = 0) {

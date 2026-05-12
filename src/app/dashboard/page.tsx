@@ -11,22 +11,26 @@ import DashboardClient from "./DashboardClient";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PLANT = "Todos";
-const DEFAULT_TIMEFRAME = "Día";
 
 export default async function DashboardPage() {
-  const [stats, trends, plants, gateOptions, availableYears, heatmapData] = await Promise.all([
-    getDashboardStats(DEFAULT_PLANT, DEFAULT_TIMEFRAME),
-    getDashboardTrends(DEFAULT_PLANT, DEFAULT_TIMEFRAME),
+  const [availableYears, plants, gateOptions, heatmapData] = await Promise.all([
+    getAvailableYears(),
     getUserPlants(),
     getUserGateOptions(),
-    getAvailableYears(),
     getDashboardHeatmap(DEFAULT_PLANT),
+  ]);
+
+  const defaultTimeframe = availableYears.at(-1) ?? "Día";
+
+  const [stats, trends] = await Promise.all([
+    getDashboardStats(DEFAULT_PLANT, defaultTimeframe),
+    getDashboardTrends(DEFAULT_PLANT, defaultTimeframe),
   ]);
 
   return (
     <DashboardClient
       initialPlant={DEFAULT_PLANT}
-      initialTimeframe={DEFAULT_TIMEFRAME}
+      initialTimeframe={defaultTimeframe}
       initialPlants={plants}
       initialGateOptions={gateOptions}
       initialAvailableYears={availableYears}

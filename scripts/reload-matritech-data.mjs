@@ -2,14 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "@e965/xlsx";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { prepareExcelImport } from "../src/utils/excel-import.ts";
+import { autoDetectMapping, normalizeStr, normalizeHeaderRow, processRows, inferPlant } from "../src/utils/excel-import.ts";
 
 const FILES = [
-  "Eficiencia Cajamarquilla.xlsx hoy.xlsx",
-  "Eficiencia Lomas.xlsx hoy.xlsx",
+  "Eficiencia Cajamarquilla (1) (1).xlsx",
+  "Eficiencia Lomas (1).xlsx",
 ];
-const MIN_DEMO_DATE = "2023-01-01";
-const MAX_DEMO_DATE = "2026-05-07";
+const MIN_DEMO_DATE = "2022-01-01";
+const MAX_DEMO_DATE = "2026-12-31";
 
 function loadEnv(path) {
   return Object.fromEntries(
@@ -40,25 +40,6 @@ function estadoFor(row) {
   return "esperado";
 }
 
-function dedupePendingUniqueIndex(rows) {
-  const seen = new Set();
-  const skipped = [];
-  const kept = [];
-
-  for (const row of rows) {
-    if (!row.h_atencion) {
-      const key = [row.razon_social, row.planta, row.fecha, row.company_id].join("|");
-      if (seen.has(key)) {
-        skipped.push(row);
-        continue;
-      }
-      seen.add(key);
-    }
-    kept.push(row);
-  }
-
-  return { kept, skipped };
-}
 
 async function fetchAllAtenciones(supabase, companyId) {
   const all = [];
@@ -127,36 +108,53 @@ async function main() {
   const preparedRows = [];
   const skippedDateRange = [];
   const importSummary = [];
+  const dedupeKeys = new Set();
+
   for (const file of FILES) {
     const workbook = XLSX.read(readFileSync(file), { cellDates: false });
-    const sheets = workbook.SheetNames.map((name) => ({
-      name,
-      rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: null }),
-    }));
-    const prepared = prepareExcelImport(sheets, file);
-    if (!prepared) throw new Error(`No se pudo preparar ${file}`);
-    importSummary.push({
-      file,
-      sheet: prepared.sheetName,
-      valid: prepared.valid.length,
-      invalid: prepared.invalid,
-    });
-    for (const row of prepared.valid) {
-      if (row.fecha < MIN_DEMO_DATE || row.fecha > MAX_DEMO_DATE) {
-        skippedDateRange.push(row);
-        continue;
-      }
-      const segment = segmentFromWait(row.espera_min);
-      preparedRows.push({
-        ...row,
-        ...segment,
-        company_id: company.id,
-        estado: estadoFor(row),
+
+    for (const sheetName of workbook.SheetNames) {
+      const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null });
+
+      // Detectar fila de encabezado (debe tener "fecha" y "razon"/"vehiculo"/"transportista")
+      const headerRowIndex = rawRows.findIndex((row) => {
+        const norm = row.map(normalizeStr);
+        return norm.some((h) => h.includes("fecha")) &&
+          norm.some((h) => h.includes("razon") || h.includes("transportista") || h.includes("vehiculo") || h.includes("unidad"));
       });
+      if (headerRowIndex < 0) continue;
+
+      const headers = normalizeHeaderRow(rawRows[headerRowIndex]);
+      const dataRows = rawRows.slice(headerRowIndex + 1).filter((r) => r.some((c) => c !== null && c !== ""));
+      const mapping = autoDetectMapping(headers);
+      const defaultPlant = inferPlant(`${file} ${sheetName}`);
+      const { valid, invalid } = processRows(dataRows, headers, mapping, { planta: defaultPlant });
+
+      importSummary.push({ file, sheet: sheetName, valid: valid.length, invalid });
+
+      for (const row of valid) {
+        if (row.fecha < MIN_DEMO_DATE || row.fecha > MAX_DEMO_DATE) {
+          skippedDateRange.push(row);
+          continue;
+        }
+        // Para activos (sin h_atencion) la BD tiene unique(razon_social, planta, fecha, company_id)
+        // Para atendidos usamos clave más específica incluyendo h_registro y h_atencion
+        const key = row.h_atencion
+          ? `${row.fecha}|${row.planta ?? ""}|${row.razon_social}|${row.h_registro ?? ""}|${row.h_atencion}`
+          : `ACTIVO|${row.fecha}|${row.planta ?? ""}|${row.razon_social}`;
+        if (dedupeKeys.has(key)) continue;
+        dedupeKeys.add(key);
+
+        const segment = segmentFromWait(row.espera_min);
+        preparedRows.push({
+          ...row,
+          ...segment,
+          company_id: company.id,
+          estado: estadoFor(row),
+        });
+      }
     }
   }
-
-  const { kept, skipped } = dedupePendingUniqueIndex(preparedRows);
 
   const { error: deleteError } = await supabase
     .from("atenciones")
@@ -164,8 +162,8 @@ async function main() {
     .eq("company_id", company.id);
   if (deleteError) throw deleteError;
 
-  for (let i = 0; i < kept.length; i += 500) {
-    const { error } = await supabase.from("atenciones").insert(kept.slice(i, i + 500));
+  for (let i = 0; i < preparedRows.length; i += 500) {
+    const { error } = await supabase.from("atenciones").insert(preparedRows.slice(i, i + 500));
     if (error) throw error;
   }
 
@@ -175,18 +173,10 @@ async function main() {
     backupPath,
     importSummary,
     prepared: preparedRows.length,
-    inserted: kept.length,
-    skippedPendingDuplicates: skipped.length,
+    inserted: preparedRows.length,
     skippedDateRange: skippedDateRange.length,
     before: summarize(currentRows),
     after: summarize(finalRows),
-    skippedSamples: skipped.slice(0, 10).map((row) => ({
-      fecha: row.fecha,
-      planta: row.planta,
-      razon_social: row.razon_social,
-      h_registro: row.h_registro,
-      h_atencion: row.h_atencion,
-    })),
     skippedDateRangeSamples: skippedDateRange.slice(0, 10).map((row) => ({
       fecha: row.fecha,
       planta: row.planta,
