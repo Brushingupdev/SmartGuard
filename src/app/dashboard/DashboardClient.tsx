@@ -5,6 +5,7 @@ import DashboardKPICard from "@/components/DashboardKPICard";
 import CausasTop from "@/components/CausasTop";
 import RankingPlantas from "@/components/RankingPlantas";
 import TimelineDia from "@/components/TimelineDia";
+import HeatmapDemoras from "@/components/HeatmapDemoras";
 import ExportPDFButton from "@/components/ExportPDFButton";
 import { getDashboardStats, getDashboardTrends } from "@/app/actions";
 import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
@@ -541,8 +542,10 @@ export default function DashboardClient({
               ))}
             </div>
           </section>
+
+          <HeatmapDemoras data={initialHeatmapData} />
         </div>
-        
+
         <div className="flex flex-col gap-5">
           <section className="sg-panel p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
