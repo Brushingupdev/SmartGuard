@@ -595,6 +595,7 @@ export async function getAtenciones(rawParams: unknown) {
   query = applyAtencionFilters(query, { search, plant, segment, dateFrom, dateTo });
 
   query = query.order(sortBy, { ascending: sortDir === "asc", nullsFirst: sortDir === "asc" });
+  if (sortBy === "fecha") query = query.order("id", { ascending: sortDir === "asc" });
   const from = (page - 1) * perPage;
   query = query.range(from, from + perPage - 1);
 
@@ -612,7 +613,7 @@ export async function getAtencionesForExport(
   segment = "Todos",
   dateFrom = "",
   dateTo = "",
-  sortBy: "id" | "espera_min" = "id",
+  sortBy: "id" | "espera_min" | "fecha" = "id",
   sortDir: "asc" | "desc" = "desc",
 ) {
   const ctx = await getUserContext();

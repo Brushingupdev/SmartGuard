@@ -176,7 +176,7 @@ export const atencionPaginationSchema = z.object({
   segment: z.enum(["Todos", "Normal", "Moderado", "Alto", "Crítico", "Pendiente"]).default("Todos"),
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal("")),
   dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal("")),
-  sortBy: z.enum(["id", "espera_min"]).default("id"),
+  sortBy: z.enum(["id", "espera_min", "fecha"]).default("id"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   filterCompanyId: z.string().max(50).default(""),
 });

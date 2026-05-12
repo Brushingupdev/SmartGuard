@@ -438,9 +438,9 @@ export default function HistorialPage() {
   // Stats
   const [stats, setStats] = useState<{ total: number; avg: number; max: number; plants: number } | null>(null);
 
-  // Sort — default: id DESC (más reciente primero); click en Espera: espera_min DESC → ASC → id DESC
-  const [sortByEspera, setSortByEspera] = useState(false);
-  const [sortDir,      setSortDir]      = useState<"asc" | "desc">("desc");
+  // Sort — "id" | "espera_min" | "fecha"
+  const [sortBy,  setSortBy]  = useState<"id" | "espera_min" | "fecha">("id");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // Detail modal
   const [selectedRecord, setSelectedRecord] = useState<HistorialRecord | null>(null);
@@ -464,14 +464,17 @@ export default function HistorialPage() {
 
   const activeFilters = [plant !== "Todos", segment !== "Todos", !!dateFrom, !!dateTo].filter(Boolean).length;
 
-  const toggleSort = () => {
-    if (!sortByEspera) {
-      setSortByEspera(true); setSortDir("desc");
-    } else if (sortDir === "desc") {
-      setSortDir("asc");
-    } else {
-      setSortByEspera(false); setSortDir("desc");
-    }
+  const toggleSortFecha = () => {
+    if (sortBy !== "fecha") { setSortBy("fecha"); setSortDir("desc"); }
+    else if (sortDir === "desc") { setSortDir("asc"); }
+    else { setSortBy("id"); setSortDir("desc"); }
+    setPage(1);
+  };
+
+  const toggleSortEspera = () => {
+    if (sortBy !== "espera_min") { setSortBy("espera_min"); setSortDir("desc"); }
+    else if (sortDir === "desc") { setSortDir("asc"); }
+    else { setSortBy("id"); setSortDir("desc"); }
     setPage(1);
   };
 
@@ -480,8 +483,8 @@ export default function HistorialPage() {
     try {
       const { data, count } = await getAtenciones({
         page, search, perPage, plant, segment, dateFrom, dateTo,
-        sortBy: sortByEspera ? "espera_min" : "id",
-        sortDir: sortByEspera ? sortDir : "desc",
+        sortBy,
+        sortDir,
         filterCompanyId: filterCompany,
       });
       setRecords(data || []);
@@ -491,7 +494,7 @@ export default function HistorialPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, plant, segment, dateFrom, dateTo, sortByEspera, sortDir, filterCompany]);
+  }, [page, search, plant, segment, dateFrom, dateTo, sortBy, sortDir, filterCompany]);
 
   useEffect(() => {
     getHistorialStats().then(setStats);
@@ -515,15 +518,15 @@ export default function HistorialPage() {
 
   const resetFilters = () => {
     setPlant("Todos"); setSegment("Todos"); setDateFrom(""); setDateTo(""); setSearch(""); setPage(1);
-    setSortByEspera(false); setSortDir("desc"); setFilterCompany("");
+    setSortBy("id"); setSortDir("desc"); setFilterCompany("");
   };
 
   const handleExport = async () => {
     setExporting(true);
     const rows = await getAtencionesForExport(
       search, plant, segment, dateFrom, dateTo,
-      sortByEspera ? "espera_min" : "id",
-      sortByEspera ? sortDir : "desc",
+      sortBy,
+      sortDir,
     );
     exportCSV(rows);
     setExporting(false);
@@ -1013,7 +1016,21 @@ export default function HistorialPage() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Fecha</th>
+                <th>
+                  <button
+                    onClick={toggleSortFecha}
+                    className="inline-flex items-center gap-1.5 hover:text-[var(--sg-ink)] transition-colors"
+                    title={sortBy !== "fecha" ? "Ordenar por fecha ↓" : sortDir === "desc" ? "Ordenar por fecha ↑" : "Quitar orden"}
+                  >
+                    Fecha
+                    {sortBy !== "fecha"
+                      ? <ArrowUpDown className="h-3 w-3 text-[var(--sg-muted)]" />
+                      : sortDir === "desc"
+                        ? <ArrowDown className="h-3 w-3 text-[var(--sg-accent)]" />
+                        : <ArrowUp   className="h-3 w-3 text-[var(--sg-accent)]" />
+                    }
+                  </button>
+                </th>
                 <th>H. Reg.</th>
                 <th>H. Aten.</th>
                 <th>H. Docs.</th>
@@ -1024,12 +1041,12 @@ export default function HistorialPage() {
                 <th>Tipo Op.</th>
                 <th>
                   <button
-                    onClick={toggleSort}
+                    onClick={toggleSortEspera}
                     className="inline-flex items-center gap-1.5 hover:text-[var(--sg-ink)] transition-colors"
-                    title={!sortByEspera ? "Ordenar por demora ↓" : sortDir === "desc" ? "Ordenar por demora ↑" : "Quitar orden"}
+                    title={sortBy !== "espera_min" ? "Ordenar por demora ↓" : sortDir === "desc" ? "Ordenar por demora ↑" : "Quitar orden"}
                   >
                     Demora
-                    {!sortByEspera
+                    {sortBy !== "espera_min"
                       ? <ArrowUpDown className="h-3 w-3 text-[var(--sg-muted)]" />
                       : sortDir === "desc"
                         ? <ArrowDown className="h-3 w-3 text-[var(--sg-accent)]" />
