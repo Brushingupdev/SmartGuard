@@ -6,28 +6,22 @@ import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 interface KPICardProps {
   label: string;
   value: number;
-  suffix?: string;
   sub?: string;
   accent?: string;
   trend?: number | null;
-  trendInverse?: boolean; // true = down is good (for delays)
+  trendInverse?: boolean;
 }
 
 export default function DashboardKPICard({
   label,
   value,
-  suffix,
   sub,
-  accent = "var(--sg-success)",
+  accent = "transparent",
   trend,
   trendInverse = false,
 }: KPICardProps) {
   const TrendIcon = trend == null ? null : trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
-  const isGood = trend == null
-    ? null
-    : trendInverse
-      ? trend <= 0
-      : trend >= 0;
+  const isGood = trend == null ? null : trendInverse ? trend <= 0 : trend >= 0;
   const trendColor = trend == null
     ? "var(--sg-muted)"
     : isGood
@@ -38,39 +32,34 @@ export default function DashboardKPICard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="sg-panel p-5 flex flex-col gap-2 relative overflow-hidden"
+      className="sg-panel relative flex flex-col overflow-hidden px-5 py-6"
     >
-      {/* Accent bar */}
-      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: accent }} />
+      <div className="absolute left-0 right-0 top-0 h-[3px]" style={{ background: accent }} />
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-1.5">
-            <span className="sg-font-mono text-[32px] font-bold text-[var(--sg-ink)] leading-none">
-              {value.toLocaleString()}
-            </span>
-            {suffix && (
-              <span className="sg-font-mono text-[14px] text-[var(--sg-muted)]">{suffix}</span>
-            )}
-          </div>
-          <div className="sg-font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--sg-muted)] mt-2">
-            {label}
-          </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-4">
+          <span className="sg-font-display text-[32px] font-bold leading-none text-[var(--sg-ink)]">
+            {value.toLocaleString()}
+          </span>
+          {TrendIcon && (
+            <div className="flex items-center gap-1 sg-font-mono text-[12px] font-bold" style={{ color: trendColor }}>
+              <TrendIcon className="h-4 w-4" />
+              {trend! > 0 ? "+" : ""}{trend}%
+            </div>
+          )}
         </div>
 
-        {TrendIcon && (
-          <div className="flex items-center gap-1 shrink-0 mt-1">
-            <TrendIcon className="h-4 w-4" style={{ color: trendColor }} />
-            <span className="sg-font-mono text-[12px] font-bold" style={{ color: trendColor }}>
-              {trend! > 0 ? "+" : ""}{trend}%
-            </span>
+        <div className="flex flex-col gap-1.5">
+          <div className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+            {label}
           </div>
-        )}
+          {sub && (
+            <div className="text-[11px] text-[var(--sg-copy)]">
+              {sub}
+            </div>
+          )}
+        </div>
       </div>
-
-      {sub && (
-        <div className="text-[10px] text-[var(--sg-muted)] leading-relaxed">{sub}</div>
-      )}
     </motion.div>
   );
 }

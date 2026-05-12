@@ -11,6 +11,8 @@ export default function PlacaInput({
   placeholder = "TRANSP. EMPRESA ABC-1234",
   autoFocus = false,
   onEnter,
+  compact = false,
+  hideLabel = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -19,6 +21,8 @@ export default function PlacaInput({
   placeholder?: string;
   autoFocus?: boolean;
   onEnter?: () => void;
+  compact?: boolean;
+  hideLabel?: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -72,17 +76,19 @@ export default function PlacaInput({
   const isValid = value.trim().length >= 4;
 
   return (
-    <div className="sg-field">
-      <label className="sg-label">
-        Razon Social / Vehiculo <span className="text-[var(--sg-accent)]">*</span>
-      </label>
+    <div className={hideLabel ? "" : "sg-field"}>
+      {!hideLabel ? (
+        <label className="sg-label">
+          Razon Social / Vehiculo <span className="text-[var(--sg-accent)]">*</span>
+        </label>
+      ) : null}
       <div ref={containerRef} className="relative">
         <Truck
-          className={`pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 z-10 transition-colors ${
+          className={`pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 transition-colors ${
+            compact ? "h-4 w-4" : "h-5 w-5"
+          } ${
             focused
-              ? isValid
-                ? "text-[var(--sg-success)]"
-                : "text-[var(--sg-accent)]"
+              ? "text-[var(--sg-accent)]"
               : "text-[var(--sg-muted)]"
           }`}
         />
@@ -97,8 +103,10 @@ export default function PlacaInput({
           autoComplete="off"
           autoFocus={autoFocus}
           required
-          className={`sg-input pl-12 uppercase text-[18px] sm:text-[22px] font-bold tracking-[0.06em] h-14 sm:h-16 transition-all ${
-            focused ? "border-[var(--sg-accent)] shadow-[0_0_0_3px_rgba(200,168,75,0.12)]" : ""
+          className={`sg-input pl-10 uppercase font-bold tracking-[0.04em] transition-all ${
+            compact ? "h-11 text-[14px] sm:text-[15px]" : "h-14 text-[18px] sm:h-16 sm:text-[22px]"
+          } ${
+            focused ? "border-[var(--sg-accent)] shadow-[0_0_0_3px_rgba(200,168,75,0.12)] text-[var(--sg-accent)]" : ""
           }`}
         />
         {open && (
@@ -120,18 +128,6 @@ export default function PlacaInput({
           </div>
         )}
       </div>
-      {value.length > 0 && !isValid && (
-        <p className="mt-1.5 text-[11px] text-[var(--sg-muted)] flex items-center gap-1.5">
-          <span className="h-1 w-1 rounded-full bg-[var(--sg-warn)]" />
-          Ej: TRANSP. EMPRESA ABC-1234
-        </p>
-      )}
-      {isValid && (
-        <p className="mt-1.5 text-[10px] text-[var(--sg-success)] flex items-center gap-1.5">
-          <span className="h-1 w-1 rounded-full bg-[var(--sg-success)]" />
-          OK
-        </p>
-      )}
     </div>
   );
 }

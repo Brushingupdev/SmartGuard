@@ -2,9 +2,18 @@
 
 import { motion } from "framer-motion";
 import {
-  Timer, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock, Bell
+  Timer, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock, Bell, ArrowRight
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  getArrivalDeltaMinutes,
+  getAnticipationMinutes,
+  getPendingWaitMinutes,
+  getScheduleDelayMinutes,
+  getWaitInPlantMinutes,
+  isAnticipatedRecord,
+  isDelayedRecord,
+} from "@/app/registro/status";
 
 interface Registro {
   id: number;
@@ -18,15 +27,17 @@ interface Registro {
   h_dev_docs: string | null;
   reason?: string;
   type?: string;
+  tipoOperacion?: string | null;
   responsable?: string;
   agente?: string;
   observacion?: string;
   hora_cita?: string | null;
+  estado?: "esperado" | "activo" | "atendido";
+  hasArrived?: boolean;
+  scheduledOnly?: boolean;
 }
 
 type State = "pending" | "attended" | "complete";
-
-const DELAY_THRESHOLD = 45; // minutos
 
 function getState(r: Registro): State {
   if (r.docsDelivered) return "complete";
@@ -34,31 +45,44 @@ function getState(r: Registro): State {
   return "pending";
 }
 
-/** Calcula minutos transcurridos desde una hora "HH:MM" hasta ahora */
-function minutesSince(timeStr: string): number {
-  const [hh, mm] = timeStr.split(":").map(Number);
-  const now = new Date();
-  const diffMin = (now.getHours() * 60 + now.getMinutes()) - (hh * 60 + mm);
-  return diffMin < 0 ? diffMin + 1440 : diffMin;
-}
-
-/**
- * Para el contador en vivo de pendientes:
- * Si hay hora_cita, se mide desde ella (y es 0 si aún no llegó la cita).
- * Si no, se mide desde h_registro (time).
- * IMPORTANTE: no usar minutesSince para hora_cita (evita el +1440 cuando la cita no llegó).
- */
-function liveWaitMinutes(reg: Registro): number {
-  if (reg.hora_cita) {
-    const [hh, mm] = reg.hora_cita.split(":").map(Number);
-    const now = new Date();
-    const diffMin = (now.getHours() * 60 + now.getMinutes()) - (hh * 60 + mm);
-    return Math.max(0, diffMin); // 0 si la cita aún no llegó (sin +1440)
+function formatDuration(min: number | null): string {
+  if (min == null) return "—";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
   }
-  return minutesSince(reg.time);
+  return `${m} min`;
 }
 
-function StatePill({ state, isDemora, isCitaActiva }: { state: State; isDemora: boolean; isCitaActiva: boolean }) {
+function formatClockTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const hours = Number(match[1]);
+  const minutes = match[2];
+  const period = hours >= 12 ? "p. m." : "a. m.";
+  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+  return `${displayHour}:${minutes} ${period}`;
+}
+
+function formatSignedMinutes(value: number): string {
+  if (value > 0) return `+${value} min`;
+  if (value < 0) return `${value} min`;
+  return "0 min";
+}
+
+function StatePill({
+  state,
+  isDemora,
+  isCitaActiva,
+  isScheduledOnly,
+}: {
+  state: State;
+  isDemora: boolean;
+  isCitaActiva: boolean;
+  isScheduledOnly: boolean;
+}) {
   if (state === "complete")
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-success)] bg-[rgba(107,189,138,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)]">
@@ -77,12 +101,19 @@ function StatePill({ state, isDemora, isCitaActiva }: { state: State; isDemora: 
         {isDemora ? "Demora" : "Atendido"}
       </span>
     );
+  if (isScheduledOnly)
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-danger)]">
+        <AlertTriangle className="h-3.5 w-3.5" />
+        No llegó
+      </span>
+    );
   // Pendiente con demora
   if (isDemora)
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-danger)]">
-        <span className="h-2 w-2 rounded-full sg-pulse bg-[var(--sg-danger)]" />
-        Demora
+        <AlertTriangle className="h-3.5 w-3.5" />
+        Demora Crítica
       </span>
     );
   // Cita llegó y aún no fue atendido
@@ -108,6 +139,7 @@ export default function TarjetaRegistro({
   onDocs,
   onEdit,
   onDelete,
+  onActivate,
   isAbandoned = false,
   closing = false,
   docsLoading = false,
@@ -115,6 +147,7 @@ export default function TarjetaRegistro({
 }: {
   reg: Registro;
   onClose?: () => void;
+  onActivate?: () => void;
   onDocs?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -126,25 +159,56 @@ export default function TarjetaRegistro({
   const state = getState(reg);
   const isPending = state === "pending";
   const isAttended = state === "attended";
+  const isScheduledOnly = !!reg.scheduledOnly;
 
   // Para pendientes: calcular espera en vivo cada 30 segundos
   const [liveMin, setLiveMin] = useState<number>(() =>
-    isPending ? liveWaitMinutes(reg) : 0
+    isPending ? getPendingWaitMinutes(reg) : 0
   );
 
   useEffect(() => {
     if (!isPending) return;
-    const id = setInterval(() => setLiveMin(liveWaitMinutes(reg)), 30_000);
+    const id = setInterval(() => setLiveMin(getPendingWaitMinutes(reg)), 30_000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, reg.time, reg.hora_cita]);
 
   // Demora: para atendidos usa espera_min guardada, para pendientes usa el contador en vivo
-  const waitMin = isPending ? liveMin : (reg.espera_min ?? 0);
-  const isDemora = state !== "complete" && waitMin >= DELAY_THRESHOLD;
+  const isDemora = state !== "complete" && isDelayedRecord(reg);
+  const waitInPlantMin = getWaitInPlantMinutes(reg);
+  const delayAgainstCitaMin = getScheduleDelayMinutes(reg);
+  const arrivalDeltaMin = getArrivalDeltaMinutes(reg);
+  const isAnticipated = isAnticipatedRecord(reg);
+  const anticipationMin = getAnticipationMinutes(reg);
 
   // Cita activa: cita llegó (liveMin > 0) pero aún no fue atendido y no es demora aún
-  const isCitaActiva = isPending && !!reg.hora_cita && liveMin > 0 && !isDemora;
+  const isCitaActiva = isPending && !!reg.hora_cita && !!reg.hasArrived && liveMin > 0 && !isDemora;
+  const principalMeta = [
+    reg.responsable ? `Resp. ${reg.responsable}` : null,
+    reg.agente ? `Agente ${reg.agente}` : null,
+  ].filter(Boolean);
+  const typeSummary = [reg.type, reg.tipoOperacion || "Carga"].filter(Boolean).join(" • ");
+  const showPrimaryActionInHeader = isPending && !isScheduledOnly && !isDemora && !reg.hora_cita;
+  const showPrimaryActionInMetrics = !showPrimaryActionInHeader;
+  const leftBottomText = (() => {
+    if (isScheduledOnly) return formatClockTime(reg.hora_cita) ?? reg.hora_cita ?? undefined;
+    if (isPending) return `${liveMin} min`;
+    if (reg.espera_min != null) return formatDuration(reg.espera_min);
+    return undefined;
+  })();
+  const arrivalDeltaText = (() => {
+    if (arrivalDeltaMin === null) return null;
+    if (arrivalDeltaMin > 0) return `${arrivalDeltaMin} min tarde`;
+    if (arrivalDeltaMin < 0) return `${Math.abs(arrivalDeltaMin)} min antes`;
+    return "A tiempo";
+  })();
+  const arrivalDeltaTone = arrivalDeltaMin === null
+    ? "text-[var(--sg-muted)]"
+    : arrivalDeltaMin > 0
+      ? "text-[var(--sg-danger)]"
+      : arrivalDeltaMin < 0
+        ? "text-[#6ba7ff]"
+        : "text-[var(--sg-success)]";
 
   // Colores del borde según estado + demora + cita activa
   const borderClass = state === "complete"
@@ -165,170 +229,255 @@ export default function TarjetaRegistro({
         ? { boxShadow: "0 0 0 1px rgba(200,160,75,0.3)" }
         : {};
 
+  const statusText = (() => {
+    if (isScheduledOnly) return "Sin registro de ingreso";
+    if (state === "complete") return "Flujo cerrado";
+    if (isAttended && isDemora) return "Demora detectada";
+    if (isAttended) return "Documentos pendientes";
+    if (isPending) return "Esperando atención";
+    return "";
+  })();
+
+  const actionButton = (() => {
+    if (isScheduledOnly && onActivate) {
+      return (
+        <button
+          onClick={onActivate}
+          className="flex h-11 items-center justify-center gap-2 border border-[var(--sg-danger)] px-5 text-[var(--sg-danger)] sg-font-mono text-[11px] uppercase tracking-[0.18em] transition-all hover:bg-[var(--sg-danger)] hover:text-[var(--sg-canvas)]"
+        >
+          Llegó ahora
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    if (isPending && !isScheduledOnly && onClose) {
+      return (
+        <button
+          onClick={onClose}
+          disabled={closing}
+          className={`flex h-11 items-center justify-center gap-2 border px-5 sg-font-mono text-[11px] uppercase tracking-[0.18em] transition-all ${
+            isDemora
+              ? "border-[var(--sg-danger)] text-[var(--sg-danger)] hover:bg-[var(--sg-danger)] hover:text-[var(--sg-canvas)]"
+              : isCitaActiva
+                ? "border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white"
+                : "border-[var(--sg-accent)] text-[var(--sg-accent)] hover:bg-[var(--sg-accent)] hover:text-[var(--sg-canvas)]"
+          } ${closing ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          {closing ? (
+            <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+              <Timer className="h-4 w-4" />
+            </motion.span>
+          ) : (
+            <Timer className="h-4 w-4" />
+          )}
+          Iniciar atención
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    if (isAttended && onDocs) {
+      return (
+        <button
+          onClick={onDocs}
+          disabled={docsLoading}
+          className={`flex h-11 items-center justify-center gap-2 border px-5 sg-font-mono text-[11px] uppercase tracking-[0.18em] transition-all ${
+            isDemora
+              ? "border-[var(--sg-danger)] text-[var(--sg-danger)] hover:bg-[var(--sg-danger)] hover:text-[var(--sg-canvas)]"
+              : "border-[var(--sg-success)] text-[var(--sg-success)] hover:bg-[var(--sg-success)] hover:text-[var(--sg-canvas)]"
+          } ${
+            docsLoading ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          {docsLoading ? (
+            <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+              <FileCheck2 className="h-4 w-4" />
+            </motion.span>
+          ) : (
+            <FileCheck2 className="h-4 w-4" />
+          )}
+          Entregar documentos
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    if (state === "complete") {
+      return (
+        <button
+          onClick={onEdit}
+          disabled={!onEdit}
+          className={`flex h-11 items-center justify-center gap-2 border border-[var(--sg-success)] px-5 sg-font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--sg-success)] transition-all ${
+            onEdit
+              ? "hover:bg-[var(--sg-success)] hover:text-[var(--sg-canvas)]"
+              : "opacity-60 cursor-default"
+          }`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Ver registro
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    return null;
+  })();
+
+  const timeLabel = isScheduledOnly ? "Cita" : "Ingreso";
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.94 }}
-      className={`border p-4 sm:p-5 transition-all bg-[var(--sg-panel-2)] ${borderClass}`}
+      className={`border bg-[var(--sg-panel-2)] ${borderClass}`}
       style={shadowStyle}
     >
-      {/* Card header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Time badge */}
-          <div className="flex flex-col items-center min-w-[54px] shrink-0">
-            <span className="sg-font-mono text-[20px] font-bold text-[var(--sg-ink)] leading-none">
+      <div className="p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[72px_minmax(0,1fr)_240px] xl:items-start">
+          <div className="flex flex-col items-start gap-1">
+            <span className="sg-font-mono text-[18px] font-bold leading-none text-[var(--sg-ink)] sm:text-[22px]">
               {reg.time}
             </span>
-            <span className="text-[8px] uppercase tracking-[0.12em] text-[var(--sg-muted)] mt-0.5">
-              Ingreso
+            <span className="sg-font-mono text-[8px] uppercase tracking-[0.22em] text-[var(--sg-muted)]">
+              {timeLabel}
             </span>
-            {/* Badge de hora de cita */}
-            {reg.hora_cita && (
-              <span className="mt-1 sg-font-mono text-[9px] font-bold text-[var(--sg-accent)] border border-[var(--sg-accent)] px-1.5 leading-[1.6]">
-                {reg.hora_cita}
+            {leftBottomText ? (
+              <span className={`sg-font-mono text-[11px] font-bold ${isDemora ? "text-[var(--sg-danger)]" : state === "complete" ? "text-[var(--sg-success)]" : "text-[var(--sg-accent)]"}`}>
+                {leftBottomText}
               </span>
-            )}
-            {/* Contador de espera en vivo para pendientes */}
-            {isPending && (
-              <span className={`mt-1 sg-font-mono text-[9px] font-bold ${
-                isDemora ? "text-[var(--sg-danger)]" : "text-[var(--sg-muted)]"
-              }`}>
-                {liveMin}m
-              </span>
-            )}
+            ) : null}
           </div>
 
           <div className="min-w-0">
-            <div className="sg-font-display text-[16px] font-bold text-[var(--sg-ink)] truncate">
+            <div className="sg-font-display text-[15px] font-bold uppercase tracking-tight text-[var(--sg-ink)] sm:text-[17px]">
               {reg.razonSocial || "—"}
             </div>
-            <div className="text-[12px] text-[var(--sg-copy)] truncate mt-0.5">
+            <div className="mt-1 text-[12px] font-medium uppercase tracking-[0.03em] text-[var(--sg-copy)]">
               {reg.empresa || "Sin empresa"}
             </div>
-            {reg.type && (
-              <div className="text-[10px] text-[var(--sg-muted)] mt-0.5 uppercase tracking-widest">
-                {reg.type} · {reg.reason || ""}
+            <div className="mt-3 inline-flex border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-[11px] text-[var(--sg-muted)]">
+              {typeSummary}
+            </div>
+            {principalMeta.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--sg-muted)]">
+                {principalMeta.map((item, index) => (
+                  <span key={item} className="inline-flex items-center gap-3">
+                    {index > 0 ? <span className="text-[var(--sg-line)]">•</span> : null}
+                    <span>{item}</span>
+                  </span>
+                ))}
               </div>
-            )}
+            ) : null}
+          </div>
+
+          <div className="flex flex-col items-stretch gap-3 xl:items-end">
+            <div className="flex items-center gap-2 self-end">
+              <StatePill state={state} isDemora={isDemora} isCitaActiva={isCitaActiva} isScheduledOnly={isScheduledOnly} />
+              {isAbandoned ? (
+                <span className="inline-flex items-center gap-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] px-2 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-danger)]">
+                  <AlertTriangle className="h-3 w-3" />
+                  +4h
+                </span>
+              ) : null}
+            </div>
+            {showPrimaryActionInHeader && actionButton ? <div className="xl:min-w-[210px]">{actionButton}</div> : null}
+            {statusText ? (
+              <span className="text-right text-[11px] text-[var(--sg-muted)]">
+                {statusText}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <StatePill state={state} isDemora={isDemora} isCitaActiva={isCitaActiva} />
-          {isAbandoned && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-danger)]">
-              <AlertTriangle className="h-3 w-3" />
-              +4h
-            </span>
-          )}
-        </div>
+        {(isScheduledOnly || reg.hora_cita || waitInPlantMin > 0 || isAttended || isDemora || isCitaActiva) ? (
+          <div className="mt-4 grid gap-0 border border-[var(--sg-line)] bg-[rgba(255,255,255,0.01)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_220px]">
+            <div className="border-b border-[var(--sg-line)] px-4 py-3 sm:border-b-0 sm:border-r">
+              <div className="sg-font-mono text-[8px] uppercase tracking-[0.22em] text-[var(--sg-muted)]">
+                {reg.hora_cita ? "Llegada vs cita" : "Llegada"}
+              </div>
+              <div className="mt-2 text-[14px] font-semibold text-[var(--sg-ink)]">
+                {isScheduledOnly ? "Sin registro" : formatClockTime(reg.time) ?? reg.time}
+              </div>
+              {arrivalDeltaText ? (
+                <div className={`mt-1 text-[11px] font-semibold ${arrivalDeltaTone}`}>
+                  {arrivalDeltaText}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="border-b border-[var(--sg-line)] px-4 py-3 sm:border-b-0 sm:border-r">
+              <div className="sg-font-mono text-[8px] uppercase tracking-[0.22em] text-[var(--sg-muted)]">
+                Espera en planta
+              </div>
+              <div className="mt-2 text-[14px] font-semibold text-[var(--sg-ink)]">
+                {waitInPlantMin > 0 ? `${waitInPlantMin} min` : "0 min"}
+              </div>
+            </div>
+
+            <div className="border-b border-[var(--sg-line)] px-4 py-3 sm:border-b-0 sm:border-r">
+              <div className="sg-font-mono text-[8px] uppercase tracking-[0.22em] text-[var(--sg-muted)]">
+                {reg.hora_cita ? "Demora total cita" : "Estado de atención"}
+              </div>
+              <div className={`mt-2 text-[14px] font-semibold ${
+                reg.hora_cita && delayAgainstCitaMin !== null
+                  ? delayAgainstCitaMin > 0
+                    ? "text-[var(--sg-danger)]"
+                    : isAnticipated
+                      ? "text-[var(--sg-success)]"
+                      : "text-[var(--sg-ink)]"
+                  : "text-[var(--sg-ink)]"
+              }`}>
+                {reg.hora_cita && delayAgainstCitaMin !== null
+                  ? isAnticipated
+                    ? `-${anticipationMin} min`
+                    : formatSignedMinutes(delayAgainstCitaMin)
+                  : isCitaActiva
+                    ? "Cita activa"
+                    : state === "complete"
+                      ? "Cerrado"
+                      : state === "attended"
+                        ? "Atendido"
+                        : "Pendiente"}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end px-4 py-3">
+              {showPrimaryActionInMetrics && actionButton ? <div className="w-full sm:w-auto">{actionButton}</div> : null}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      {/* Info row */}
-      {(reg.responsable || reg.agente || reg.h_atencion || reg.h_dev_docs || isDemora || isCitaActiva) && (
-        <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3 text-[11px] text-[var(--sg-copy)]">
-          {reg.responsable && <span>Resp: {reg.responsable}</span>}
-          {reg.agente && <span>Agente: {reg.agente}</span>}
-          {reg.h_atencion && (
-            <span className={isDemora ? "text-[var(--sg-danger)] font-bold" : "text-[var(--sg-accent)]"}>
-              Atención: {reg.h_atencion}
-            </span>
+      {/* Acciones secundarias: editar / eliminar */}
+      {(onEdit || onDelete) && (
+        <div className="border-t border-[var(--sg-line)] px-4 py-2 sm:px-5 flex items-center gap-2">
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-2 py-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors"
+            >
+              <Pencil className="h-3 w-3" />
+              Editar
+            </button>
           )}
-          {reg.h_dev_docs && (
-            <span className="text-[var(--sg-success)]">Docs: {reg.h_dev_docs}</span>
-          )}
-          {isCitaActiva && (
-            <span className="text-orange-400 font-bold flex items-center gap-1">
-              <Bell className="h-3 w-3" />
-              Cita hace {liveMin} min — atender ya
-            </span>
-          )}
-          {isDemora && (
-            <span className="text-[var(--sg-danger)] font-bold flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {waitMin} min de espera
-            </span>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className={`flex items-center gap-1.5 px-2 py-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-danger)] transition-colors ${
+                deleting ? "opacity-40 cursor-not-allowed" : ""
+              }`}
+            >
+              {deleting ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+                  <Trash2 className="h-3 w-3" />
+                </motion.span>
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              Eliminar
+            </button>
           )}
         </div>
       )}
-
-      {/* Action buttons */}
-      <div className="flex flex-col gap-2">
-        {isPending && onClose && (
-          <button
-            onClick={onClose}
-            disabled={closing}
-            className={`flex items-center justify-center gap-3 h-14 border sg-font-mono text-[14px] uppercase tracking-[0.1em] transition-all active:scale-[0.98] ${
-              isDemora
-                ? "border-[var(--sg-danger)] text-[var(--sg-danger)] hover:bg-[var(--sg-danger)] hover:text-[var(--sg-canvas)]"
-                : isCitaActiva
-                  ? "border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white"
-                  : "border-[var(--sg-accent)] text-[var(--sg-accent)] hover:bg-[var(--sg-accent)] hover:text-[var(--sg-canvas)]"
-            } ${closing ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {closing ? (
-              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
-                <Timer className="h-5 w-5" />
-              </motion.span>
-            ) : (
-              <Timer className="h-5 w-5" />
-            )}
-            Marcar Atención
-          </button>
-        )}
-
-        {isAttended && onDocs && (
-          <button
-            onClick={onDocs}
-            disabled={docsLoading}
-            className={`flex items-center justify-center gap-3 h-14 border border-[var(--sg-success)] sg-font-mono text-[14px] uppercase tracking-[0.1em] text-[var(--sg-success)] transition-all hover:bg-[var(--sg-success)] hover:text-[var(--sg-canvas)] active:scale-[0.98] ${
-              docsLoading ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            {docsLoading ? (
-              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
-                <FileCheck2 className="h-5 w-5" />
-              </motion.span>
-            ) : (
-              <FileCheck2 className="h-5 w-5" />
-            )}
-            Documentos Entregados
-          </button>
-        )}
-
-        {onEdit && (
-          <div className="flex gap-2">
-            <button
-              onClick={onEdit}
-              className="flex-1 flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar
-            </button>
-          </div>
-        )}
-        {/* Eliminar disponible en todos los estados */}
-        {onDelete && (
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className={`w-full flex items-center justify-center gap-2 h-11 border border-[var(--sg-line)] bg-[var(--sg-canvas)] sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-danger)] hover:text-[var(--sg-danger)] transition-colors ${
-              deleting ? "opacity-40 cursor-not-allowed" : ""
-            }`}
-          >
-            {deleting ? (
-              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
-                <Trash2 className="h-4 w-4" />
-              </motion.span>
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            Eliminar
-          </button>
-        )}
-      </div>
     </motion.div>
   );
 }
