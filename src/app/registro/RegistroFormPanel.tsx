@@ -207,6 +207,77 @@ function AutocompleteInput({
   );
 }
 
+function AgenteDropup({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  if (options.length === 0) {
+    return (
+      <div className="relative">
+        <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          placeholder="SUPERVISOR"
+          className="sg-input h-10 pl-9 text-[13px] uppercase"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)] z-10" />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="sg-select h-10 w-full appearance-none pl-9 pr-8 text-[13px] text-left flex items-center"
+      >
+        <span className="truncate">{value || <span className="text-[var(--sg-muted)]">Seleccionar agente</span>}</span>
+      </button>
+      <ChevronDown
+        className={`pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)] transition-transform ${open ? "rotate-180" : ""}`}
+      />
+      {open && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 z-50 border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-lg max-h-52 overflow-y-auto">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false); }}
+              className={`w-full px-4 py-2 text-left sg-font-mono text-[11px] uppercase tracking-wide transition-colors ${
+                opt === value
+                  ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
+                  : "text-[var(--sg-copy)] hover:bg-[var(--sg-panel-2)]"
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function RegistroFormPanel({
   plant,
   plants,
@@ -405,33 +476,11 @@ export default function RegistroFormPanel({
 
               <div className="sg-field">
                 <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Agente responsable *</label>
-                <div className="relative">
-                  <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  {agentesList.length > 0 ? (
-                    <>
-                      <select
-                        value={values.agente}
-                        onChange={(event) => onAgenteChange(event.target.value)}
-                        className="sg-select h-10 appearance-none pl-9 pr-8 text-[13px]"
-                      >
-                        {agentesList.map((agente) => (
-                          <option key={agente} value={agente} className="bg-[var(--sg-panel-2)]">
-                            {agente}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
-                    </>
-                  ) : (
-                    <input
-                      type="text"
-                      value={values.agente}
-                      onChange={(event) => onAgenteChange(event.target.value.toUpperCase())}
-                      placeholder="SUPERVISOR"
-                      className="sg-input h-10 pl-9 text-[13px] uppercase"
-                    />
-                  )}
-                </div>
+                <AgenteDropup
+                  value={values.agente}
+                  options={agentesList}
+                  onChange={onAgenteChange}
+                />
               </div>
             </div>
           </div>
