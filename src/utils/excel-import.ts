@@ -23,6 +23,7 @@ export interface ImportedExcelRow {
   segmento_espera: string | null;
   segmento_orden: number;
   es_demora: number;
+  motivo_demora: string | null;
   observacion: string | null;
 }
 
@@ -52,6 +53,7 @@ export const PLATFORM_FIELDS: { key: string; label: string; required: boolean }[
   { key: "h_dev_docs",       label: "H. Dev. Documentos",      required: false },
   { key: "espera_min",       label: "Espera (min)",            required: false },
   { key: "tiempo_total_min", label: "Tiempo Total (min)",      required: false },
+  { key: "motivo_demora",    label: "Motivo de Demora",        required: false },
   { key: "observacion",      label: "Observación",             required: false },
 ];
 
@@ -95,6 +97,7 @@ export function autoDetectMapping(headers: string[]): ExcelMapping {
     h_dev_docs:       findCol(["hdevdocs", "docs", "documentos"]),
     espera_min:       findCol(["esperamin", "espera", "tiempoespera"]),
     tiempo_total_min: findCol(["tiempototal", "total", "duracion"]),
+    motivo_demora:    findCol(["motivodemora", "motivo", "causademora", "causa", "razondemora"]),
     observacion:      findCol(["observacion", "obs", "nota"]),
   };
 }
@@ -224,6 +227,7 @@ export function transformRow(
   const h_dev_docs = parseExcelTime(get("h_dev_docs"));
   const empresa = get("empresa") ? String(get("empresa")).toUpperCase().trim() : null;
   const observacion = get("observacion") ? String(get("observacion")).trim() : null;
+  const motivo_demora = get("motivo_demora") ? String(get("motivo_demora")).trim() : null;
   const explicitTipoOperacion = get("tipo_operacion") ? String(get("tipo_operacion")).trim() : null;
   const espera_min = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
   const tiempo_total_min = parseMinutes(get("tiempo_total_min")) ?? minutesBetween(h_registro, h_dev_docs);
@@ -249,6 +253,7 @@ export function transformRow(
     segmento_espera,
     segmento_orden,
     es_demora,
+    motivo_demora,
     observacion,
   };
 }
