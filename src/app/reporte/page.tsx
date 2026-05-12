@@ -350,6 +350,8 @@ function ReporteContent() {
   const [mounted,   setMounted]   = useState(false);
   const [exporting, setExporting]   = useState(false);
   const [slaSort, setSlaSort]       = useState<{ col: string; dir: "asc" | "desc" }>({ col: "rate", dir: "desc" });
+  const [slaPage, setSlaPage]       = useState(1);
+  const SLA_PER_PAGE = 10;
   const [gateOptions, setGateOptions] = useState<GateAssignment[]>([]);
   const siteGroups = useMemo(() => groupGatesBySite(gateOptions), [gateOptions]);
   const sites = useMemo(() => siteGroups.map(s => s.site), [siteGroups]);
@@ -358,8 +360,10 @@ function ReporteContent() {
 
   const activeFilterCount = selectedSegments.length + (soloDemoras ? 1 : 0);
 
-  const toggleSlaSort = (col: string) =>
+  const toggleSlaSort = (col: string) => {
     setSlaSort(prev => ({ col, dir: prev.col === col && prev.dir === "desc" ? "asc" : "desc" }));
+    setSlaPage(1);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -424,6 +428,9 @@ function ReporteContent() {
       return slaSort.dir === "desc" ? -cmp : cmp;
     });
   }, [d?.providerSLA, slaSort]);
+
+  const slaTotalPages = Math.ceil(sortedSLA.length / SLA_PER_PAGE);
+  const slaPageData   = sortedSLA.slice((slaPage - 1) * SLA_PER_PAGE, slaPage * SLA_PER_PAGE);
 
   return (
     <AppLayout>
@@ -681,7 +688,7 @@ function ReporteContent() {
         )}
 
         {/* ── Comparativo plantas + Segmentos ─────────────────────── */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
 
           {/* Plant comparison */}
           <Section title="Comparativo por Puerta">
@@ -745,7 +752,25 @@ function ReporteContent() {
           {/* Segment distribution */}
           <Section title="Distribución por Segmento">
             {loading ? <Skel h="h-[220px]" /> : !d ? <EmptyMsg /> : (
-              <div className="sg-panel p-5 flex flex-col justify-between h-full min-h-[220px]">
+              <div className="sg-panel p-5 flex flex-col gap-5">
+                {/* Summary stats */}
+                <div className="grid grid-cols-3 gap-2 pb-4 border-b border-[var(--sg-line)]">
+                  {[
+                    { label: "Total", val: d.total, color: "var(--sg-ink)" },
+                    { label: "A tiempo", val: `${d.pctOnTime ?? 0}%`, color: pctColor(d.pctOnTime ?? 0) },
+                    { label: "Crítico", val: d.critico, color: "var(--sg-danger)" },
+                  ].map(stat => (
+                    <div key={stat.label} className="bg-[var(--sg-panel-2)] px-3 py-2.5">
+                      <div className="sg-font-mono text-[18px] font-bold leading-none" style={{ color: stat.color }}>
+                        {stat.val}
+                      </div>
+                      <div className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">
+                        {stat.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Bars */}
                 <div className="flex flex-col gap-4">
                   {d.segments.map((s) => (
                     <div key={s.name}>
@@ -771,6 +796,13 @@ function ReporteContent() {
                       </div>
                     </div>
                   ))}
+                </div>
+                {/* Promedio espera highlight */}
+                <div className="border-t border-[var(--sg-line)] pt-4 flex items-center justify-between">
+                  <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Espera promedio</span>
+                  <span className="sg-font-mono text-[16px] font-bold" style={{ color: esperaColor(d.avgEspera) }}>
+                    {d.avgEspera} min
+                  </span>
                 </div>
               </div>
             )}
@@ -1038,14 +1070,14 @@ function ReporteContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedSLA.map((p, i) => (
+                  {slaPageData.map((p, i) => (
                     <motion.tr
                       key={p.empresa}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.02 }}
                     >
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{i + 1}</td>
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{(slaPage - 1) * SLA_PER_PAGE + i + 1}</td>
                       <td>
                         <span className="font-semibold text-[13px] text-[var(--sg-ink)] block truncate max-w-[200px]" title={p.empresa}>
                           {p.empresa}
@@ -1077,19 +1109,55 @@ function ReporteContent() {
                 </tbody>
               </table>
 
-              <div className="border-t border-[var(--sg-line)] px-5 py-3 flex flex-wrap gap-5">
-                {[
-                  { grade: "A", label: "≤ 10% demora" },
-                  { grade: "B", label: "11–25%" },
-                  { grade: "C", label: "26–50%" },
-                  { grade: "D", label: "51–75%" },
-                  { grade: "F", label: "> 75% demora" },
-                ].map(g => (
-                  <span key={g.grade} className="flex items-center gap-2 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                    <GradeBadge grade={g.grade} />
-                    {g.label}
-                  </span>
-                ))}
+              <div className="border-t border-[var(--sg-line)] px-5 py-3 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { grade: "A", label: "≤ 10% demora" },
+                    { grade: "B", label: "11–25%" },
+                    { grade: "C", label: "26–50%" },
+                    { grade: "D", label: "51–75%" },
+                    { grade: "F", label: "> 75% demora" },
+                  ].map(g => (
+                    <span key={g.grade} className="flex items-center gap-2 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      <GradeBadge grade={g.grade} />
+                      {g.label}
+                    </span>
+                  ))}
+                </div>
+                {slaTotalPages > 1 && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      {(slaPage - 1) * SLA_PER_PAGE + 1}–{Math.min(slaPage * SLA_PER_PAGE, sortedSLA.length)} de {sortedSLA.length}
+                    </span>
+                    <button
+                      onClick={() => setSlaPage(p => Math.max(1, p - 1))}
+                      disabled={slaPage === 1}
+                      className="border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[10px] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      ←
+                    </button>
+                    {Array.from({ length: slaTotalPages }, (_, i) => i + 1).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setSlaPage(p)}
+                        className={`border px-2 py-0.5 sg-font-mono text-[10px] transition-colors ${
+                          p === slaPage
+                            ? "border-[var(--sg-accent)] bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
+                            : "border-[var(--sg-line)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setSlaPage(p => Math.min(slaTotalPages, p + 1))}
+                      disabled={slaPage === slaTotalPages}
+                      className="border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[10px] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      →
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </Section>
