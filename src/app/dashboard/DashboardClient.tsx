@@ -31,6 +31,7 @@ import type {
   DashboardZone,
   DashboardAlert,
   DashboardTopProvider,
+  HeatmapCell,
 } from "@/types/dashboard";
 import {
   Bar,
