@@ -1,9 +1,11 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
+import CitasDelDia from "@/components/CitasDelDia";
 import KioskLayout from "@/components/KioskLayout";
 import RegistroWizard from "@/components/RegistroWizard";
 import {
+  activateCita,
   createAtencion,
   closeAtencion,
   closeAtencionDocs,
@@ -18,11 +20,12 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  ClipboardList,
+  Clock,
   FileCheck2,
   Monitor,
   MonitorSmartphone,
   Package,
-  Pencil,
   Save,
   Timer,
   Trash2,
@@ -30,10 +33,19 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { humanizeError } from "@/lib/humanizeError";
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import { useRegistroData } from "./useRegistroData";
+import {
+  getArrivalDeltaMinutes,
+  getOperationalDelayMinutes,
+  getScheduleDelayMinutes,
+  getWaitInPlantMinutes,
+  isAbandonedRecord,
+  isDelayedRecord,
+  isEarlyArrival,
+} from "./status";
 import RegistroFormPanel from "./RegistroFormPanel";
 import RegistroHistoryPanel from "./RegistroHistoryPanel";
 import type { CitaRow, RecentRegistration } from "./types";
@@ -45,6 +57,7 @@ interface RegistroClientProps {
   initialPlants: string[];
   initialGateOptions: GateAssignment[];
   initialResponsablesList: string[];
+  initialAgentesList: string[];
   initialRecentRegistrations: RecentRegistration[];
   initialRecentTotal: number;
   initialCitas: CitaRow[];
@@ -232,14 +245,93 @@ function ConfirmActionModal({
   );
 }
 
+function RegistroSummaryCards({
+  pendingCount,
+  attendedCount,
+  completedCount,
+  criticalOpenCount,
+}: {
+  pendingCount: number;
+  attendedCount: number;
+  completedCount: number;
+  criticalOpenCount: number;
+}) {
+  const cards = [
+    {
+      label: "Pendientes",
+      value: pendingCount,
+      accent: "var(--sg-warn)" as const,
+      sub: criticalOpenCount > 0 ? `${criticalOpenCount} críticos abiertos` : "Esperando atención",
+      icon: ClipboardList,
+    },
+    {
+      label: "En atención",
+      value: attendedCount,
+      accent: "var(--sg-accent)" as const,
+      sub: "Documentos pendientes",
+      icon: User,
+    },
+    {
+      label: "Completados",
+      value: completedCount,
+      accent: "var(--sg-success)" as const,
+      sub: "Flujo cerrado hoy",
+      icon: CheckCircle2,
+    },
+  ];
+
+  return (
+    <section className="grid gap-3 sm:grid-cols-3">
+      {cards.map((card) => (
+        <div key={card.label} className="flex items-center gap-4 border border-[var(--sg-line)] bg-[var(--sg-panel)] px-4 py-3.5">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center border"
+            style={{ borderColor: card.accent, background: "var(--sg-panel-2)" }}
+          >
+            <card.icon className="h-5 w-5" style={{ color: card.accent }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="sg-font-mono text-[9px] uppercase tracking-[0.18em]" style={{ color: card.accent }}>
+              {card.label}
+            </div>
+            <div className="mt-0.5 flex items-end justify-between gap-3">
+              <span className="sg-font-display text-[32px] font-bold leading-none text-[var(--sg-ink)]">
+                {card.value}
+              </span>
+              <span className="flex items-center gap-1.5 text-right text-[10px] leading-4 text-[var(--sg-muted)]">
+                <Clock className="h-3 w-3" />
+                {card.sub}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function formatMetricMinutes(value: number | null | undefined, empty = "—") {
+  if (value == null) return empty;
+  return `${value} min`;
+}
+
+function formatArrivalDelta(value: number | null) {
+  if (value == null) return "Sin cita";
+  if (value > 0) return `${value} min tarde`;
+  if (value < 0) return `${Math.abs(value)} min antes`;
+  return "A tiempo";
+}
+
 function EditModal({
   reg,
   responsablesList,
+  agentesList,
   onSave,
   onCancel,
 }: {
   reg: RecentRegistration;
   responsablesList: string[];
+  agentesList: string[];
   onSave: (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => void;
   onCancel: () => void;
 }) {
@@ -253,6 +345,50 @@ function EditModal({
   const [hAtencion, setHAtencion] = useState<string>(reg.h_atencion || "");
   const [hDevDocs, setHDevDocs] = useState<string>(reg.h_dev_docs || "");
   const [horaCita, setHoraCita] = useState<string>(reg.hora_cita || "");
+  const isComplete = !!reg.docsDelivered;
+  const isAttended = !!reg.attended && !reg.docsDelivered;
+  const arrivalDelta = getArrivalDeltaMinutes(reg);
+  const waitInPlant = getWaitInPlantMinutes(reg);
+  const scheduleDelay = getScheduleDelayMinutes(reg);
+  const operationalDelay = getOperationalDelayMinutes(reg);
+  const statusLabel = isComplete ? "Completado" : isAttended ? "En atención" : "Pendiente";
+  const statusTone = isComplete
+    ? "var(--sg-success)"
+    : isAttended
+      ? "var(--sg-accent)"
+      : "var(--sg-warn)";
+  const metricCards = [
+    {
+      label: "Llegada vs cita",
+      value: formatArrivalDelta(arrivalDelta),
+      tone: arrivalDelta == null
+        ? "var(--sg-muted)"
+        : arrivalDelta > 0
+          ? "var(--sg-danger)"
+          : arrivalDelta < 0
+            ? "#6ba7ff"
+            : "var(--sg-success)",
+      sub: reg.hora_cita ? `Cita ${reg.hora_cita}` : "Sin cita",
+    },
+    {
+      label: "Espera en planta",
+      value: formatMetricMinutes(waitInPlant, "0 min"),
+      tone: "var(--sg-ink)",
+      sub: `Ingreso ${reg.time}`,
+    },
+    {
+      label: "Demora total cita",
+      value: scheduleDelay == null ? "Sin cita" : `${scheduleDelay > 0 ? "+" : ""}${scheduleDelay} min`,
+      tone: scheduleDelay && scheduleDelay > 0 ? "var(--sg-danger)" : "var(--sg-success)",
+      sub: "Cumplimiento",
+    },
+    {
+      label: "Demora operativa",
+      value: formatMetricMinutes(operationalDelay, "0 min"),
+      tone: operationalDelay >= 45 ? "var(--sg-danger)" : "var(--sg-success)",
+      sub: "Atribuible a atención",
+    },
+  ];
 
   return (
     <motion.div
@@ -265,15 +401,22 @@ function EditModal({
         initial={{ scale: 0.94, y: 16 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.94, y: 16 }}
-        className="w-full max-w-[500px] border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[8px_8px_0_rgba(196,192,180,0.06)] max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-[880px] border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[8px_8px_0_rgba(196,192,180,0.06)] max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4 sticky top-0 bg-[var(--sg-panel)] z-10">
           <div className="flex items-center gap-3">
-            <Pencil className="h-4 w-4 text-[var(--sg-accent)]" />
-            <span className="sg-font-display text-[15px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-              Editar Registro · {reg.time}
-            </span>
+            <div className="flex h-10 w-10 items-center justify-center border border-[var(--sg-accent)] text-[var(--sg-accent)]">
+              <ClipboardList className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="sg-font-display text-[16px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                Detalle del registro
+              </span>
+              <p className="mt-0.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                Ingreso {reg.time} · {reg.type || "Proveedor"} · {reg.tipoOperacion || "Carga"}
+              </p>
+            </div>
           </div>
           <button onClick={onCancel} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
             <X className="h-4 w-4" />
@@ -281,33 +424,78 @@ function EditModal({
         </div>
 
         <div className="p-5 grid gap-4">
-          {/* Razón Social */}
-          <div className="sg-field">
-            <label className="sg-label">Razón Social / Vehículo *</label>
-            <div className="relative">
-              <Truck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              <input
-                type="text"
-                value={razonSocial}
-                onChange={(e) => setRazonSocial(e.target.value.toUpperCase())}
-                className="sg-input pl-10 uppercase"
-                required
-              />
+          <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+            <div className="flex flex-col gap-4 border-b border-[var(--sg-line)] p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="sg-font-display text-[20px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                  {reg.razonSocial || "Sin razón social"}
+                </p>
+                <p className="mt-1 text-[13px] uppercase tracking-[0.03em] text-[var(--sg-copy)]">
+                  {reg.empresa || "Sin empresa"}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[var(--sg-muted)]">
+                  <span className="border border-[var(--sg-line)] px-2 py-1">Resp. {reg.responsable || "—"}</span>
+                  <span className="border border-[var(--sg-line)] px-2 py-1">Agente {reg.agente || "—"}</span>
+                </div>
+              </div>
+              <span
+                className="inline-flex items-center gap-2 self-start border px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest"
+                style={{ borderColor: statusTone, color: statusTone, background: "rgba(255,255,255,0.02)" }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {statusLabel}
+              </span>
             </div>
+
+            <div className="grid gap-0 sm:grid-cols-4">
+              {metricCards.map((metric) => (
+                <div key={metric.label} className="border-b border-[var(--sg-line)] px-4 py-3 sm:border-b-0 sm:border-r last:border-r-0">
+                  <div className="sg-font-mono text-[8px] uppercase tracking-[0.2em] text-[var(--sg-muted)]">
+                    {metric.label}
+                  </div>
+                  <div className="mt-2 text-[15px] font-bold" style={{ color: metric.tone }}>
+                    {metric.value}
+                  </div>
+                  <div className="mt-1 text-[10px] text-[var(--sg-muted)]">
+                    {metric.sub}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+            Datos editables
           </div>
 
-          {/* Empresa */}
-          <div className="sg-field">
-            <label className="sg-label">Empresa Destino / Cliente *</label>
-            <div className="relative">
-              <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              <input
-                type="text"
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value.toUpperCase())}
-                className="sg-input pl-10 uppercase"
-                required
-              />
+          {/* Razón Social */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sg-field">
+              <label className="sg-label">Razón Social / Vehículo *</label>
+              <div className="relative">
+                <Truck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                <input
+                  type="text"
+                  value={razonSocial}
+                  onChange={(e) => setRazonSocial(e.target.value.toUpperCase())}
+                  className="sg-input pl-10 uppercase"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="sg-field">
+              <label className="sg-label">Empresa Destino / Cliente *</label>
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                <input
+                  type="text"
+                  value={empresa}
+                  onChange={(e) => setEmpresa(e.target.value.toUpperCase())}
+                  className="sg-input pl-10 uppercase"
+                  required
+                />
+              </div>
             </div>
           </div>
 
@@ -336,41 +524,56 @@ function EditModal({
             </div>
           </div>
 
-          {/* Responsable */}
-          <div className="sg-field">
-            <label className="sg-label">Responsable de Almacén</label>
-            <div className="relative">
-              <Package className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              {responsablesList.length > 0 ? (
-                <>
-                  <select value={responsable} onChange={(e) => setResponsable(e.target.value)} className="sg-select appearance-none pl-10 pr-10">
-                    {responsablesList.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                </>
-              ) : (
-                <input
-                  type="text"
-                  value={responsable}
-                  onChange={(e) => setResponsable(e.target.value.toUpperCase())}
-                  placeholder="Nombre del responsable"
-                  className="sg-input pl-10 uppercase"
-                />
-              )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sg-field">
+              <label className="sg-label">Responsable de Almacén</label>
+              <div className="relative">
+                <Package className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                {responsablesList.length > 0 ? (
+                  <>
+                    <select value={responsable} onChange={(e) => setResponsable(e.target.value)} className="sg-select appearance-none pl-10 pr-10">
+                      {responsablesList.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={responsable}
+                    onChange={(e) => setResponsable(e.target.value.toUpperCase())}
+                    placeholder="Nombre del responsable"
+                    className="sg-input pl-10 uppercase"
+                  />
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Agente */}
-          <div className="sg-field">
-            <label className="sg-label">Agente Responsable</label>
-            <div className="relative">
-              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              <input
-                type="text"
-                value={agente}
-                onChange={(e) => setAgente(e.target.value.toUpperCase())}
-                className="sg-input pl-10 uppercase"
-              />
+            <div className="sg-field">
+              <label className="sg-label">Agente Responsable</label>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                {agentesList.length > 0 ? (
+                  <>
+                    <select
+                      value={agente}
+                      onChange={(e) => setAgente(e.target.value)}
+                      className="sg-select appearance-none pl-10 pr-10"
+                    >
+                      {agentesList.map((a) => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={agente}
+                    onChange={(e) => setAgente(e.target.value.toUpperCase())}
+                    className="sg-input pl-10 uppercase"
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -392,65 +595,46 @@ function EditModal({
             </div>
 
             {/* Hora de registro (solo lectura) */}
-            <div className="sg-field">
-              <label className="sg-label text-[var(--sg-muted)]">Hora de registro (fija)</label>
-              <input
-                type="time"
-                value={reg.time || ""}
-                disabled
-                className="sg-input opacity-50 cursor-not-allowed bg-[var(--sg-panel-3)]"
-              />
-            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="sg-field">
+                <label className="sg-label text-[var(--sg-muted)]">Ingreso fijo</label>
+                <input
+                  type="time"
+                  value={reg.time || ""}
+                  disabled
+                  className="sg-input opacity-50 cursor-not-allowed bg-[var(--sg-panel-3)]"
+                />
+              </div>
 
-            {/* Hora de cita */}
-            <div className="sg-field">
-              <label className="sg-label flex items-center gap-2">
-                Hora de Cita
-                <span className="sg-font-mono text-[8px] bg-[var(--sg-panel-3)] px-2 py-0.5 border border-[var(--sg-line)] text-[var(--sg-muted)] uppercase">
-                  Opcional
-                </span>
-                <span className="sg-font-mono text-[8px] bg-[rgba(200,168,75,0.12)] px-2 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)] uppercase">
-                  Formato 24h — 2 PM = 14:00
-                </span>
-              </label>
-              <input
-                type="time"
-                value={horaCita}
-                onChange={(e) => setHoraCita(e.target.value)}
-                className="sg-input"
-              />
-            </div>
+              <div className="sg-field">
+                <label className="sg-label">Hora de Cita</label>
+                <input
+                  type="time"
+                  value={horaCita}
+                  onChange={(e) => setHoraCita(e.target.value)}
+                  className="sg-input"
+                />
+              </div>
 
-            {/* H. Atención */}
-            <div className="sg-field">
-              <label className="sg-label">H. Atención</label>
-              <input
-                type="time"
-                value={hAtencion}
-                onChange={(e) => setHAtencion(e.target.value)}
-                className="sg-input"
-              />
-              {hAtencion && reg.time && (
-                <p className="mt-1 text-[10px] text-[var(--sg-muted)]">
-                  Espera recalculada al guardar
-                </p>
-              )}
-            </div>
+              <div className="sg-field">
+                <label className="sg-label">H. Atención</label>
+                <input
+                  type="time"
+                  value={hAtencion}
+                  onChange={(e) => setHAtencion(e.target.value)}
+                  className="sg-input"
+                />
+              </div>
 
-            {/* H. Dev. Documentos */}
-            <div className="sg-field">
-              <label className="sg-label">H. Dev. Documentos</label>
-              <input
-                type="time"
-                value={hDevDocs}
-                onChange={(e) => setHDevDocs(e.target.value)}
-                className="sg-input"
-              />
-              {hDevDocs && reg.time && (
-                <p className="mt-1 text-[10px] text-[var(--sg-muted)]">
-                  Tiempo total recalculado al guardar
-                </p>
-              )}
+              <div className="sg-field">
+                <label className="sg-label">H. Documentos</label>
+                <input
+                  type="time"
+                  value={hDevDocs}
+                  onChange={(e) => setHDevDocs(e.target.value)}
+                  className="sg-input"
+                />
+              </div>
             </div>
           </div>
 
@@ -487,6 +671,7 @@ export default function RegistroClient({
   initialPlants,
   initialGateOptions,
   initialResponsablesList,
+  initialAgentesList,
   initialRecentRegistrations,
   initialRecentTotal,
   initialCitas,
@@ -496,6 +681,8 @@ export default function RegistroClient({
 }: RegistroClientProps) {
   const bootstrapResponsablesList =
     initialResponsablesList.length > 0 ? initialResponsablesList : RESPONSABLES_DEFAULT;
+  const bootstrapAgentesList =
+    initialAgentesList.length > 0 ? initialAgentesList : [initialAgente];
 
   const [razonSocial, setRazonSocial] = useState("");
   const [empresa, setEmpresa] = useState("");
@@ -516,6 +703,7 @@ export default function RegistroClient({
   const [docsIds, setDocsIds] = useState<Set<number>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const [pendingClose, setPendingClose] = useState<RecentRegistration | null>(null);
+  const [pendingDuplicateConfirm, setPendingDuplicateConfirm] = useState<RecentRegistration | null>(null);
   const [editingReg, setEditingReg] = useState<RecentRegistration | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<{
     title: string;
@@ -529,6 +717,7 @@ export default function RegistroClient({
   const [plantAssigned] = useState(initialPlantAssigned);
   const [userReady] = useState(true);
   const [responsablesList] = useState<string[]>(bootstrapResponsablesList);
+  const [agentesList] = useState<string[]>(bootstrapAgentesList);
   const [isKiosk, setIsKiosk] = useState(false);
   const LOAD_LIMIT = 200;
 
@@ -569,8 +758,7 @@ export default function RegistroClient({
     if (profile.tipoOperacion) setTipoOperacion(profile.tipoOperacion);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
+  const submitRegistro = (forceDuplicate = false) => {
     startTransition(async () => {
       const result = await createAtencion({
         razonSocial,
@@ -581,23 +769,43 @@ export default function RegistroClient({
         responsable,
         agente,
         note,
+        forceDuplicate,
         horaCita: horaCita || null,
       });
       if (result.success) {
-        showTemporaryToast("Ingreso registrado correctamente.");
+        setPendingDuplicateConfirm(null);
         setRazonSocial("");
         setEmpresa("");
         setType("Proveedor");
         setTipoOperacion("Carga");
-        setResponsable("");
-        setAgente("");
         setNote("");
         setHoraCita("");
+        showTemporaryToast(`Ingreso registrado · ${gateLabel} · ${result.time?.substring(0, 5) ?? liveTime.substring(0, 5)}`);
         refreshRegistroPanels();
       } else {
         showTemporaryToast(humanizeError(result.error), 4000);
       }
     });
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (duplicateWarning) {
+      setPendingDuplicateConfirm(duplicateWarning);
+      return;
+    }
+    submitRegistro(false);
+  };
+
+  const handleClear = () => {
+    setRazonSocial("");
+    setEmpresa("");
+    setType("Proveedor");
+    setTipoOperacion("Carga");
+    setNote("");
+    setHoraCita("");
+    setResponsable(bootstrapResponsablesList[0] ?? "");
+    setAgente(bootstrapAgentesList[0] ?? initialAgente);
   };
 
   const handleClose = (reg: RecentRegistration) => {
@@ -621,6 +829,16 @@ export default function RegistroClient({
         btnText: "Iniciar atención",
         action: () => doClose(reg.id, undefined),
       });
+    }
+  };
+
+  const handleActivateScheduled = async (reg: RecentRegistration) => {
+    const result = await activateCita({ id: reg.id });
+    if (result.success) {
+      showTemporaryToast("Vehículo registrado. Llegada confirmada.");
+      refreshRegistroPanels();
+    } else {
+      showTemporaryToast(humanizeError(result.error), 4000);
     }
   };
 
@@ -701,24 +919,17 @@ export default function RegistroClient({
   };
 
   // Detección de duplicados — cliente, sin llamada extra
-  const duplicateWarning = useMemo(() => {
+  const duplicateWarning = (() => {
     if (razonSocial.trim().length < 3) return null;
     const term = razonSocial.trim().toUpperCase();
     return recentRegistrations.find(r => !r.attended && r.razonSocial.toUpperCase().includes(term)) ?? null;
-  }, [razonSocial, recentRegistrations]);
+  })();
 
   // Detección de abandonados (pendientes con +4h)
-  const abandonedRecords = useMemo(() => {
+  const abandonedRecords = (() => {
     const now = new Date();
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    return recentRegistrations.filter(r => {
-      if (r.attended) return false;
-      const [hh, mm] = r.time.split(":").map(Number);
-      let diff = nowMin - (hh * 60 + mm);
-      if (diff < 0) diff += 1440;
-      return diff >= 240;
-    });
-  }, [recentRegistrations]);
+    return recentRegistrations.filter((record) => isAbandonedRecord(record, now));
+  })();
 
   const handleCloseAbandoned = async () => {
     const ids = abandonedRecords.map((r) => r.id);
@@ -732,6 +943,9 @@ export default function RegistroClient({
   const pendingCount = recentRegistrations.filter((r) => !r.attended).length;
   const attendedCount = recentRegistrations.filter((r) => r.attended && !r.docsDelivered).length;
   const completedCount = recentRegistrations.filter((r) => r.docsDelivered).length;
+  const delayedCount = recentRegistrations.filter((r) => {
+    return isDelayedRecord(r) && !isAbandonedRecord(r);
+  }).length;
 
   const content = (
     <>
@@ -759,62 +973,82 @@ export default function RegistroClient({
         </div>
       </div>
 
-      {/* Wizard progress */}
-      <RegistroWizard pendingCount={pendingCount} attendedCount={attendedCount} completedCount={completedCount} />
+      <RegistroSummaryCards
+        pendingCount={pendingCount}
+        attendedCount={attendedCount}
+        completedCount={completedCount}
+        criticalOpenCount={abandonedRecords.length + delayedCount}
+      />
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[460px_minmax(0,1fr)] xl:items-start">
-        <RegistroFormPanel
-          plant={plant}
-          plants={plants}
-          gateOptions={initialGateOptions}
-          plantLocked={plantLocked}
-          citas={citas}
-          liveTime={liveTime}
-          responsablesList={responsablesList}
-          values={{
-            razonSocial,
-            empresa,
-            type,
-            tipoOperacion,
-            responsable,
-            agente,
-            note,
-            horaCita,
-          }}
-          duplicateWarning={duplicateWarning}
-          isPending={isPending}
-          onSubmit={handleSubmit}
-          onPlantChange={setPlant}
-          onRazonSocialChange={setRazonSocial}
-          onEmpresaChange={setEmpresa}
-          onTypeChange={setType}
-          onTipoOperacionChange={setTipoOperacion}
-          onResponsableChange={setResponsable}
-          onAgenteChange={setAgente}
-          onNoteChange={setNote}
-          onHoraCitaChange={setHoraCita}
-          onVehicleSelect={handleVehicleSelect}
-          onToast={showTemporaryToast}
-          onRefresh={refreshRegistroPanels}
-        />
+      <div className="mt-3">
+        <RegistroWizard pendingCount={pendingCount} attendedCount={attendedCount} completedCount={completedCount} />
+      </div>
 
-        <RegistroHistoryPanel
-          plant={plant}
-          recentRegistrations={recentRegistrations}
-          recentTotal={recentTotal}
-          lastRefresh={lastRefresh}
-          abandonedRecords={abandonedRecords}
-          closingIds={closingIds}
-          docsIds={docsIds}
-          deletingIds={deletingIds}
-          userRole={userRole}
-          onRefresh={() => void refreshRecent(plant)}
-          onClose={handleClose}
-          onDocs={handleDocs}
-          onEdit={setEditingReg}
-          onDelete={handleDelete}
-          onCloseAbandoned={handleCloseAbandoned}
-        />
+      <div className="mt-6 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)] 2xl:grid-cols-[460px_minmax(0,1fr)] xl:justify-between xl:items-stretch">
+        <div className="flex flex-col gap-5 xl:sticky xl:top-5">
+          <CitasDelDia
+            plant={plant}
+            citas={citas}
+            onToast={showTemporaryToast}
+            onRefresh={refreshRegistroPanels}
+          />
+          <RegistroFormPanel
+            plant={plant}
+            plants={plants}
+            gateOptions={initialGateOptions}
+            plantLocked={plantLocked}
+            citas={citas}
+            liveTime={liveTime}
+            responsablesList={responsablesList}
+            agentesList={agentesList}
+            values={{
+              razonSocial,
+              empresa,
+              type,
+              tipoOperacion,
+              responsable,
+              agente,
+              note,
+              horaCita,
+            }}
+            duplicateWarning={duplicateWarning}
+            isPending={isPending}
+            onSubmit={handleSubmit}
+            onPlantChange={setPlant}
+            onRazonSocialChange={setRazonSocial}
+            onEmpresaChange={setEmpresa}
+            onTypeChange={setType}
+            onTipoOperacionChange={setTipoOperacion}
+            onResponsableChange={setResponsable}
+            onAgenteChange={setAgente}
+            onNoteChange={setNote}
+            onVehicleSelect={handleVehicleSelect}
+            onToast={showTemporaryToast}
+            onRefresh={refreshRegistroPanels}
+            onClear={handleClear}
+            showCitasPanel={false}
+          />
+        </div>
+
+        <div className="min-w-0">
+          <RegistroHistoryPanel
+            recentRegistrations={recentRegistrations}
+            recentTotal={recentTotal}
+            abandonedRecords={abandonedRecords}
+            closingIds={closingIds}
+            docsIds={docsIds}
+            deletingIds={deletingIds}
+            userRole={userRole}
+            onRefresh={() => void refreshRecent(plant)}
+            onClose={handleClose}
+            onActivate={handleActivateScheduled}
+            onDocs={handleDocs}
+            onEdit={setEditingReg}
+            onDelete={handleDelete}
+            onCloseAbandoned={handleCloseAbandoned}
+          />
+        </div>
+
       </div>
 
       <AnimatePresence>
@@ -828,10 +1062,27 @@ export default function RegistroClient({
       </AnimatePresence>
 
       <AnimatePresence>
+        {pendingDuplicateConfirm && (
+          <ConfirmActionModal
+            title="Posible duplicado"
+            message={(
+              <>
+                Ya existe un ingreso pendiente de <strong className="text-[var(--sg-ink)]">{pendingDuplicateConfirm.razonSocial}</strong> a las{" "}
+                <strong className="text-[var(--sg-ink)]">{pendingDuplicateConfirm.time}</strong>. Si confirmas, registraremos un segundo ingreso para la misma puerta.
+              </>
+            )}
+            icon={AlertTriangle}
+            accentColor="var(--sg-warn)"
+            confirmText="Registrar de todos modos"
+            onCancel={() => setPendingDuplicateConfirm(null)}
+            onConfirm={() => submitRegistro(true)}
+          />
+        )}
         {editingReg && (
           <EditModal
             reg={editingReg}
             responsablesList={responsablesList}
+            agentesList={agentesList}
             onSave={handleEditSave}
             onCancel={() => setEditingReg(null)}
           />

@@ -2,6 +2,7 @@ import {
   getCitasDelDia,
   getRecentRegistrations,
   getResponsables,
+  getAgentes,
   getUserGateOptions,
   getUserPlants,
 } from "@/app/actions";
@@ -18,8 +19,9 @@ export default async function RegistroPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [responsablesList, plants, gateOptions] = await Promise.all([
+  const [responsablesList, agentesList, plants, gateOptions] = await Promise.all([
     getResponsables(),
+    getAgentes(),
     getUserPlants(),
     getUserGateOptions(),
   ]);
@@ -49,6 +51,7 @@ export default async function RegistroPage() {
       initialPlants={plants}
       initialGateOptions={gateOptions}
       initialResponsablesList={responsablesList}
+      initialAgentesList={agentesList}
       initialRecentRegistrations={records}
       initialRecentTotal={total}
       initialCitas={citas}

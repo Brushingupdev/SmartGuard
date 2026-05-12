@@ -3,14 +3,13 @@ import CitasDelDia from "@/components/CitasDelDia";
 import PlacaInput from "@/components/PlacaInput";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle,
   AlertTriangle,
   Building2,
   ChevronDown,
   ClipboardList,
   CloudUpload,
   Package,
-  User,
+  Shield,
 } from "lucide-react";
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import type { CitaRow, RecentRegistration } from "./types";
@@ -34,6 +33,7 @@ interface RegistroFormPanelProps {
   citas: CitaRow[];
   liveTime: string;
   responsablesList: string[];
+  agentesList: string[];
   values: RegistroFormValues;
   duplicateWarning: RecentRegistration | null;
   isPending: boolean;
@@ -46,10 +46,11 @@ interface RegistroFormPanelProps {
   onResponsableChange: (value: string) => void;
   onAgenteChange: (value: string) => void;
   onNoteChange: (value: string) => void;
-  onHoraCitaChange: (value: string) => void;
   onVehicleSelect: (value: string) => Promise<void> | void;
   onToast: (message: string, durationMs?: number) => void;
   onRefresh: () => void;
+  onClear?: () => void;
+  showCitasPanel?: boolean;
 }
 
 function SelectField({
@@ -58,22 +59,27 @@ function SelectField({
   value,
   onChange,
   disabled,
+  icon: Icon,
 }: {
   label: string;
   options: { value: string; label: string }[];
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <div className="sg-field">
-      <label className="sg-label">{label}</label>
+      <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">{label}</label>
       <div className="relative">
+        {Icon ? (
+          <Icon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+        ) : null}
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`sg-select appearance-none pr-10 ${disabled ? "cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60" : ""}`}
+          className={`sg-select h-10 appearance-none ${Icon ? "pl-9" : "pl-3"} pr-10 text-[13px] ${disabled ? "cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60" : ""}`}
         >
           {options.map((option) => (
             <option key={option.value} value={option.value} className="bg-[var(--sg-panel-2)]">
@@ -165,7 +171,7 @@ function AutocompleteInput({
 
   return (
     <div ref={containerRef} className="relative">
-      <Icon className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
+      <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
       <input
         type="text"
         value={value}
@@ -177,9 +183,9 @@ function AutocompleteInput({
         placeholder={placeholder}
         required={required}
         autoComplete="off"
-        className="sg-input w-full pl-10 uppercase"
+        className="sg-input h-10 w-full pl-9 text-[13px] uppercase"
       />
-      {open && (
+      {open ? (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[200px] overflow-y-auto border border-[var(--sg-accent)] bg-[var(--sg-panel)] shadow-[4px_4px_0_rgba(196,192,180,0.1)]">
           {suggestions.map((suggestion, index) => (
             <button
@@ -196,7 +202,7 @@ function AutocompleteInput({
             </button>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -209,6 +215,7 @@ export default function RegistroFormPanel({
   citas,
   liveTime,
   responsablesList,
+  agentesList,
   values,
   duplicateWarning,
   isPending,
@@ -221,28 +228,31 @@ export default function RegistroFormPanel({
   onResponsableChange,
   onAgenteChange,
   onNoteChange,
-  onHoraCitaChange,
   onVehicleSelect,
   onToast,
   onRefresh,
+  onClear,
+  showCitasPanel = true,
 }: RegistroFormPanelProps) {
   return (
     <div className="flex flex-col gap-6">
-      <CitasDelDia
-        plant={plant}
-        citas={citas}
-        onToast={onToast}
-        onRefresh={onRefresh}
-      />
+      {showCitasPanel ? (
+        <CitasDelDia
+          plant={plant}
+          citas={citas}
+          onToast={onToast}
+          onRefresh={onRefresh}
+        />
+      ) : null}
 
       <section className="sg-panel p-5">
-        <div className="mb-5 flex items-center justify-between border-b border-[var(--sg-line)] pb-4">
+        <div className="mb-4 flex items-center justify-between border-b border-[var(--sg-line)] pb-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center bg-[var(--sg-accent)] text-[var(--sg-canvas)]">
-              <ClipboardList className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center border border-[var(--sg-accent)] bg-[rgba(200,168,75,0.08)] text-[var(--sg-accent)]">
+              <ClipboardList className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="sg-font-display text-[18px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+              <h2 className="sg-font-display text-[16px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
                 Nuevo Ingreso
               </h2>
               <p className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
@@ -256,18 +266,38 @@ export default function RegistroFormPanel({
         </div>
 
         <form onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid gap-4 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
-            <div className="mb-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
+          <div className="grid gap-4 border-t border-[var(--sg-line)] pt-4">
+            <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
               Datos del Vehículo
             </div>
 
-            <PlacaInput
-              value={values.razonSocial}
-              onChange={onRazonSocialChange}
-              placeholder="TRANSP. PIMENTEL C8E-819"
-              autoFocus
-              onSelect={onVehicleSelect}
-            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="sg-field">
+                <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Razón social / Vehículo *</label>
+                <PlacaInput
+                  value={values.razonSocial}
+                  onChange={onRazonSocialChange}
+                  placeholder="ANSP. PIMENTEL C8E-819"
+                  autoFocus
+                  onSelect={onVehicleSelect}
+                  compact
+                  hideLabel
+                />
+              </div>
+
+              <div className="sg-field">
+                <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Empresa destino / Cliente *</label>
+                <AutocompleteInput
+                  icon={Building2}
+                  value={values.empresa}
+                  onChange={onEmpresaChange}
+                  placeholder="FAB. DE CHOCOLATES LA IBERICA SA"
+                  field="empresa"
+                  required
+                />
+              </div>
+            </div>
+
             {duplicateWarning ? (
               <div className="flex items-center gap-3 border-l-[3px] border-[var(--sg-warn)] bg-[rgba(200,160,75,0.08)] px-4 py-3 text-[12px] text-[var(--sg-warn)]">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -276,78 +306,57 @@ export default function RegistroFormPanel({
                   <strong className="text-[var(--sg-ink)]">{duplicateWarning.time}</strong>. Verifica antes de continuar.
                 </div>
               </div>
-            ) : (
-              <p className="-mt-2 text-[10px] text-[var(--sg-muted)]">
-                Incluye nombre de empresa transportista y placa al final
-              </p>
-            )}
+            ) : null}
 
-            <div className="sg-field">
-              <label className="sg-label">Empresa Destino / Cliente *</label>
-              <AutocompleteInput
-                icon={Building2}
-                value={values.empresa}
-                onChange={onEmpresaChange}
-                placeholder="Ej: FAB. DE CHOCOLATES LA IBERICA SA"
-                field="empresa"
-                required
-              />
-            </div>
+            <p className="text-[10px] text-[var(--sg-muted)]">
+              Incluye nombre de empresa transportista y placa al final
+            </p>
 
-            {plantLocked ? (
-              <div className="sg-field">
-                <label className="sg-label flex items-center gap-2">
-                  Sede / Puerta
-                  <span className="sg-font-mono border border-[var(--sg-line)] bg-[var(--sg-panel-3)] px-2 py-0.5 text-[8px] uppercase text-[var(--sg-muted)]">
-                    Asignado
-                  </span>
-                </label>
-                <div className="relative">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {plantLocked ? (
+                <div className="sg-field">
+                  <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Sede / Puerta *</label>
                   <input
                     type="text"
                     value={formatGateLabelFromPlant(plant, gateOptions)}
                     disabled
-                    className="sg-input cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60"
+                    className="sg-input h-10 cursor-not-allowed bg-[var(--sg-panel-3)] text-[13px] opacity-60"
                   />
                 </div>
-              </div>
-            ) : (
-              <SelectField
-                label="Sede / Puerta"
-                value={plant}
-                onChange={onPlantChange}
-                options={plants.map((currentPlant) => ({
-                  value: currentPlant,
-                  label: formatGateLabelFromPlant(currentPlant, gateOptions),
-                }))}
-              />
-            )}
-          </div>
+              ) : (
+                <SelectField
+                  label="Sede / Puerta *"
+                  value={plant}
+                  onChange={onPlantChange}
+                  icon={Building2}
+                  options={plants.map((currentPlant) => ({
+                    value: currentPlant,
+                    label: formatGateLabelFromPlant(currentPlant, gateOptions),
+                  }))}
+                />
+              )}
 
-          <div className="grid gap-4 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
-            <div className="mb-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
-              Clasificación
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <SelectField
-                label="Tipo"
-                value={values.type}
-                onChange={onTypeChange}
-                options={[
-                  { value: "Proveedor", label: "Proveedor" },
-                  { value: "Propio", label: "Propio" },
+                <SelectField
+                  label="Tipo *"
+                  value={values.type}
+                  onChange={onTypeChange}
+                  icon={Package}
+                  options={[
+                    { value: "Proveedor", label: "Proveedor" },
+                    { value: "Propio", label: "Propio" },
                   { value: "Cliente", label: "Cliente" },
                   { value: "Otro", label: "Otro" },
                 ]}
               />
-              <SelectField
-                label="Operación"
-                value={values.tipoOperacion}
-                onChange={onTipoOperacionChange}
-                options={[
-                  { value: "Carga", label: "Carga" },
-                  { value: "Descarga", label: "Descarga" },
+
+                <SelectField
+                  label="Operación *"
+                  value={values.tipoOperacion}
+                  onChange={onTipoOperacionChange}
+                  icon={ChevronDown}
+                  options={[
+                    { value: "Carga", label: "Carga" },
+                    { value: "Descarga", label: "Descarga" },
                   { value: "Visita", label: "Visita" },
                   { value: "Mantenimiento", label: "Mantenimiento" },
                   { value: "Traslado entre plantas", label: "Traslado" },
@@ -357,14 +366,14 @@ export default function RegistroFormPanel({
             </div>
           </div>
 
-          <div className="grid gap-4 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
-            <div className="mb-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
+          <div className="grid gap-4 border-t border-[var(--sg-line)] pt-4">
+            <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
               Responsables
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="sg-field">
-                <label className="sg-label text-[10px]">Responsable de Almacén</label>
+                <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Responsable de almacén *</label>
                 <div className="relative">
                   <Package className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
                   {responsablesList.length > 0 ? (
@@ -372,7 +381,7 @@ export default function RegistroFormPanel({
                       <select
                         value={values.responsable}
                         onChange={(event) => onResponsableChange(event.target.value)}
-                        className="sg-select appearance-none pl-9 pr-8 text-[12px]"
+                        className="sg-select h-10 appearance-none pl-9 pr-8 text-[13px]"
                       >
                         {responsablesList.map((responsable) => (
                           <option key={responsable} value={responsable} className="bg-[var(--sg-panel-2)]">
@@ -383,98 +392,101 @@ export default function RegistroFormPanel({
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
                     </>
                   ) : (
-                    <input
-                      type="text"
-                      value={values.responsable}
-                      onChange={(event) => onResponsableChange(event.target.value.toUpperCase())}
-                      placeholder="Nombre del responsable"
-                      className="sg-input pl-9 text-[12px] uppercase"
-                    />
-                  )}
+                      <input
+                        type="text"
+                        value={values.responsable}
+                        onChange={(event) => onResponsableChange(event.target.value.toUpperCase())}
+                        placeholder="Nombre del responsable"
+                        className="sg-input h-10 pl-9 text-[13px] uppercase"
+                      />
+                    )}
                 </div>
               </div>
 
               <div className="sg-field">
-                <label className="sg-label text-[10px]">Agente Responsable</label>
+                <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Agente responsable *</label>
                 <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  <input
-                    type="text"
-                    value={values.agente}
-                    onChange={(event) => onAgenteChange(event.target.value.toUpperCase())}
-                    placeholder="Nombre del guardia"
-                    className="sg-input pl-9 text-[12px] uppercase"
-                  />
+                  <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                  {agentesList.length > 0 ? (
+                    <>
+                      <select
+                        value={values.agente}
+                        onChange={(event) => onAgenteChange(event.target.value)}
+                        className="sg-select h-10 appearance-none pl-9 pr-8 text-[13px]"
+                      >
+                        {agentesList.map((agente) => (
+                          <option key={agente} value={agente} className="bg-[var(--sg-panel-2)]">
+                            {agente}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                    </>
+                  ) : (
+                    <input
+                      type="text"
+                      value={values.agente}
+                      onChange={(event) => onAgenteChange(event.target.value.toUpperCase())}
+                      placeholder="SUPERVISOR"
+                      className="sg-input h-10 pl-9 text-[13px] uppercase"
+                    />
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3">
             <div className="sg-field">
-              <label className="sg-label text-[10px]">Observación</label>
-              <textarea
+              <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Observación</label>
+              <input
+                type="text"
                 value={values.note}
                 onChange={(event) => onNoteChange(event.target.value)}
-                placeholder="Opcional..."
-                className="sg-textarea min-h-[60px] text-[12px]"
+                placeholder="Agrega información relevante (opcional)..."
+                className="sg-input h-10 text-[13px]"
               />
-            </div>
-
-            <div className="sg-field">
-              <label className="sg-label flex items-center gap-2 text-[10px]">
-                Hora de Cita
-                <span className="sg-font-mono border border-[var(--sg-line)] bg-[var(--sg-panel-3)] px-1.5 py-px text-[7px] uppercase text-[var(--sg-muted)]">
-                  Opcional
-                </span>
-              </label>
-              <input
-                type="time"
-                value={values.horaCita}
-                onChange={(event) => onHoraCitaChange(event.target.value)}
-                className="sg-input text-[12px]"
-              />
-              <p className="mt-1 text-[9px] text-[var(--sg-muted)]">
-                Formato 24h — 2 PM = 14:00
-              </p>
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={isPending || duplicateWarning !== null}
-            className={`sg-btn sg-btn-accent mt-2 h-12 w-full justify-center text-[14px] font-bold tracking-[0.06em] ${
-              isPending || duplicateWarning ? "cursor-not-allowed opacity-70" : ""
-            }`}
-          >
-            {isPending ? (
-              <span className="flex items-center gap-2">
-                <CloudUpload className="h-4 w-4" />
-                Registrando...
-              </span>
-            ) : duplicateWarning ? (
-              <span className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Verificar duplicado
-              </span>
-            ) : (
-              <>
-                <CloudUpload className="h-4 w-4" />
-                Registrar Ingreso
-              </>
-            )}
-          </button>
+          <div className="mt-2 flex items-center gap-3 border-t border-[var(--sg-line)] pt-4">
+            <button
+              type="submit"
+              disabled={isPending}
+              className={`sg-btn sg-btn-accent h-10 min-w-[200px] justify-center px-5 text-[12px] font-bold tracking-[0.1em] ${
+                isPending ? "cursor-not-allowed opacity-70" : ""
+              }`}
+            >
+              {isPending ? (
+                <span className="flex items-center gap-2">
+                  <CloudUpload className="h-4 w-4" />
+                  Registrando...
+                </span>
+              ) : duplicateWarning ? (
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Revisar duplicado y confirmar
+                </span>
+              ) : (
+                <>
+                  <CloudUpload className="h-4 w-4" />
+                  Registrar ingreso
+                </>
+              )}
+            </button>
+
+            {onClear ? (
+              <button
+                type="button"
+                onClick={onClear}
+                className="ml-auto sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-accent)]"
+              >
+                Limpiar
+              </button>
+            ) : null}
+          </div>
         </form>
       </section>
-
-      <div className="border border-[var(--sg-line)] bg-[#1B1C1D] p-5">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 shrink-0 text-[#D1B143]" />
-          <div className="text-[13px] leading-relaxed text-[var(--sg-muted)]">
-            <strong className="font-bold text-[#E5E5E5]">Flujo de 3 pasos:</strong> Registrar ingreso → Marcar atención → Confirmar entrega de documentos.
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
