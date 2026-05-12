@@ -23,7 +23,12 @@ type DeletedCompany    = NonNullable<AdminOverview>["deletedCompanies"][number];
 const EMPTY_COMPANIES: AdminCompany[]   = [];
 const EMPTY_DELETED:   DeletedCompany[] = [];
 
-const ONBOARDING_URL = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/onboarding`;
+// Resolved after mount so window.location.origin is available
+function getOnboardingUrl(): string {
+  const base = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (typeof window !== "undefined" ? window.location.origin : "");
+  return `${base}/onboarding`;
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -79,7 +84,7 @@ function PlanBadge({ plan, daysLeft, expired }: { plan: string; daysLeft: number
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-function EmptyState({ onCopyLink }: { onCopyLink: () => void }) {
+function EmptyState({ onCopyLink, onboardingUrl }: { onCopyLink: () => void; onboardingUrl: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -111,7 +116,7 @@ function EmptyState({ onCopyLink }: { onCopyLink: () => void }) {
       {/* URL display */}
       <div className="flex items-center gap-0 border border-[var(--sg-line)] mt-6 mb-4 max-w-lg w-full">
         <span className="flex-1 px-4 py-3 sg-font-mono text-[11px] text-[var(--sg-muted)] truncate text-left">
-          {ONBOARDING_URL}
+          {onboardingUrl}
         </span>
         <button
           onClick={onCopyLink}
@@ -122,7 +127,7 @@ function EmptyState({ onCopyLink }: { onCopyLink: () => void }) {
       </div>
 
       <a
-        href={ONBOARDING_URL}
+        href={onboardingUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] transition-colors"
@@ -159,7 +164,10 @@ export default function AdminPage() {
   const [deletingId,     setDeletingId]     = useState<string | null>(null);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [copied,         setCopied]         = useState(false);
+  const [onboardingUrl,  setOnboardingUrl]  = useState("/onboarding");
   const router = useRouter();
+
+  useEffect(() => { setOnboardingUrl(getOnboardingUrl()); }, []);
 
   const reload = useCallback(async () => {
     const d = await getAdminOverview();
@@ -174,7 +182,7 @@ export default function AdminPage() {
   const deletedCompanies = useMemo(() => data?.deletedCompanies ?? EMPTY_DELETED,   [data?.deletedCompanies]);
 
   const handleCopyLink = useCallback(() => {
-    navigator.clipboard.writeText(ONBOARDING_URL).then(() => {
+    navigator.clipboard.writeText(onboardingUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -300,7 +308,7 @@ export default function AdminPage() {
         </div>
 
       ) : companies.length === 0 ? (
-        <EmptyState onCopyLink={handleCopyLink} />
+        <EmptyState onCopyLink={handleCopyLink} onboardingUrl={onboardingUrl} />
 
       ) : (
         <>

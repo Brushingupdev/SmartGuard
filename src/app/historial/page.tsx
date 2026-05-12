@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getAtenciones, getAtencionesForExport, getHistorialStats, getUserPlants, getUserProfile, getCompaniesMap, getCompanies } from "../actions";
-import { importAtenciones, updateAtencion } from "../actions/atenciones";
+import { importAtenciones, updateAtencion, previewImportAtenciones, type ImportPreview } from "../actions/atenciones";
 import { autoDetectMapping, processRows, PLATFORM_FIELDS, type ExcelRow, type ExcelMapping } from "@/utils/excel-import";
 import { formatGateLabelFromPlant } from "@/lib/gates";
 
@@ -47,12 +47,17 @@ interface HistorialRecord {
   hora_cita?: string | null;
   motivo_demora: string | null;
   espera_min: number | null;
+  demora_cita_min?: number | null;
   tiempo_total_min: number | null;
   segmento_espera: string | null;
   responsable: string | null;
   agente: string | null;
   observacion: string | null;
   es_demora: number | boolean | null;
+}
+
+function getOperationalMetric(record: Pick<HistorialRecord, "demora_cita_min" | "espera_min">): number | null {
+  return record.demora_cita_min ?? record.espera_min ?? null;
 }
 
 function getWaitLabel(wait: number | null) {
@@ -64,7 +69,7 @@ function getWaitLabel(wait: number | null) {
 }
 
 function exportCSV(rows: HistorialRecord[]) {
-  const headers = ["ID", "Fecha", "H.Registro", "H.Atencion", "H.Dev.Docs", "Razon_Social", "Empresa", "Puerta", "Tipo", "Tipo_Operacion", "Motivo_Demora", "Espera_Min", "Tiempo_Total_Min", "Segmento", "Responsable", "Agente", "Observacion"];
+  const headers = ["ID", "Fecha", "H.Registro", "H.Atencion", "H.Dev.Docs", "Razon_Social", "Empresa", "Puerta", "Tipo", "Tipo_Operacion", "Motivo_Demora", "Espera_Planta_Min", "Demora_Cita_Min", "Tiempo_Total_Min", "Segmento", "Responsable", "Agente", "Observacion"];
   const lines = [headers.join(",")];
   for (const r of rows) {
     lines.push([
@@ -72,7 +77,7 @@ function exportCSV(rows: HistorialRecord[]) {
       `"${(r.razon_social ?? "").replace(/"/g, '""')}"`,
       `"${(r.empresa ?? "").replace(/"/g, '""')}"`,
       formatGateLabelFromPlant(r.planta ?? ""), r.tipo ?? "", r.tipo_operacion ?? "", r.motivo_demora ?? "",
-      r.espera_min ?? "", r.tiempo_total_min ?? "", r.segmento_espera ?? "",
+      r.espera_min ?? "", r.demora_cita_min ?? "", r.tiempo_total_min ?? "", r.segmento_espera ?? "",
       r.responsable ?? "", r.agente ?? "",
       `"${(r.observacion ?? "").replace(/"/g, '""')}"`,
     ].join(","));
@@ -98,7 +103,7 @@ function Field({ label, value, mono = false }: { label: string; value: React.Rea
 }
 
 function RecordDetailModal({ record, onClose }: { record: HistorialRecord; onClose: () => void }) {
-  const wl = getWaitLabel(record.espera_min as number | null);
+  const wl = getWaitLabel(getOperationalMetric(record));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -174,14 +179,21 @@ function RecordDetailModal({ record, onClose }: { record: HistorialRecord; onClo
             </div>
             <div className="grid grid-cols-3 gap-4 mb-4">
               <Field label="H. Registro" value={record.h_registro?.substring(0, 5)} mono />
+              <Field label="H. Cita" value={record.hora_cita?.substring(0, 5)} mono />
               <Field label="H. Atención" value={record.h_atencion?.substring(0, 5)} mono />
               <Field label="H. Dev. Docs" value={record.h_dev_docs?.substring(0, 5)} mono />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="flex flex-col gap-0.5">
-                <span className="sg-font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--sg-muted)]">Espera</span>
+                <span className="sg-font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--sg-muted)]">Espera en planta</span>
                 <span className="sg-font-mono text-[20px] font-bold" style={{ color: wl.color }}>
                   {record.espera_min != null ? `${record.espera_min} min` : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="sg-font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--sg-muted)]">Demora sobre cita</span>
+                <span className="sg-font-mono text-[20px] font-bold text-[var(--sg-ink)]">
+                  {record.demora_cita_min != null ? `${record.demora_cita_min} min` : "—"}
                 </span>
               </div>
               <div className="flex flex-col gap-0.5">
@@ -446,6 +458,8 @@ export default function HistorialPage() {
   const [importHeaders,   setImportHeaders]   = useState<string[]>([]);
   const [importRawRows,   setImportRawRows]   = useState<ExcelRow[]>([]);
   const [importResult,    setImportResult]    = useState<{ imported: number } | null>(null);
+  const [importPreview,   setImportPreview]   = useState<ImportPreview | null>(null);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const activeFilters = [plant !== "Todos", segment !== "Todos", !!dateFrom, !!dateTo].filter(Boolean).length;
@@ -520,6 +534,7 @@ export default function HistorialPage() {
     if (!file) return;
     setImportParsing(true);
     setImportResult(null);
+    setImportPreview(null);
     try {
       const XLSX = await import("@e965/xlsx");
       const buffer = await file.arrayBuffer();
@@ -537,6 +552,16 @@ export default function HistorialPage() {
       setImportMapping(mapping);
       setImportValidRows(valid);
       setImportInvalid(invalid);
+
+      // Generar preview automáticamente
+      if (valid.length > 0) {
+        setImportPreviewLoading(true);
+        const previewResult = await previewImportAtenciones(valid);
+        setImportPreviewLoading(false);
+        if (previewResult.preview) {
+          setImportPreview(previewResult.preview);
+        }
+      }
     } catch { alert("No se pudo leer el archivo. Asegúrate de que sea un Excel o CSV válido."); }
     setImportParsing(false);
     if (importFileRef.current) importFileRef.current.value = "";
@@ -600,6 +625,8 @@ export default function HistorialPage() {
     setImportValidRows([]);
     setImportInvalid(0);
     setImportResult(null);
+    setImportPreview(null);
+    setImportPreviewLoading(false);
   };
 
   return (
@@ -704,17 +731,100 @@ export default function HistorialPage() {
                     </div>
                   </div>
 
+                  {/* Preview de importación */}
+                  {importPreviewLoading && (
+                    <div className="flex items-center justify-center gap-2 py-4 text-[var(--sg-muted)]">
+                      <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+                        <RefreshCw className="h-4 w-4" />
+                      </motion.span>
+                      <span className="sg-font-mono text-[10px] uppercase tracking-widest">Analizando datos...</span>
+                    </div>
+                  )}
+
+                  {importPreview && !importPreviewLoading && (
+                    <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4 flex flex-col gap-3">
+                      <p className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] mb-1">Resumen antes de importar</p>
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="sg-font-mono text-[18px] font-bold text-[var(--sg-ink)]">{importPreview.validCount}</span>
+                          <span className="text-[10px] text-[var(--sg-muted)]">filas válidas</span>
+                        </div>
+                        {importPreview.duplicateCount > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="sg-font-mono text-[18px] font-bold text-[var(--sg-warn)]">{importPreview.duplicateCount}</span>
+                            <span className="text-[10px] text-[var(--sg-warn)]">duplicados</span>
+                          </div>
+                        )}
+                        {importPreview.newResponsables.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="sg-font-mono text-[18px] font-bold text-[var(--sg-accent)]">{importPreview.newResponsables.length}</span>
+                            <span className="text-[10px] text-[var(--sg-accent)]">responsables nuevos</span>
+                          </div>
+                        )}
+                        {importPreview.newAgentes.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="sg-font-mono text-[18px] font-bold text-[var(--sg-accent)]">{importPreview.newAgentes.length}</span>
+                            <span className="text-[10px] text-[var(--sg-accent)]">agentes nuevos</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Plantas inválidas */}
+                      {importPreview.invalidPlants.length > 0 && (
+                        <div className="border-l-2 border-[var(--sg-danger)] bg-[rgba(211,92,79,0.06)] px-3 py-2">
+                          <p className="text-[11px] text-[var(--sg-danger)] font-semibold mb-1">
+                            ⚠ Plantas no registradas ({importPreview.invalidPlants.length})
+                          </p>
+                          <p className="text-[10px] text-[var(--sg-muted)] mb-1">
+                            Sedes configuradas: {importPreview.companyPlants.join(", ") || "Ninguna"}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {importPreview.invalidPlants.map(p => (
+                              <span key={p} className="sg-font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--sg-danger)] text-[var(--sg-danger)]">{p}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Responsables nuevos */}
+                      {importPreview.newResponsables.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-[var(--sg-muted)] mb-1">Responsables que se agregarán automáticamente:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {importPreview.newResponsables.map(r => (
+                              <span key={r} className="sg-font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)]">{r}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Agentes nuevos */}
+                      {importPreview.newAgentes.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-[var(--sg-muted)] mb-1">Agentes que se agregarán automáticamente:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {importPreview.newAgentes.map(a => (
+                              <span key={a} className="sg-font-mono text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--sg-accent)] text-[var(--sg-accent)]">{a}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Acciones */}
                   <div className="flex gap-3 pt-2 border-t border-[var(--sg-line)]">
                     <button
-                      onClick={() => { setImportFileName(null); setImportValidRows([]); setImportInvalid(0); }}
+                      onClick={() => { setImportFileName(null); setImportValidRows([]); setImportInvalid(0); setImportPreview(null); }}
                       className="sg-btn sg-btn-ghost sg-btn-sm flex-1"
                     >
                       Cambiar archivo
                     </button>
                     <button
                       onClick={handleImportConfirm}
-                      disabled={importValidRows.length === 0 || importLoading}
+                      disabled={importValidRows.length === 0 || importLoading || importPreviewLoading || (importPreview ? importPreview.invalidPlants.length > 0 : false)}
                       className="sg-btn sg-btn-sm flex-1 flex items-center justify-center gap-2 bg-[var(--sg-accent)] text-[var(--sg-canvas)] disabled:opacity-40"
                     >
                       {importLoading
@@ -752,9 +862,9 @@ export default function HistorialPage() {
       <div className="mb-6 grid grid-cols-2 gap-0 border border-[var(--sg-line)] md:grid-cols-4">
         {[
           { label: "Eventos disponibles",  val: stats ? fmt.format(stats.total) : "—",   suffix: "" },
-          { label: "Espera promedio",       val: stats ? stats.avg.toString() : "—",       suffix: " min" },
+          { label: "Demora promedio",       val: stats ? stats.avg.toString() : "—",       suffix: " min" },
           { label: "Puertas monitoreadas", val: stats ? stats.plants.toString() : "—",    suffix: "" },
-          { label: "Espera máxima",         val: stats ? fmt.format(stats.max) : "—",      suffix: " min" },
+          { label: "Demora máxima",         val: stats ? fmt.format(stats.max) : "—",      suffix: " min" },
         ].map((s, i) => (
           <div
             key={s.label}
@@ -910,9 +1020,9 @@ export default function HistorialPage() {
                   <button
                     onClick={toggleSort}
                     className="inline-flex items-center gap-1.5 hover:text-[var(--sg-ink)] transition-colors"
-                    title={!sortByEspera ? "Ordenar por espera ↓" : sortDir === "desc" ? "Ordenar por espera ↑" : "Quitar orden"}
+                    title={!sortByEspera ? "Ordenar por demora ↓" : sortDir === "desc" ? "Ordenar por demora ↑" : "Quitar orden"}
                   >
-                    Espera
+                    Demora
                     {!sortByEspera
                       ? <ArrowUpDown className="h-3 w-3 text-[var(--sg-muted)]" />
                       : sortDir === "desc"
@@ -928,7 +1038,7 @@ export default function HistorialPage() {
             </thead>
             <tbody>
               {records.map((r, i) => {
-                const wl = getWaitLabel(r.espera_min as number | null);
+                const wl = getWaitLabel(getOperationalMetric(r));
                 return (
                   <motion.tr
                     key={r.id}
@@ -963,7 +1073,7 @@ export default function HistorialPage() {
                     </td>
                     <td>
                       <span className="sg-font-mono text-[12px] font-bold" style={{ color: wl.color }}>
-                        {r.espera_min != null ? `${r.espera_min} min` : "—"}
+                        {getOperationalMetric(r) != null ? `${getOperationalMetric(r)} min` : "—"}
                       </span>
                     </td>
                     <td className="sg-mono text-[11px] text-[var(--sg-muted)]">
