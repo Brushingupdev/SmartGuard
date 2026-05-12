@@ -2,23 +2,34 @@
 
 import AppLayout from "@/components/AppLayout";
 import DashboardKPICard from "@/components/DashboardKPICard";
-import TimelineDia from "@/components/TimelineDia";
-import HeatmapDemoras from "@/components/HeatmapDemoras";
 import CausasTop from "@/components/CausasTop";
 import RankingPlantas from "@/components/RankingPlantas";
+import TimelineDia from "@/components/TimelineDia";
 import ExportPDFButton from "@/components/ExportPDFButton";
-import { getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
+import { getDashboardStats, getDashboardTrends } from "@/app/actions";
 import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { AlertTriangle, BarChart3, ChevronDown, Clock, TrendingUp, TrendingDown } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  ListChecks,
+  UsersRound,
+  TrendingUp,
+  TrendingDown,
+  PieChart as PieChartIcon,
+} from "lucide-react";
 import type {
   DashboardKpis,
   DashboardFlowRow,
   DashboardEvent,
   DashboardZone,
   DashboardAlert,
-  HeatmapCell,
+  DashboardTopProvider,
 } from "@/types/dashboard";
 import {
   Bar,
@@ -29,6 +40,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  PieChart,
+  Pie,
 } from "recharts";
 
 interface ChartTooltipProps {
@@ -65,6 +78,29 @@ function formatTooltipLabel(label: string, timeframe: string): string {
   if (timeframe === "Día") return `${label}:00 – ${label}:59`;
   if (/^\d{4}$/.test(timeframe)) return MONTHS[parseInt(label) - 1] ?? label;
   return `Día ${label}`;
+}
+
+
+function alertToneClasses(tone: DashboardAlert["tone"]): { border: string; text: string; soft: string } {
+  if (tone === "warn") {
+    return {
+      border: "var(--sg-warn)",
+      text: "var(--sg-warn)",
+      soft: "rgba(212,134,74,0.08)",
+    };
+  }
+  if (tone === "ok") {
+    return {
+      border: "var(--sg-success)",
+      text: "var(--sg-success)",
+      soft: "rgba(107,189,138,0.08)",
+    };
+  }
+  return {
+    border: "var(--sg-danger)",
+    text: "var(--sg-danger)",
+    soft: "rgba(211,92,79,0.08)",
+  };
 }
 
 function ChartTooltip({ active, payload, label, timeframe = "Día" }: ChartTooltipProps) {
@@ -117,7 +153,7 @@ export default function DashboardClient({
   const [zones, setZones]                   = useState<DashboardZone[]>(initialStats.zones);
   const [alerts, setAlerts]                 = useState<DashboardAlert[]>(initialStats.alerts);
   const [delayReasons, setDelayReasons]     = useState<{ motivo: string; count: number }[]>(initialStats.delayReasons ?? []);
-  const [heatmapData, setHeatmapData]       = useState<HeatmapCell[]>(initialHeatmapData);
+  const [topProvider, setTopProvider]       = useState<DashboardTopProvider | null>(initialStats.topProvider ?? null);
   const [loading, setLoading]               = useState(false);
   const [error, setError]                   = useState<string | null>(null);
   const [lastRefresh, setLastRefresh]       = useState<Date | null>(new Date(initialLastRefreshAt));
@@ -125,27 +161,38 @@ export default function DashboardClient({
   const [trends, setTrends]                 = useState<DashboardTrendState>(initialTrends);
   const intervalRef                         = useRef<ReturnType<typeof setInterval> | null>(null);
   const reqIdRef                            = useRef(0);
-  const heatmapReqIdRef                     = useRef(0);
   const statsBootstrappedRef                = useRef(false);
-  const heatmapBootstrappedRef              = useRef(false);
 
   const fetchStats = useCallback(async (plant: string, timeframe: string, silent = false, id: number) => {
     if (silent) setRefreshing(true); else { setLoading(true); setError(null); }
     try {
-      const [data, trendData] = await Promise.all([
+      const [statsResult, trendsResult] = await Promise.allSettled([
         getDashboardStats(plant, timeframe),
-        silent ? null : getDashboardTrends(plant, timeframe),
+        silent ? Promise.resolve(null) : getDashboardTrends(plant, timeframe),
       ]);
       if (id !== reqIdRef.current) return;
-      if (data) {
+
+      if (statsResult.status === "fulfilled" && statsResult.value) {
+        const data = statsResult.value;
         setKpis(data.kpis);
         setRecentEvents(data.events);
         setFlowData(data.flowData);
         setZones(data.zones);
         setAlerts(data.alerts);
         setDelayReasons(data.delayReasons ?? []);
+        setTopProvider(data.topProvider ?? null);
+      } else {
+        throw statsResult.status === "rejected"
+          ? statsResult.reason
+          : new Error("No se pudo obtener el resumen del dashboard");
       }
-      if (trendData) setTrends(trendData.trend);
+
+      if (trendsResult.status === "fulfilled" && trendsResult.value) {
+        setTrends(trendsResult.value.trend);
+      } else if (!silent) {
+        setTrends({ ok: null, deny: null, total: null, puntualidad: null });
+      }
+
       setLastRefresh(new Date());
       setError(null);
     } catch (err) {
@@ -164,24 +211,6 @@ export default function DashboardClient({
     const clockId = setInterval(tick, 1000);
     return () => clearInterval(clockId);
   }, []);
-
-  // Heatmap: recarga cuando cambia la planta (no en cada tick de 60s)
-  useEffect(() => {
-    if (!heatmapBootstrappedRef.current) {
-      heatmapBootstrappedRef.current = true;
-      return;
-    }
-    const id = ++heatmapReqIdRef.current;
-    getDashboardHeatmap(selectedPlant)
-      .then((data) => {
-        if (id === heatmapReqIdRef.current) setHeatmapData(data);
-      })
-      .catch((err) => {
-        if (id === heatmapReqIdRef.current) {
-          setError(err instanceof Error ? err.message : "Error al cargar mapa de calor");
-        }
-      });
-  }, [selectedPlant]);
 
   useEffect(() => {
     if (!statsBootstrappedRef.current) {
@@ -210,6 +239,63 @@ export default function DashboardClient({
       : formatGateLabelFromPlant(selectedPlant, gateOptions);
   const encodedPlant = encodeURIComponent(selectedPlant);
   const encodedTimeframe = encodeURIComponent(selectedTimeframe);
+
+  const sparkSeries = flowData.length > 1
+    ? {
+        ok:    flowData.map(r => r.ok),
+        warn:  flowData.map(r => r.warn),
+        deny:  flowData.map(r => r.deny),
+        total: flowData.map(r => r.ok + r.warn + r.deny),
+      }
+    : {
+        ok:    [kpis.ok    || 1],
+        warn:  [kpis.warn  || 1],
+        deny:  [kpis.deny  || 1],
+        total: [kpis.total || 1],
+      };
+
+  const kpiCards = [
+    {
+      label: "A tiempo",
+      value: kpis.ok,
+      accent: "var(--sg-success)",
+      sub: "< 30 min",
+      trend: trends.ok,
+    },
+    {
+      label: "En revisión",
+      value: kpis.warn,
+      accent: "var(--sg-warn)",
+      sub: "30 - 45 min",
+    },
+    {
+      label: "Con demora",
+      value: kpis.deny,
+      accent: "var(--sg-danger)",
+      sub: "> 45 min",
+      trend: trends.deny,
+      trendInverse: true,
+    },
+    {
+      label: "En proceso",
+      value: kpis.pending,
+      accent: "#4f8df7",
+      sub: "Sin atención",
+    },
+    {
+      label: "Anticipado",
+      value: kpis.anticipado ?? 0,
+      accent: "transparent",
+      sub: "Antes de cita",
+    },
+    {
+      label: "Total atenciones",
+      value: kpis.total,
+      accent: "transparent",
+      sub: `${puntualidad ?? 0}% a tiempo`,
+      trend: trends.total,
+    },
+  ];
 
   return (
     <AppLayout>
@@ -300,7 +386,7 @@ export default function DashboardClient({
                 }}
                 className={`h-[24px] min-w-[76px] border-l border-[var(--sg-line)] bg-transparent px-2 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
                   /^\d{4}$/.test(selectedTimeframe)
-                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    ? "text-[var(--sg-ink)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
                 }`}
               >
@@ -335,7 +421,7 @@ export default function DashboardClient({
             </div>
           )}
 
-          <div className="flex flex-col items-end">
+          <div className="hidden xl:flex flex-col items-end">
             <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
               {new Date().toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
             </span>
@@ -346,99 +432,68 @@ export default function DashboardClient({
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        {/* ───────── MAIN ───────── */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <span className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">Resumen global</span>
+          {loading ? (
+            <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-warn)]">Actualizando...</span>
+          ) : (
+            <>
+              <span className="sg-font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--sg-success)]">{puntualidad ?? 0}% A tiempo</span>
+              {trends.total != null && (
+                <span className={`flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-[0.16em] ${trends.total > 0 ? 'text-[var(--sg-success)]' : 'text-[var(--sg-danger)]'}`}>
+                  {trends.total > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {trends.total > 0 ? "+" : ""}{trends.total}% vs período anterior
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <ExportPDFButton plant={selectedPlant} timeframe={selectedTimeframe} kpis={kpis} puntualidad={puntualidad} />
+        </div>
+      </div>
+
+      <section className={`grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-4 ${loading ? "opacity-80" : ""}`}>
+        {kpiCards.map((card) => (
+          <DashboardKPICard key={card.label} {...card} />
+        ))}
+      </section>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="flex flex-col gap-5">
-
-          {/* KPIs v2 — con trends */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="sg-slabel">
-                Resumen {selectedLabel}
-                {!loading && (
-                  <span className="ml-3 text-[var(--sg-muted)]">
-                    {puntualidad !== null && <span className="text-[var(--sg-success)]">{puntualidad}% a tiempo</span>}
-                    {trends.total !== null && (
-                      <span className={`ml-2 ${trends.total >= 0 ? 'text-[var(--sg-success)]' : 'text-[var(--sg-danger)]'}`}>
-                        {trends.total >= 0 ? <TrendingUp className="inline h-3 w-3" /> : <TrendingDown className="inline h-3 w-3" />}
-                        {' '}{trends.total > 0 ? '+' : ''}{trends.total}% vs período anterior
-                      </span>
-                    )}
-                  </span>
-                )}
-                {loading && <span className="ml-3 text-[var(--sg-warn)]">Actualizando...</span>}
-              </div>
-              <ExportPDFButton plant={selectedPlant} timeframe={selectedTimeframe} kpis={kpis} puntualidad={puntualidad} />
-            </div>
-            <div className={`grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 ${loading ? "opacity-70" : ""}`}>
-              <DashboardKPICard
-                label="A tiempo"
-                value={kpis.ok}
-                sub="< 30 min"
-                accent="var(--sg-success)"
-                trend={trends.ok}
-              />
-              <DashboardKPICard
-                label="En revisión"
-                value={kpis.warn}
-                sub="30 – 45 min"
-                accent="var(--sg-warn)"
-              />
-              <DashboardKPICard
-                label="Con demora"
-                value={kpis.deny}
-                sub="> 45 min"
-                accent="var(--sg-danger)"
-                trend={trends.deny}
-                trendInverse
-              />
-              <DashboardKPICard
-                label="En proceso"
-                value={kpis.pending}
-                sub="Sin atención"
-                accent="var(--sg-info)"
-              />
-              <DashboardKPICard
-                label="Anticipado"
-                value={kpis.anticipado ?? 0}
-                sub="Antes de cita"
-                accent="#3b82f6"
-              />
-              <DashboardKPICard
-                label="Total atenciones"
-                value={kpis.total}
-                sub={puntualidad !== null ? `${puntualidad}% a tiempo` : undefined}
-                accent="var(--sg-accent)"
-                trend={trends.total}
-              />
-            </div>
-          </section>
-
-          {/* Chart */}
           <section className="sg-panel p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="sg-font-display text-[16px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
-                Flujo de acceso — {selectedTimeframe}
-              </div>
-              {flowData.length > 0 && (
-                <div className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
-                  {loading ? "Actualizando..." : `${flowData.reduce((s, d) => s + d.ok + d.warn + d.deny, 0)} atenciones`}
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="sg-font-display text-[16px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
+                    Flujo de acceso — {selectedTimeframe}
+                  </div>
                 </div>
-              )}
+                <div className="mt-2 text-[12px] text-[var(--sg-muted)]">
+                  {selectedLabel} · {flowData.reduce((sum, row) => sum + row.ok + row.warn + row.deny, 0)} registros en el período
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-2 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  Por {selectedTimeframe === "Día" ? "hora" : "segmento"}
+                </div>
+              </div>
             </div>
 
-            <div className="relative h-[240px]">
+            <div className="relative h-[320px]">
               {loading && flowData.length === 0 ? (
-                <div className="w-full h-full animate-pulse bg-[var(--sg-panel-2)]" />
+                <div className="h-full w-full animate-pulse bg-[var(--sg-panel-2)]" />
               ) : flowData.length === 0 ? (
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="flex h-full w-full items-center justify-center">
                   <span className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)]">
                     Sin datos para este período
                   </span>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%" debounce={200}>
-                  <BarChart data={flowData} barCategoryGap={6}>
+                  <BarChart data={flowData} barCategoryGap={8}>
                     <CartesianGrid stroke="rgba(196,192,180,0.06)" vertical={false} />
                     <XAxis
                       dataKey="h"
@@ -455,65 +510,197 @@ export default function DashboardClient({
                       allowDecimals={false}
                     />
                     <Tooltip content={(props) => <ChartTooltip {...props} timeframe={selectedTimeframe} />} cursor={{ fill: "rgba(196,192,180,0.04)" }} />
-                    <Bar dataKey="ok" stackId="a" radius={0} maxBarSize={40}>
-                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-success)" fillOpacity={0.85} />)}
+                    <Bar dataKey="ok" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-success)" fillOpacity={0.88} />)}
                     </Bar>
-                    <Bar dataKey="warn" stackId="a" radius={0} maxBarSize={40}>
-                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-warn)" fillOpacity={0.85} />)}
+                    <Bar dataKey="warn" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-warn)" fillOpacity={0.9} />)}
                     </Bar>
-                    <Bar dataKey="deny" stackId="a" radius={0} maxBarSize={40}>
-                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-danger)" fillOpacity={0.8} />)}
+                    <Bar dataKey="deny" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, i) => <Cell key={i} fill="var(--sg-danger)" fillOpacity={0.88} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
-              {loading && flowData.length > 0 && (
+              {loading && flowData.length > 0 ? (
                 <div className="pointer-events-none absolute inset-0 border border-[var(--sg-line)] bg-[rgba(10,12,11,0.22)]" />
-              )}
+              ) : null}
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-5 border-t border-[var(--sg-line)] pt-3">
+            <div className="mt-4 flex flex-wrap gap-5 border-t border-[var(--sg-line)] pt-4">
               {[
                 { color: "var(--sg-success)", label: "A tiempo (< 30 min)" },
-                { color: "var(--sg-warn)",    label: "Revisión (30–45 min)" },
-                { color: "var(--sg-danger)",  label: "Con demora (> 45 min)" },
-                { color: "#3b82f6",           label: `Anticipado · ${kpis.anticipado ?? 0} atendidos antes de cita` },
-              ].map((l) => (
-                <span key={l.label} className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
-                  <span className="h-2.5 w-2.5" style={{ background: l.color }} />
-                  {l.label}
+                { color: "var(--sg-warn)", label: "Revisión (30-45 min)" },
+                { color: "var(--sg-danger)", label: "Con demora (> 45 min)" },
+                { color: "#4f8df7", label: `Anticipado - ${kpis.anticipado ?? 0} Atendidos antes de cita` },
+              ].map((legend) => (
+                <span key={legend.label} className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]">
+                  <span className="h-2.5 w-2.5" style={{ background: legend.color }} />
+                  {legend.label}
                 </span>
               ))}
             </div>
           </section>
-
-          {/* Event table */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="sg-slabel">Últimos eventos</div>
+        </div>
+        
+        <div className="flex flex-col gap-5">
+          <section className="sg-panel p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[var(--sg-danger)]" />
+                <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                  Alertas activas
+                </span>
+                {alerts.length > 0 ? (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full border border-[var(--sg-danger)] px-1.5 sg-font-mono text-[10px] text-[var(--sg-danger)]">
+                    {alerts.length}
+                  </span>
+                ) : null}
+              </div>
               <Link
-                href="/historial"
-                className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors"
+                href="/alertas"
+                className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)]"
               >
-                Ver historial completo →
+                Ver todas →
               </Link>
             </div>
-            <div className="sg-panel overflow-x-auto">
-              <table className="sg-table min-w-[680px]">
-                <thead>
-                  <tr>
-                    <th>Razón Social</th>
-                    <th>Estado</th>
-                    <th>Empresa</th>
-                    <th>Puerta</th>
-                    <th>Hora</th>
+
+            {alerts.length === 0 ? (
+              <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-8 text-center">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sg-line)] text-[var(--sg-success)]">
+                  <ListChecks className="h-5 w-5" />
+                </div>
+                <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  Sin alertas críticas
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {alerts.map((alert, index) => {
+                  const tone = alertToneClasses(alert.tone);
+                  return (
+                    <div
+                      key={`${alert.title}-${index}`}
+                      className="border-l-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4"
+                      style={{ borderLeftColor: tone.border, background: tone.soft }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="sg-font-mono text-[9px] uppercase tracking-widest" style={{ color: tone.text }}>
+                            {alert.title}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-5 text-[var(--sg-copy)]">
+                            {alert.sub}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <TimelineDia events={recentEvents} />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <section className="sg-panel p-5 flex flex-col justify-between">
+          <div className="mb-4 flex items-center gap-2">
+            <PieChartIcon className="h-4 w-4 text-[var(--sg-accent)]" />
+            <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+              Estado Actual
+            </div>
+          </div>
+          <div className="h-[220px] w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
+                    { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
+                    { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
+                    { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
+                  ].filter(d => d.value > 0)}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {
+                    [
+                      { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
+                      { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
+                      { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
+                      { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
+                    ].filter(d => d.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))
+                  }
+                </Pie>
+                <Tooltip cursor={false} contentStyle={{ backgroundColor: 'var(--sg-panel)', border: '1px solid var(--sg-line)', borderRadius: '0' }} itemStyle={{ color: 'var(--sg-ink)', fontSize: '12px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="sg-font-mono text-[24px] font-bold text-[var(--sg-ink)]">{kpis.total}</span>
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Totales</span>
+            </div>
+          </div>
+        </section>
+
+        <CausasTop causas={delayReasons} totalDemoras={kpis.warn + kpis.deny} />
+        
+        <RankingPlantas
+          plantas={zones
+            .filter((zone) => zone.name !== "Sin planta")
+            .map((zone) => ({
+              name: formatGateLabelFromPlant(zone.name, gateOptions),
+              count: zone.count,
+              pct: zone.pct,
+              tone: zone.tone,
+            }))}
+        />
+      </div>
+
+      <div className="mt-5">
+        <section className="sg-panel overflow-hidden">
+          <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
+            <div>
+              <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                Últimos eventos
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--sg-muted)]">
+                Registros recientes con su estado operativo actual
+              </div>
+            </div>
+            <Link
+              href="/historial"
+              className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors"
+            >
+              Ver historial completo →
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px]">
+              <thead>
+                <tr className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)] border-b border-[var(--sg-line)]">
+                  <th className="py-4 px-5 text-left font-normal">Razón Social</th>
+                  <th className="py-4 px-5 text-left font-normal">Estado</th>
+                  <th className="py-4 px-5 text-left font-normal">Empresa</th>
+                    <th className="py-4 px-5 text-left font-normal">Puerta</th>
+                    <th className="py-4 px-5 text-right font-normal">Hora</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[var(--sg-line)]">
                   {loading && recentEvents.length === 0 ? (
                     [...Array(5)].map((_, i) => (
                       <tr key={`skel-${i}`}>
-                        <td colSpan={5} className="py-3">
+                        <td colSpan={5} className="py-4 px-5">
                           <div className="h-6 w-full animate-pulse bg-[var(--sg-panel-2)]" />
                         </td>
                       </tr>
@@ -524,93 +711,32 @@ export default function DashboardClient({
                         No hay eventos recientes
                       </td>
                     </tr>
-                  ) : recentEvents.map((e, index) => (
-                    <tr key={`${e.time}-${index}`}>
-                      <td>
-                        <span className="font-semibold text-[13px] text-[var(--sg-ink)] truncate block max-w-[200px]" title={e.plate}>
-                          {e.plate}
+                  ) : recentEvents.map((event, index) => (
+                    <tr key={`${event.time}-${index}`} className="hover:bg-[var(--sg-panel-2)] transition-colors">
+                      <td className="py-4 px-5 text-[13px] font-bold text-[var(--sg-ink)]">
+                        {event.plate}
+                      </td>
+                      <td className="py-4 px-5">
+                        <span className={`border border-[var(--sg-line)] px-2 py-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] ${event.status === 'ok' ? 'text-[var(--sg-success)]' : event.status === 'warn' ? 'text-[var(--sg-warn)]' : 'text-[var(--sg-muted)]'}`}>
+                          {event.label}
                         </span>
                       </td>
-                      <td>
-                        <span className={`sg-badge sg-badge-${e.status}`}>{e.label}</span>
+                      <td className="py-4 px-5 text-[12px] text-[var(--sg-copy)] uppercase tracking-wider">
+                        {event.info}
                       </td>
-                      <td className="text-[var(--sg-copy)]">{e.info}</td>
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.08em]">{formatGateLabelFromPlant(e.gate)}</td>
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{e.time}</td>
+                      <td className="py-4 px-5 sg-font-mono text-[11px] text-[var(--sg-muted)] tracking-widest">
+                        {formatGateLabelFromPlant(event.gate)}
+                      </td>
+                      <td className="py-4 px-5 text-right sg-font-mono text-[11px] text-[var(--sg-muted)]">
+                        {event.time}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </section>
-
-          {/* Timeline del día */}
-          <TimelineDia
-            events={recentEvents.map(e => ({
-              time: e.time,
-              plate: e.plate,
-              status: e.status,
-              label: e.label,
-              info: e.info,
-              gate: formatGateLabelFromPlant(e.gate),
-              espera_min: e.espera_min,
-              atencionId: e.id,
-            }))}
-          />
-
-          {/* Causas de demora */}
-          <CausasTop causas={delayReasons} totalDemoras={kpis.deny + kpis.warn} />
-
-          {/* Heatmap de demoras — últimos 6 meses, agrupado por día × hora */}
-          <HeatmapDemoras data={heatmapData} />
         </div>
-
-        {/* ───────── SIDEBAR ───────── */}
-        <aside className="flex flex-col gap-4">
-          <section className="sg-panel p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-[var(--sg-danger)]" />
-              <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
-                Alertas activas
-              </span>
-            </div>
-            {alerts.length === 0 ? (
-              <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-5 text-center">
-                <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center border border-[var(--sg-line)] text-[var(--sg-success)]">
-                  <Clock className="h-4 w-4" />
-                </div>
-                <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-                  Sin demoras críticas
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {alerts.map((alert, index) => (
-                  <div
-                    key={`${alert.title}-${index}`}
-                    className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-3"
-                  >
-                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-danger)]">
-                      {alert.title}
-                    </div>
-                    <div className="mt-1 text-[12px] leading-5 text-[var(--sg-copy)]">
-                      {alert.sub}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-          <RankingPlantas
-            plantas={zones.map(z => ({
-              name: formatGateLabelFromPlant(z.name, gateOptions),
-              count: z.count,
-              pct: z.pct,
-              tone: z.tone,
-            }))}
-          />
-        </aside>
-      </div>
     </AppLayout>
   );
 }
