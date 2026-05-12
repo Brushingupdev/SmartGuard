@@ -67,3 +67,20 @@ CLAUDE.md
 AGENTS.md
 ANALISIS.md
 SESSION_SUMMARY.md
+
+# Demo / presentation files
+DEMO_MATRITECH.html
+DEMO_MATRITECH.md
+SmartGuard-Demo-Matritech.pptx
+SmartGuard_Presentacion.pptx
+generate_presentation.js
+scripts/
+docs/
+memory/
+
+# Data files
+*.xlsx
+*Zone.Identifier
+*.csv
+responsables_almacen.csv
+data_import_ejemplo.xlsx
