@@ -1,13 +1,14 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
-import { getReporteData, getUserPlants, getAvailableYears } from "@/app/actions";
+import { getReporteData, getUserPlants, getAvailableYears, getUserGateOptions, getDashboardTrends } from "@/app/actions";
+import DiagnosticoOperativo from "@/components/DiagnosticoOperativo";
 import { motion } from "framer-motion";
 import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { formatGateLabelFromPlant } from "@/lib/gates";
+import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import {
   Bar,
   BarChart,
@@ -54,6 +55,12 @@ function exportReporteCSV(data: ReporteData, plant: string, timeframe: string, s
     `Empresa,Demoras,Prom. espera (min),Máx. espera (min)`,
     ...data.topCompanies.map((c) =>
       `"${c.empresa.replace(/"/g, '""')}",${c.count},${c.avgEspera},${c.maxEspera}`
+    ),
+    ``,
+    `SLA DE PROVEEDORES`,
+    `Proveedor,Visitas,A tiempo,Demoras,Tasa demora %,Grade,Prom. espera (min)`,
+    ...data.providerSLA.map((p) =>
+      `"${p.empresa.replace(/"/g, '""')}",${p.total},${p.onTime},${p.delayed},${p.rate}%,${p.grade},${p.avgEspera ?? "N/A"}`
     ),
     ``,
     `TIPOS DE OPERACIÓN`,
@@ -108,6 +115,32 @@ function TrendIcon({ trend }: { trend: "up" | "down" | "stable" }) {
   if (trend === "up")   return <span className="sg-font-mono text-[11px] font-bold text-[var(--sg-danger)]" title="Empeorando">↑</span>;
   if (trend === "down") return <span className="sg-font-mono text-[11px] font-bold text-[var(--sg-success)]" title="Mejorando">↓</span>;
   return <span className="sg-font-mono text-[11px] text-[var(--sg-muted)]" title="Estable">—</span>;
+}
+
+function rateColor(rate: number): string {
+  if (rate <= 10) return "var(--sg-success)";
+  if (rate <= 25) return "var(--sg-warn)";
+  if (rate <= 50) return "#e07b3a";
+  return "var(--sg-danger)";
+}
+
+function GradeBadge({ grade }: { grade: string }) {
+  const styles: Record<string, { bg: string; color: string }> = {
+    A: { bg: "rgba(107,189,138,0.15)", color: "var(--sg-success)" },
+    B: { bg: "rgba(107,189,138,0.08)", color: "var(--sg-success)" },
+    C: { bg: "rgba(212,134,74,0.15)",  color: "var(--sg-warn)"    },
+    D: { bg: "rgba(211,92,79,0.12)",   color: "#e07b3a"           },
+    F: { bg: "rgba(211,92,79,0.20)",   color: "var(--sg-danger)"  },
+  };
+  const s = styles[grade] ?? styles.F;
+  return (
+    <span
+      className="sg-font-mono text-[12px] font-bold px-2 py-0.5 inline-block"
+      style={{ background: s.bg, color: s.color }}
+    >
+      {grade}
+    </span>
+  );
 }
 
 const DAYS_SHORT = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -251,17 +284,29 @@ function ReporteContent() {
   const [soloDemoras,    setSoloDemoras]    = useState(false);
   const [compareMode,    setCompareMode]    = useState<string>("Todas");
   const [data,           setData]           = useState<ReporteData | null>(null);
+  const [trends,         setTrends]         = useState({ ok: null as number | null, deny: null as number | null, total: null as number | null, puntualidad: null as number | null });
   const [loading,        setLoading]        = useState(true);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [mounted,   setMounted]   = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting]   = useState(false);
+  const [slaSort, setSlaSort]       = useState<{ col: string; dir: "asc" | "desc" }>({ col: "rate", dir: "desc" });
+  const [gateOptions, setGateOptions] = useState<GateAssignment[]>([]);
+  const sites = useMemo(() => groupGatesBySite(gateOptions).map(s => s.site), [gateOptions]);
 
   const activeFilterCount = selectedSegments.length + (soloDemoras ? 1 : 0);
+
+  const toggleSlaSort = (col: string) =>
+    setSlaSort(prev => ({ col, dir: prev.col === col && prev.dir === "desc" ? "asc" : "desc" }));
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode));
+      const [report, trendsData] = await Promise.all([
+        getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode),
+        getDashboardTrends(plant, timeframe),
+      ]);
+      setData(report);
+      setTrends(trendsData.trend);
     } finally {
       setLoading(false);
     }
@@ -270,15 +315,20 @@ function ReporteContent() {
   useEffect(() => {
     getUserPlants().then(setPlants);
     getAvailableYears().then(setAvailableYears);
+    getUserGateOptions().then(setGateOptions);
   }, []);
   useEffect(() => {
     let active = true;
 
     const bootstrap = async () => {
       try {
-        const report = await getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode);
+        const [report, trendsData] = await Promise.all([
+          getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode),
+          getDashboardTrends(plant, timeframe),
+        ]);
         if (active) {
           setData(report);
+          setTrends(trendsData.trend);
           setLoading(false);
         }
       } catch {
@@ -301,6 +351,17 @@ function ReporteContent() {
 
   const d = data;
 
+  const sortedSLA = useMemo(() => {
+    if (!d?.providerSLA) return [];
+    return [...d.providerSLA].sort((a, b) => {
+      type SLAKey = keyof typeof a;
+      const va = a[slaSort.col as SLAKey] ?? (typeof a[slaSort.col as SLAKey] === "string" ? "" : -1);
+      const vb = b[slaSort.col as SLAKey] ?? (typeof b[slaSort.col as SLAKey] === "string" ? "" : -1);
+      const cmp = typeof va === "string" ? (va as string).localeCompare(vb as string) : (va as number) - (vb as number);
+      return slaSort.dir === "desc" ? -cmp : cmp;
+    });
+  }, [d?.providerSLA, slaSort]);
+
   return (
     <AppLayout>
 
@@ -317,25 +378,27 @@ function ReporteContent() {
           <div className="h-3.5 w-px bg-[var(--sg-line)]" />
           <div className="sg-kicker">Análisis Detallado</div>
 
-          {/* Site comparison buttons */}
-          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
-            {["Todas", "Lomas", "Cajamarquilla"].map((s) => (
-              <button
-                key={s}
-                onClick={() => {
-                  setCompareMode(s);
-                  if (s !== "Todas") setPlant("Todos");
-                }}
-                className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                  compareMode === s
-                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          {/* Site comparison buttons — only shown when company has multiple sites */}
+          {sites.length > 1 && (
+            <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+              {["Todas", ...sites].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setCompareMode(s);
+                    if (s !== "Todas") setPlant("Todos");
+                  }}
+                  className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                    compareMode === s
+                      ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                      : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Gate filter (dropdown) */}
           <div className="relative">
@@ -546,6 +609,40 @@ function ReporteContent() {
       </motion.div>
 
       <div className="flex flex-col gap-6">
+
+        {/* ── Diagnóstico Operativo ───────────────────────────────────── */}
+        {!loading && d && (
+          <DiagnosticoOperativo
+            kpis={{
+              ok: d.ok,
+              warn: d.warn,
+              deny: d.alto + d.critico,
+              pending: d.pending,
+              total: d.total,
+            }}
+            trends={trends}
+            heatmapData={d.heatmap}
+            delayReasons={d.delayReasons}
+            zones={d.plantStats.map((p) => ({
+              name: p.planta,
+              count: p.total,
+              pct: p.pctOnTime ?? 0,
+              tone: ((p.pctOnTime ?? 0) >= 70 ? "ok" : "deny") as "ok" | "deny",
+            }))}
+            topProvider={
+              d.providerSLA.length > 0
+                ? {
+                    empresa: d.providerSLA[0].empresa,
+                    rate: d.providerSLA[0].rate,
+                    total: d.providerSLA[0].total,
+                    delayed: d.providerSLA[0].delayed,
+                  }
+                : null
+            }
+            timeframe={timeframe}
+            reporteHref={`/reporte?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}`}
+          />
+        )}
 
         {/* ── Comparativo plantas + Segmentos ─────────────────────── */}
         <div className="grid gap-6 lg:grid-cols-2">
@@ -870,6 +967,97 @@ function ReporteContent() {
             )}
           </Section>
         </div>
+
+        {/* ── SLA de Proveedores ──────────────────────────────────── */}
+        {!loading && d && d.providerSLA.length > 0 && (
+          <Section title="SLA de Proveedores" sub="tasa de demora por proveedor · mín. 3 visitas · ordenado por peor tasa">
+            <div className="sg-panel overflow-x-auto">
+              <table className="sg-table min-w-[600px]">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    {([
+                      { col: "empresa",   label: "Proveedor"    },
+                      { col: "total",     label: "Visitas"      },
+                      { col: "onTime",    label: "A tiempo"     },
+                      { col: "delayed",   label: "Demoras"      },
+                      { col: "rate",      label: "Tasa demora"  },
+                      { col: "grade",     label: "Grade"        },
+                      { col: "avgEspera", label: "Prom. espera" },
+                    ] as const).map(({ col, label }) => (
+                      <th
+                        key={col}
+                        onClick={() => toggleSlaSort(col)}
+                        className="cursor-pointer select-none hover:text-[var(--sg-ink)] transition-colors"
+                      >
+                        <span className="flex items-center gap-1">
+                          {label}
+                          <span className="sg-font-mono text-[8px] opacity-60">
+                            {slaSort.col === col ? (slaSort.dir === "desc" ? "↓" : "↑") : "↕"}
+                          </span>
+                        </span>
+                      </th>
+                    ))}
+                    <th title="Tendencia 1ª vs 2ª mitad del período">Tend.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedSLA.map((p, i) => (
+                    <motion.tr
+                      key={p.empresa}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.02 }}
+                    >
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{i + 1}</td>
+                      <td>
+                        <span className="font-semibold text-[13px] text-[var(--sg-ink)] block truncate max-w-[200px]" title={p.empresa}>
+                          {p.empresa}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="sg-font-mono text-[12px] text-[var(--sg-copy)]">{p.total}</span>
+                      </td>
+                      <td>
+                        <span className="sg-font-mono text-[12px] text-[var(--sg-success)]">{p.onTime}</span>
+                      </td>
+                      <td>
+                        <span className="sg-font-mono text-[12px] text-[var(--sg-danger)]">{p.delayed}</span>
+                      </td>
+                      <td>
+                        <span className="sg-font-mono text-[14px] font-bold" style={{ color: rateColor(p.rate) }}>
+                          {p.rate}%
+                        </span>
+                      </td>
+                      <td><GradeBadge grade={p.grade} /></td>
+                      <td>
+                        <span className="sg-font-mono text-[12px]" style={{ color: p.avgEspera != null ? esperaColor(p.avgEspera) : "var(--sg-muted)" }}>
+                          {p.avgEspera != null ? `${p.avgEspera} min` : "—"}
+                        </span>
+                      </td>
+                      <td><TrendIcon trend={p.trend} /></td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="border-t border-[var(--sg-line)] px-5 py-3 flex flex-wrap gap-5">
+                {[
+                  { grade: "A", label: "≤ 10% demora" },
+                  { grade: "B", label: "11–25%" },
+                  { grade: "C", label: "26–50%" },
+                  { grade: "D", label: "51–75%" },
+                  { grade: "F", label: "> 75% demora" },
+                ].map(g => (
+                  <span key={g.grade} className="flex items-center gap-2 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    <GradeBadge grade={g.grade} />
+                    {g.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Section>
+        )}
 
         {/* ── Rendimiento agentes ──────────────────────────────────── */}
         <Section title="Rendimiento de Agentes" sub="top 10 por volumen">

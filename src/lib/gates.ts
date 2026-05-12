@@ -63,6 +63,7 @@ export function normalizeGateAssignments(raw: unknown, fallbackPlants: string[] 
 
 export function formatGateLabel(gate: GateAssignment | null | undefined): string {
   if (!gate) return "";
+  if (gate.site === gate.gate) return gate.gate;
   return `${gate.site} · ${gate.gate}`;
 }
 
