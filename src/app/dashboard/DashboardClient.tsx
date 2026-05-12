@@ -402,12 +402,9 @@ export default function DashboardClient({
                         setSelectedTimeframe(e.target.value);
                       }
                     }}
-                    className={`h-[26px] appearance-none border bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors cursor-pointer ${
-                      availableYears.includes(selectedTimeframe)
-                        ? "border-[var(--sg-ink)] text-[var(--sg-ink)] bg-white"
-                        : "border-[var(--sg-line)] text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
-                    }`}
+                    className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
                   >
+                    <option value="" disabled className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">Año</option>
                     {availableYears.map((year) => (
                       <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">{year}</option>
                     ))}
