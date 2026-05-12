@@ -8,6 +8,28 @@ export async function getResponsables(): Promise<string[]> {
   const supabase = await createClient();
   const ctx = await getUserContext();
 
+  // Solo mostrar responsables con actividad en el año en curso
+  const currentYear = new Date().getFullYear();
+
+  let activeQuery = supabase
+    .from("atenciones")
+    .select("responsable")
+    .not("responsable", "is", null)
+    .eq("anio", currentYear)
+    .limit(5000);
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    activeQuery = activeQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { data: activeData } = await activeQuery;
+
+  if (activeData && activeData.length > 0) {
+    const unique = [...new Set(activeData.map((r: { responsable: string }) => r.responsable).filter(Boolean))].sort() as string[];
+    if (unique.length > 0) return unique;
+  }
+
+  // Fallback: tabla responsables completa
   let respQuery = supabase
     .from("responsables")
     .select("nombre")
@@ -19,28 +41,8 @@ export async function getResponsables(): Promise<string[]> {
   }
 
   const { data, error } = await respQuery;
-
   if (!error && data && data.length > 0) {
     return data.map((r: { nombre: string }) => r.nombre);
-  }
-
-  // Fallback: extraer dinámicamente de registros anteriores si la tabla no existe
-  let fallQuery = supabase
-    .from("atenciones")
-    .select("responsable")
-    .not("responsable", "is", null)
-    .order("id", { ascending: false })
-    .limit(300);
-
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    fallQuery = fallQuery.eq("company_id", ctx.companyId);
-  }
-
-  const { data: pastData } = await fallQuery;
-
-  if (pastData && pastData.length > 0) {
-    const unique = Array.from(new Set(pastData.map(r => r.responsable).filter(Boolean)));
-    return unique.slice(0, 15) as string[];
   }
 
   return [];
@@ -102,6 +104,27 @@ export async function getAgentes(): Promise<string[]> {
   const supabase = await createClient();
   const ctx = await getUserContext();
 
+  const currentYear = new Date().getFullYear();
+
+  let activeQuery = supabase
+    .from("atenciones")
+    .select("agente")
+    .not("agente", "is", null)
+    .eq("anio", currentYear)
+    .limit(5000);
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    activeQuery = activeQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { data: activeData } = await activeQuery;
+
+  if (activeData && activeData.length > 0) {
+    const unique = [...new Set(activeData.map((r: { agente: string }) => r.agente).filter(Boolean))].sort() as string[];
+    if (unique.length > 0) return unique;
+  }
+
+  // Fallback: tabla agentes completa
   let query = supabase
     .from("agentes")
     .select("nombre")
@@ -113,28 +136,8 @@ export async function getAgentes(): Promise<string[]> {
   }
 
   const { data, error } = await query;
-
   if (!error && data && data.length > 0) {
     return data.map((r: { nombre: string }) => r.nombre);
-  }
-
-  // Fallback: extraer dinámicamente de registros anteriores
-  let fallQuery = supabase
-    .from("atenciones")
-    .select("agente")
-    .not("agente", "is", null)
-    .order("id", { ascending: false })
-    .limit(300);
-
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    fallQuery = fallQuery.eq("company_id", ctx.companyId);
-  }
-
-  const { data: pastData } = await fallQuery;
-
-  if (pastData && pastData.length > 0) {
-    const unique = Array.from(new Set(pastData.map(r => r.agente).filter(Boolean)));
-    return unique.slice(0, 15) as string[];
   }
 
   return [];
