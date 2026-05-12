@@ -437,25 +437,22 @@ function ReporteContent() {
               </button>
             ))}
             {availableYears.length > 0 && (
-              <select
-                aria-label="Seleccionar año"
-                value={/^\d{4}$/.test(timeframe) ? timeframe : ""}
-                onChange={(event) => {
-                  if (event.target.value) setTimeframe(event.target.value);
-                }}
-                className={`h-[24px] min-w-[60px] border-l border-[var(--sg-line)] bg-transparent px-1.5 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors ${
-                  /^\d{4}$/.test(timeframe)
-                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                }`}
-              >
-                <option value="" className="bg-[var(--sg-panel)] text-[var(--sg-muted)]">Año</option>
+              <>
+                <div className="w-px h-4 bg-[var(--sg-line)] mx-0.5" />
                 {availableYears.map((year) => (
-                  <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                  <button
+                    key={year}
+                    onClick={() => setTimeframe(year)}
+                    className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                      timeframe === year
+                        ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                        : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                    }`}
+                  >
                     {year}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </>
             )}
           </div>
         </div>
