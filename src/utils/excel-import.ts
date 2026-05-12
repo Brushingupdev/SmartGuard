@@ -11,6 +11,7 @@ export interface ImportedExcelRow {
   h_registro: string | null;
   h_atencion: string | null;
   h_dev_docs: string | null;
+  hora_cita: string | null;
   razon_social: string;
   empresa: string | null;
   planta: string | null;
@@ -19,6 +20,7 @@ export interface ImportedExcelRow {
   responsable: string | null;
   agente: string | null;
   espera_min: number | null;
+  demora_cita_min: number | null;
   tiempo_total_min: number | null;
   segmento_espera: string | null;
   segmento_orden: number;
@@ -49,6 +51,7 @@ export const PLATFORM_FIELDS: { key: string; label: string; required: boolean }[
   { key: "tipo_operacion",   label: "Tipo de Operación",       required: false },
   { key: "responsable",      label: "Responsable Almacén",     required: false },
   { key: "agente",           label: "Agente / Guardia",        required: false },
+  { key: "hora_cita",        label: "Hora de Cita",            required: false },
   { key: "h_atencion",       label: "H. Atención",             required: false },
   { key: "h_dev_docs",       label: "H. Dev. Documentos",      required: false },
   { key: "espera_min",       label: "Espera (min)",            required: false },
@@ -93,11 +96,14 @@ export function autoDetectMapping(headers: string[]): ExcelMapping {
     tipo_operacion:   findCol(["tipooperacion", "operacion"]),
     responsable:      findExactOrCol(["responsabledealmacen", "responsablealmacen"], ["responsable"]),
     agente:           findCol(["agente", "guardia"]),
+    hora_cita:        findCol(["horacita", "citaprogramada", "horaturno", "turno", "cita"]),
     h_atencion:       findCol(["hatencion", "atencionalmacen", "atencion"]),
     h_dev_docs:       findCol(["hdevdocs", "docs", "documentos"]),
     espera_min:       findCol(["esperamin", "espera", "tiempoespera"]),
     tiempo_total_min: findCol(["tiempototal", "total", "duracion"]),
-    motivo_demora:    findCol(["motivodemora", "motivo", "causademora", "causa", "razondemora"]),
+    // Patrón estricto: evita capturar "Motivo del Viaje" u otros campos genéricos
+    // "Motivo de Demora" → "motivodedemora", "Motivo Demora" → "motivodemora"
+    motivo_demora:    findCol(["motivodemora", "motivodedemora", "causademora", "razondemora"]),
     observacion:      findCol(["observacion", "obs", "nota"]),
   };
 }
@@ -147,20 +153,30 @@ function parseMinutes(val: ExcelCell): number | null {
   return isNaN(n) ? null : n;
 }
 
+function timeToSeconds(t: string): number {
+  const [h, m, s = 0] = t.split(":").map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
 function minutesBetween(start: string | null, end: string | null): number | null {
   if (!start || !end) return null;
-  const [sh, sm, ss] = start.split(":").map(Number);
-  const [eh, em, es] = end.split(":").map(Number);
-  const delta = (eh * 3600 + em * 60 + es) - (sh * 3600 + sm * 60 + ss);
+  const delta = timeToSeconds(end) - timeToSeconds(start);
   if (delta < 0) return null;
   return Math.round(delta / 60);
 }
 
-function segmentFromWait(esperaMin: number | null) {
-  if (esperaMin === null) return { segmento_espera: null, segmento_orden: 0, es_demora: 0 };
-  if (esperaMin >= 90) return { segmento_espera: "🔴 > 90 min",  segmento_orden: 4, es_demora: 1 };
-  if (esperaMin >= 45) return { segmento_espera: "🟠 45-90 min", segmento_orden: 3, es_demora: 1 };
-  if (esperaMin >= 30) return { segmento_espera: "🟡 30-45 min", segmento_orden: 2, es_demora: 1 };
+/** Returns negative minutes if end is before start (used to detect anticipado) */
+function minutesBetweenSigned(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  return Math.round((timeToSeconds(end) - timeToSeconds(start)) / 60);
+}
+
+function segmentFromDelay(delayMin: number | null, isAnticipado: boolean) {
+  if (isAnticipado) return { segmento_espera: "🔵 Anticipado", segmento_orden: 0, es_demora: 0 };
+  if (delayMin === null) return { segmento_espera: null, segmento_orden: 0, es_demora: 0 };
+  if (delayMin >= 90) return { segmento_espera: "🔴 > 90 min",  segmento_orden: 4, es_demora: 1 };
+  if (delayMin >= 45) return { segmento_espera: "🟠 45-90 min", segmento_orden: 3, es_demora: 1 };
+  if (delayMin >= 30) return { segmento_espera: "🟡 30-45 min", segmento_orden: 2, es_demora: 1 };
   return { segmento_espera: "🟢 < 30 min", segmento_orden: 1, es_demora: 0 };
 }
 
@@ -222,16 +238,42 @@ export function transformRow(
   const razon_social = get("razon_social") ? String(get("razon_social")).toUpperCase().trim() : null;
   if (!fecha || !razon_social) return null;
 
-  const h_registro = parseExcelTime(get("h_registro"));
-  const h_atencion = parseExcelTime(get("h_atencion"));
-  const h_dev_docs = parseExcelTime(get("h_dev_docs"));
-  const empresa = get("empresa") ? String(get("empresa")).toUpperCase().trim() : null;
-  const observacion = get("observacion") ? String(get("observacion")).trim() : null;
+  const h_registro   = parseExcelTime(get("h_registro"));
+  const h_atencion   = parseExcelTime(get("h_atencion"));
+  const h_dev_docs   = parseExcelTime(get("h_dev_docs"));
+  const hora_cita    = parseExcelTime(get("hora_cita"));
+  const empresa      = get("empresa") ? String(get("empresa")).toUpperCase().trim() : null;
+  const observacion  = get("observacion") ? String(get("observacion")).trim() : null;
   const motivo_demora = get("motivo_demora") ? String(get("motivo_demora")).trim() : null;
   const explicitTipoOperacion = get("tipo_operacion") ? String(get("tipo_operacion")).trim() : null;
-  const espera_min = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
+
+  // ── Tiempos ──────────────────────────────────────────────────────────────
+  const espera_min      = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
   const tiempo_total_min = parseMinutes(get("tiempo_total_min")) ?? minutesBetween(h_registro, h_dev_docs);
-  const { segmento_espera, segmento_orden, es_demora } = segmentFromWait(espera_min);
+
+  // ── Demora vs cita ────────────────────────────────────────────────────────
+  // Si hay hora_cita y h_atencion, calculamos el delta firmado.
+  // Delta < 0  → llegó antes de la cita (anticipado) → demora_cita_min = 0
+  // Delta >= 0 → llegó después de la cita → demora_cita_min = delta en minutos
+  let demora_cita_min: number | null = null;
+  let isAnticipado = false;
+
+  if (hora_cita && h_atencion) {
+    const delta = minutesBetweenSigned(hora_cita, h_atencion);
+    if (delta !== null) {
+      if (delta <= 0) {
+        isAnticipado    = true;
+        demora_cita_min = 0;
+      } else {
+        demora_cita_min = delta;
+      }
+    }
+  }
+
+  // ── Segmentación ─────────────────────────────────────────────────────────
+  // Usa demora_cita_min si existe, si no espera_min (mismo criterio que producción)
+  const segmentBase = demora_cita_min ?? espera_min;
+  const { segmento_espera, segmento_orden, es_demora } = segmentFromDelay(segmentBase, isAnticipado);
 
   const d = new Date(fecha);
   return {
@@ -241,6 +283,7 @@ export function transformRow(
     h_registro,
     h_atencion,
     h_dev_docs,
+    hora_cita,
     razon_social,
     empresa,
     planta:           get("planta")        ? String(get("planta")).trim()                : defaults.planta ?? null,
@@ -249,6 +292,7 @@ export function transformRow(
     responsable:      get("responsable")   ? String(get("responsable")).trim()           : null,
     agente:           get("agente")        ? String(get("agente")).trim()                : null,
     espera_min,
+    demora_cita_min,
     tiempo_total_min,
     segmento_espera,
     segmento_orden,

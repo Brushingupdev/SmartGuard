@@ -86,4 +86,37 @@ describe("excel import", () => {
     expect(valid[0].espera_min).toBeNull();
     expect(valid[0].tiempo_total_min).toBe(60);
   });
+
+  it("calculates demora_cita_min and marks anticipado when atencion is before cita", () => {
+    const headers = ["Fecha", "Razon Social", "H. registro", "Hora Cita", "H. atención almacén"];
+    const mapping = autoDetectMapping(headers);
+
+    expect(mapping.hora_cita).toBe("Hora Cita");
+
+    // Anticipado: atendido 10 min antes de la cita
+    const { valid: anticipado } = processRows(
+      [["07/05/2026", "Transportes ABC", "08:00", "10:00", "09:50"]],
+      headers, mapping,
+    );
+    expect(anticipado[0].hora_cita).toBe("10:00:00");
+    expect(anticipado[0].demora_cita_min).toBe(0);
+    expect(anticipado[0].segmento_espera).toBe("🔵 Anticipado");
+    expect(anticipado[0].es_demora).toBe(0);
+
+    // Con demora: atendido 35 min después de la cita
+    const { valid: conDemora } = processRows(
+      [["07/05/2026", "Transportes XYZ", "08:00", "10:00", "10:35"]],
+      headers, mapping,
+    );
+    expect(conDemora[0].demora_cita_min).toBe(35);
+    expect(conDemora[0].segmento_espera).toBe("🟡 30-45 min");
+    expect(conDemora[0].es_demora).toBe(1);
+  });
+
+  it("does not map unrelated columns to motivo_demora", () => {
+    const headers = ["Fecha", "Razon Social", "Motivo del Viaje", "Motivo de Demora"];
+    const mapping = autoDetectMapping(headers);
+    // "Motivo del Viaje" should NOT match (too broad); "Motivo de Demora" should match
+    expect(mapping.motivo_demora).toBe("Motivo de Demora");
+  });
 });
