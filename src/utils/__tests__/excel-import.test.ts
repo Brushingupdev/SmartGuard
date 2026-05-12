@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoDetectMapping, inferTipoOperacion, prepareExcelImport, processRows } from "../excel-import";
+import { autoDetectMapping, inferTipoOperacion, inferHoraCitaFromObservacion, inferMotivoDemoraFromObservacion, prepareExcelImport, processRows } from "../excel-import";
 
 describe("excel import", () => {
   it("keeps empty leading headers aligned with the source row", () => {
@@ -111,6 +111,53 @@ describe("excel import", () => {
     expect(conDemora[0].demora_cita_min).toBe(35);
     expect(conDemora[0].segmento_espera).toBe("🟡 30-45 min");
     expect(conDemora[0].es_demora).toBe(1);
+  });
+
+  it("infers hora_cita from Observacion text patterns", () => {
+    expect(inferHoraCitaFromObservacion("PROGRAMADO PARA LAS 9:00 AM")).toBe("09:00:00");
+    expect(inferHoraCitaFromObservacion("cita programada para las 09:00 am")).toBe("09:00:00");
+    expect(inferHoraCitaFromObservacion("PROGRAMADO PARA LAS 14:00 HORAS")).toBe("14:00:00");
+    expect(inferHoraCitaFromObservacion("PROGRAMADO 10:30 AM")).toBe("10:30:00");
+    expect(inferHoraCitaFromObservacion("CITA PROGRAMADA PARA LAS 14 HRS")).toBe("14:00:00");
+    expect(inferHoraCitaFromObservacion("PROGRAMADO PARA LAS 11:00 AM")).toBe("11:00:00");
+    // Casos que NO son hora de cita
+    expect(inferHoraCitaFromObservacion("DEMORA EN ATENCION POR MOTIVO DE DESCARGA DE CONTENEDOR")).toBeNull();
+    expect(inferHoraCitaFromObservacion("pernocta en Lomas")).toBeNull();
+    expect(inferHoraCitaFromObservacion(null)).toBeNull();
+  });
+
+  it("infers motivo_demora from Observacion text patterns", () => {
+    expect(inferMotivoDemoraFromObservacion("DEMORA EN ATENCION POR MOTIVO DE DESCARGA DE CONTENEDOR")).toBe("Carga / descarga en proceso");
+    expect(inferMotivoDemoraFromObservacion("motivo de demora por atencion a transportes Pimentel")).toBe("Atención previa a otra unidad");
+    expect(inferMotivoDemoraFromObservacion("SE DEMORA EN LA ATENCION POR MOTIVOS POR PROBLEMAS EN LA EMISION DE GUIAS DE REMISION")).toBe("Documentación incompleta");
+    expect(inferMotivoDemoraFromObservacion("DEMORA EN ATENCION POR MOTIVO DE AUDITORIA")).toBe("Evento externo (simulacro / auditoría)");
+    expect(inferMotivoDemoraFromObservacion("DEMORA EN ATENCION POR MOTIVO DE ESPACIO")).toBe("Rampa ocupada");
+    expect(inferMotivoDemoraFromObservacion("DEMORA EN ATENCION POR MOTIVO DE CARGAMENTO CAMION BPT-898")).toBe("Atención previa a otra unidad");
+    // Casos que NO son motivo de demora
+    expect(inferMotivoDemoraFromObservacion("PROGRAMADO PARA LAS 9:00 AM")).toBeNull();
+    expect(inferMotivoDemoraFromObservacion("NO HAY OBSERVACION")).toBeNull();
+    expect(inferMotivoDemoraFromObservacion("pernocta en Lomas")).toBeNull();
+    expect(inferMotivoDemoraFromObservacion(null)).toBeNull();
+  });
+
+  it("auto-extracts hora_cita and motivo_demora from Observacion when no dedicated column", () => {
+    const headers = ["Fecha", "Razon Social", "H. registro de vehiculo", "H. atención almacén", "Observación"];
+    const mapping = autoDetectMapping(headers);
+
+    // Row with cita in observacion
+    const { valid } = processRows(
+      [["07/05/2026", "TRUCKBRISAS SRL", "12:09:00", "14:02:00", "PROGRAMADO PARA LAS 14:00 HORAS"]],
+      headers, mapping,
+    );
+    expect(valid[0].hora_cita).toBe("14:00:00");
+    expect(valid[0].demora_cita_min).toBe(2); // 14:02 - 14:00 = 2 min
+
+    // Row with motivo in observacion
+    const { valid: v2 } = processRows(
+      [["07/05/2026", "MELAFORM SAC", "09:00:00", "11:30:00", "DEMORA EN ATENCION POR MOTIVO DE DESCARGA DE CONTENEDOR"]],
+      headers, mapping,
+    );
+    expect(v2[0].motivo_demora).toBe("Carga / descarga en proceso");
   });
 
   it("does not map unrelated columns to motivo_demora", () => {

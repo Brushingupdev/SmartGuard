@@ -171,6 +171,74 @@ function minutesBetweenSigned(start: string | null, end: string | null): number 
   return Math.round((timeToSeconds(end) - timeToSeconds(start)) / 60);
 }
 
+/**
+ * Extrae la hora de cita desde el texto libre de Observación.
+ * Detecta patrones como "PROGRAMADO PARA LAS 9:00 AM", "cita programada para las 14 hrs", etc.
+ */
+export function inferHoraCitaFromObservacion(obs: string | null): string | null {
+  if (!obs) return null;
+  // Normalización ligera: solo minúsculas + quitar acentos, conservar espacios y ":"
+  const n = obs.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "");
+
+  // Solo procesar si hay pistas de cita/programación
+  if (!n.includes("programad") && !n.includes("cita") && !n.includes("estaba para las")) return null;
+
+  // Patrones (con espacios preservados): "para las 14:30", "para las 14 hrs", "programado 10:30 am"
+  const timePatterns = [
+    /para las (\d{1,2}):(\d{2})\s*(am|pm|horas?|hrs?)?/i,
+    /programado\s+(\d{1,2}):(\d{2})\s*(am|pm)?/i,
+    /para las (\d{1,2})\s+?(am|pm|horas?|hrs?)/i,
+    /para las (\d{1,2})\s*hrs?/i,
+    /(\d{1,2}):(\d{2})\s*(am|pm)/i,
+  ];
+
+  for (const re of timePatterns) {
+    const m = n.match(re);
+    if (m) {
+      let h   = parseInt(m[1]);
+      const min = m[2] !== undefined ? parseInt(m[2]) : 0;
+      const ampm = (m[3] ?? m[2] ?? "").toLowerCase();
+      if (ampm === "pm" && h < 12) h += 12;
+      if (ampm === "am" && h === 12) h = 0;
+      if (!isNaN(h) && !isNaN(min) && h >= 0 && h <= 23 && min >= 0 && min <= 59) {
+        return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00`;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Mapea texto libre de Observación a los 15 motivos estandarizados de Matritech.
+ * Retorna null si la observación no contiene un motivo de demora identificable.
+ */
+export function inferMotivoDemoraFromObservacion(obs: string | null): string | null {
+  if (!obs) return null;
+  const n = normalizeStr(obs);
+
+  // Filtrar observaciones que no son motivos de demora
+  if (n === "nohayobservacion" || n === "----" || n === "-----" || n === "") return null;
+  if (!n.includes("demora") && !n.includes("motivo") && !n.includes("atencion") && !n.includes("espera")) return null;
+
+  // Mapeo a motivos estandarizados (orden importa: más específico primero)
+  if (n.includes("montacarga"))                                          return "Espera de montacarga disponible";
+  if (n.includes("estiba"))                                              return "Falta de estibas";
+  if (n.includes("refrigerio"))                                          return "Refrigerio del personal";
+  if (n.includes("simulacro") || n.includes("auditoria"))               return "Evento externo (simulacro / auditoría)";
+  if (n.includes("calidad") || n.includes("verificacion"))              return "Control de calidad";
+  if (n.includes("reunion"))                                             return "Falta de comunicación previa con almacén";
+  if (n.includes("documentacion") || n.includes("guia") || n.includes("documentos") || n.includes("remision")) return "Documentación incompleta";
+  if (n.includes("facturacion") || n.includes("factura"))               return "Facturación pendiente";
+  if (n.includes("produccion"))                                          return "Material en proceso de Producción";
+  if (n.includes("rampaa") || n.includes("rampaocu") || n.includes("faltadeespacio") || n.includes("espacio")) return "Rampa ocupada";
+  if (n.includes("noprogramado") || n.includes("fueradehorario") || n.includes("fueradehora")) return "Unidad fuera de horario";
+  if (n.includes("pimentel") || n.includes("atencionatransportes") || n.includes("atencionprevia") || n.includes("atendiendomercaderia") || n.includes("despachandomercaderia") || n.includes("cargandocamion") || n.includes("cargamentocamion")) return "Atención previa a otra unidad";
+  if (n.includes("contenedor") || n.includes("descarga") || n.includes("cargadescarga") || n.includes("mercaderia") || n.includes("despacho")) return "Carga / descarga en proceso";
+  if (n.includes("preparamiento") || n.includes("preparacion"))         return "Preparamiento de mercadería";
+
+  return null;
+}
+
 function segmentFromDelay(delayMin: number | null, isAnticipado: boolean) {
   if (isAnticipado) return { segmento_espera: "🔵 Anticipado", segmento_orden: 0, es_demora: 0 };
   if (delayMin === null) return { segmento_espera: null, segmento_orden: 0, es_demora: 0 };
@@ -241,11 +309,19 @@ export function transformRow(
   const h_registro   = parseExcelTime(get("h_registro"));
   const h_atencion   = parseExcelTime(get("h_atencion"));
   const h_dev_docs   = parseExcelTime(get("h_dev_docs"));
-  const hora_cita    = parseExcelTime(get("hora_cita"));
   const empresa      = get("empresa") ? String(get("empresa")).toUpperCase().trim() : null;
   const observacion  = get("observacion") ? String(get("observacion")).trim() : null;
-  const motivo_demora = get("motivo_demora") ? String(get("motivo_demora")).trim() : null;
   const explicitTipoOperacion = get("tipo_operacion") ? String(get("tipo_operacion")).trim() : null;
+
+  // ── hora_cita: columna explícita → fallback inferencia desde Observación ──
+  const hora_cita =
+    parseExcelTime(get("hora_cita")) ??
+    inferHoraCitaFromObservacion(observacion);
+
+  // ── motivo_demora: columna explícita → fallback inferencia desde Observación ──
+  const motivo_demora =
+    (get("motivo_demora") ? String(get("motivo_demora")).trim() : null) ??
+    inferMotivoDemoraFromObservacion(observacion);
 
   // ── Tiempos ──────────────────────────────────────────────────────────────
   const espera_min      = parseMinutes(get("espera_min")) ?? minutesBetween(h_registro, h_atencion);
