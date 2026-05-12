@@ -503,6 +503,60 @@ export async function GET(request: NextRequest) {
   }
 
   // ════════════════════════════════════════════════════════════════════════
+  // HOJA 6b — SLA DE PROVEEDORES
+  // ════════════════════════════════════════════════════════════════════════
+  if (data.providerSLA && data.providerSLA.length > 0) {
+    const wsSLA = wb.addWorksheet("SLA Proveedores", { properties: { tabColor: { argb: "FFD4864A" } } });
+    wsSLA.columns = [
+      { width: 5 }, { width: 38 }, { width: 12 }, { width: 12 },
+      { width: 12 }, { width: 16 }, { width: 10 }, { width: 20 }, { width: 14 },
+    ];
+
+    const slah = wsSLA.getRow(1);
+    wsSLA.mergeCells(1, 1, 1, 9);
+    slah.getCell(1).value = `${companyName} — SLA de Proveedores (tasa de demora) · ${timeframe} · mín. 3 visitas`;
+    slah.getCell(1).font  = { bold: true, size: 10, color: { argb: "FF" + C.white } };
+    slah.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + C.navy } };
+    slah.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
+    slah.height = 24;
+
+    wsSLA.addRow([]);
+    const slaHeader = wsSLA.addRow([
+      "#", "Proveedor", "Visitas", "A tiempo", "Demoras",
+      "Tasa demora %", "Grade", "Prom. espera (min)", "Tendencia",
+    ]);
+    styleHeaderRow(slaHeader, C.navy);
+
+    data.providerSLA.forEach((p, i) => {
+      const rateFg = p.rate <= 10 ? C.green : p.rate <= 25 ? C.yellow : p.rate <= 50 ? C.orange : C.red;
+      const rateBg = p.rate <= 10 ? C.greenBg : p.rate <= 25 ? C.yellowBg : p.rate <= 50 ? C.orangeBg : C.redBg;
+      const trendTxt = p.trend === "up" ? "↑ Empeorando" : p.trend === "down" ? "↓ Mejorando" : "— Estable";
+      const trendFg  = p.trend === "up" ? C.red : p.trend === "down" ? C.green : C.gray500;
+      const bg = i % 2 === 0 ? C.white : C.gray50;
+
+      const row = wsSLA.addRow([
+        i + 1, p.empresa, p.total, p.onTime, p.delayed,
+        `${p.rate}%`, p.grade,
+        p.avgEspera !== null ? p.avgEspera : "N/A",
+        trendTxt,
+      ]);
+      setRowHeight(row);
+      styleDataCell(row.getCell(1), { bg, align: "center", fg: C.gray500 });
+      styleDataCell(row.getCell(2), { bg, bold: true });
+      styleDataCell(row.getCell(3), { bg, align: "right" });
+      styleDataCell(row.getCell(4), { bg: C.greenBg, fg: C.green, align: "right" });
+      styleDataCell(row.getCell(5), { bg: C.redBg,   fg: C.red,   align: "right" });
+      styleDataCell(row.getCell(6), { bg: rateBg, fg: rateFg, bold: true, align: "right" });
+      styleDataCell(row.getCell(7), { bg: rateBg, fg: rateFg, bold: true, align: "center" });
+      const wc = p.avgEspera !== null ? waitColor(p.avgEspera) : { fg: C.gray500, bg: C.gray100 };
+      styleDataCell(row.getCell(8), { fg: wc.fg, bg: wc.bg, align: "right" });
+      styleDataCell(row.getCell(9), { fg: trendFg, bg, bold: true });
+    });
+
+    wsSLA.views = [{ state: "frozen", ySplit: 3 }];
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
   // HOJA 7 — TENDENCIA DIARIA
   // ════════════════════════════════════════════════════════════════════════
   if (data.trendData && data.trendData.length > 0) {
