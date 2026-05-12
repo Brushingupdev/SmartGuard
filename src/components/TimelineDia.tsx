@@ -52,7 +52,7 @@ export default function TimelineDia({ events }: { events: TimelineEvent[] }) {
         {/* Vertical line */}
         <div className="absolute left-[19px] top-2 bottom-2 w-px bg-[var(--sg-line)]" />
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 max-h-[420px] overflow-y-auto">
           {events.map((e, i) => {
             const config = toneConfig[e.status];
             return (

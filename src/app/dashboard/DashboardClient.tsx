@@ -460,7 +460,7 @@ export default function DashboardClient({
         ))}
       </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-5">
           <section className="sg-panel p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
