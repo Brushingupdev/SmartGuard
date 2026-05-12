@@ -7,7 +7,7 @@ import RankingPlantas from "@/components/RankingPlantas";
 import TimelineDia from "@/components/TimelineDia";
 import HeatmapDemoras from "@/components/HeatmapDemoras";
 import ExportPDFButton from "@/components/ExportPDFButton";
-import { getDashboardStats, getDashboardTrends } from "@/app/actions";
+import { getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
 import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -161,9 +161,11 @@ export default function DashboardClient({
   const [lastRefresh, setLastRefresh]       = useState<Date | null>(new Date(initialLastRefreshAt));
   const [refreshing, setRefreshing]         = useState(false);
   const [trends, setTrends]                 = useState<DashboardTrendState>(initialTrends);
+  const [heatmapData, setHeatmapData]       = useState<HeatmapCell[]>(initialHeatmapData);
   const intervalRef                         = useRef<ReturnType<typeof setInterval> | null>(null);
   const reqIdRef                            = useRef(0);
   const statsBootstrappedRef                = useRef(false);
+  const heatmapPlantRef                     = useRef<string>(initialPlant);
 
   const fetchStats = useCallback(async (plant: string, timeframe: string, silent = false, id: number) => {
     if (silent) setRefreshing(true); else { setLoading(true); setError(null); }
@@ -220,6 +222,11 @@ export default function DashboardClient({
     } else {
       const id = ++reqIdRef.current;
       fetchStats(selectedPlant, selectedTimeframe, false, id);
+      // Re-fetch heatmap only when plant changes (180-day history, not needed every 60s)
+      if (heatmapPlantRef.current !== selectedPlant) {
+        heatmapPlantRef.current = selectedPlant;
+        getDashboardHeatmap(selectedPlant).then(setHeatmapData).catch(() => {});
+      }
     }
 
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -541,7 +548,7 @@ export default function DashboardClient({
             </div>
           </section>
 
-          <HeatmapDemoras data={initialHeatmapData} />
+          <HeatmapDemoras data={heatmapData} />
         </div>
 
         <div className="flex flex-col gap-5">
