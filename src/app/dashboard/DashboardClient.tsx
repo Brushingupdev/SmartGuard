@@ -44,6 +44,7 @@ import {
   YAxis,
   PieChart,
   Pie,
+  LabelList,
 } from "recharts";
 
 interface ChartTooltipProps {
@@ -623,50 +624,95 @@ export default function DashboardClient({
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <section className="sg-panel p-5 flex flex-col justify-between">
+        <section className="sg-panel p-5 flex flex-col">
           <div className="mb-4 flex items-center gap-2">
             <PieChartIcon className="h-4 w-4 text-[var(--sg-accent)]" />
             <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
               Estado Actual
             </div>
           </div>
-          <div className="h-[220px] w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
-                    { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
-                    { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
-                    { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
-                  ].filter(d => d.value > 0)}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {
-                    [
-                      { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
-                      { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
-                      { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
-                      { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
-                    ].filter(d => d.value > 0).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))
-                  }
-                </Pie>
-                <Tooltip cursor={false} contentStyle={{ backgroundColor: 'var(--sg-panel)', border: '1px solid var(--sg-line)', borderRadius: '0' }} itemStyle={{ color: 'var(--sg-ink)', fontSize: '12px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="sg-font-mono text-[24px] font-bold text-[var(--sg-ink)]">{kpis.total}</span>
-              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Totales</span>
-            </div>
-          </div>
+
+          {(() => {
+            const chartData = [
+              { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
+              { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
+              { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
+              { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
+            ].filter(d => d.value > 0);
+
+            const total = chartData.reduce((sum, d) => sum + d.value, 0);
+            const puntualidad = total > 0 ? Math.round((kpis.ok / total) * 100) : 0;
+
+            return (
+              <>
+                <div className="h-[200px] w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={56}
+                        outerRadius={82}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                        isAnimationActive={false}
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                        <LabelList
+                          dataKey="value"
+                          position="outside"
+                          offset={10}
+                          formatter={(value: number) => value > 0 ? value : ''}
+                          className="sg-font-mono text-[11px] font-bold"
+                          fill="var(--sg-ink)"
+                        />
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} registros`, name]}
+                        contentStyle={{
+                          backgroundColor: 'var(--sg-panel)',
+                          border: '1px solid var(--sg-line)',
+                          borderRadius: '0',
+                          fontSize: '12px',
+                        }}
+                        itemStyle={{ color: 'var(--sg-ink)' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="sg-font-mono text-[26px] font-bold text-[var(--sg-ink)] leading-none">
+                      {puntualidad}%
+                    </span>
+                    <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">
+                      A tiempo
+                    </span>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {chartData.map((item) => {
+                    const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                    return (
+                      <div key={item.name} className="flex items-center gap-2 bg-[var(--sg-panel-2)] px-3 py-2">
+                        <span className="h-2.5 w-2.5 shrink-0" style={{ background: item.fill }} />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[11px] text-[var(--sg-copy)] truncate">{item.name}</span>
+                          <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                            {item.value} ({pct}%)
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </section>
 
         <CausasTop causas={delayReasons} totalDemoras={kpis.warn + kpis.deny} topProvider={topProvider} />
