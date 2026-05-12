@@ -88,7 +88,7 @@ export function autoDetectMapping(headers: string[]): ExcelMapping {
     h_registro:       findCol(["hregistro", "registrovehiculo", "horaregistro", "hentrada", "llegada", "hora"]),
     razon_social:     findCol(["razonsocial", "razon", "transportista", "vehiculo", "unidad"]),
     empresa:          findExactOrCol(["empresa", "empresadestino"], ["destino"]),
-    planta:           findCol(["planta", "sede", "garita"]),
+    planta:           findCol(["planta", "sede", "garita", "muelle", "puerta"]),
     tipo:             findExactOrCol(["tipo", "proveedorcliente", "proveedor"], ["tipovehiculo", "tipoproveedor"]),
     tipo_operacion:   findCol(["tipooperacion", "operacion"]),
     responsable:      findExactOrCol(["responsabledealmacen", "responsablealmacen"], ["responsable"]),
