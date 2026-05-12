@@ -1,12 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Truck } from "lucide-react";
 
 interface Causa {
   motivo: string;
   count: number;
   pct?: number;
+}
+
+interface TopProvider {
+  empresa: string;
+  rate: number;
+  total: number;
 }
 
 function barColor(index: number): string {
@@ -16,7 +22,12 @@ function barColor(index: number): string {
   return "rgba(196,192,180,0.45)";
 }
 
-export default function CausasTop({ causas, totalDemoras = 0 }: { causas: Causa[]; totalDemoras?: number; href?: string }) {
+export default function CausasTop({ causas, totalDemoras = 0, topProvider }: {
+  causas: Causa[];
+  totalDemoras?: number;
+  href?: string;
+  topProvider?: TopProvider | null;
+}) {
   const total = Math.max(
     totalDemoras,
     causas.reduce((sum, causa) => sum + causa.count, 0),
@@ -63,6 +74,25 @@ export default function CausasTop({ causas, totalDemoras = 0 }: { causas: Causa[
               </motion.div>
             );
           })}
+        </div>
+      )}
+
+      {topProvider && topProvider.rate >= 50 && (
+        <div className="mt-4 border-t border-[var(--sg-line)] pt-4">
+          <div className="flex items-start gap-2 border-l-2 border-[var(--sg-danger)] bg-[rgba(211,92,79,0.05)] px-3 py-2.5">
+            <Truck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[var(--sg-danger)]" />
+            <div className="min-w-0">
+              <div className="sg-font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--sg-danger)] mb-0.5">
+                Proveedor más crítico
+              </div>
+              <div className="truncate text-[12px] font-semibold text-[var(--sg-ink)]" title={topProvider.empresa}>
+                {topProvider.empresa}
+              </div>
+              <div className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                {topProvider.rate}% demora · {topProvider.total} visitas
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

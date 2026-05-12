@@ -352,6 +352,8 @@ function ReporteContent() {
   const [slaSort, setSlaSort]       = useState<{ col: string; dir: "asc" | "desc" }>({ col: "rate", dir: "desc" });
   const [slaPage, setSlaPage]       = useState(1);
   const SLA_PER_PAGE = 10;
+  const [agentPage, setAgentPage]   = useState(1);
+  const AGENT_PER_PAGE = 10;
   const [gateOptions, setGateOptions] = useState<GateAssignment[]>([]);
   const siteGroups = useMemo(() => groupGatesBySite(gateOptions), [gateOptions]);
   const sites = useMemo(() => siteGroups.map(s => s.site), [siteGroups]);
@@ -429,8 +431,10 @@ function ReporteContent() {
     });
   }, [d?.providerSLA, slaSort]);
 
-  const slaTotalPages = Math.ceil(sortedSLA.length / SLA_PER_PAGE);
-  const slaPageData   = sortedSLA.slice((slaPage - 1) * SLA_PER_PAGE, slaPage * SLA_PER_PAGE);
+  const slaTotalPages  = Math.ceil(sortedSLA.length / SLA_PER_PAGE);
+  const slaPageData    = sortedSLA.slice((slaPage - 1) * SLA_PER_PAGE, slaPage * SLA_PER_PAGE);
+  const agentTotalPages = Math.ceil((d?.agentStats?.length ?? 0) / AGENT_PER_PAGE);
+  const agentPageData   = (d?.agentStats ?? []).slice((agentPage - 1) * AGENT_PER_PAGE, agentPage * AGENT_PER_PAGE);
 
   return (
     <AppLayout>
@@ -1171,6 +1175,7 @@ function ReporteContent() {
               ) : !d || d.agentStats.length === 0 ? (
                 <div className="p-8"><EmptyMsg text="Sin datos de agentes" /></div>
               ) : (
+                <>
                 <table className="sg-table min-w-[560px]">
                   <thead>
                     <tr>
@@ -1183,7 +1188,7 @@ function ReporteContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {d.agentStats.map((a, i) => (
+                    {agentPageData.map((a, i) => (
                       <motion.tr
                         key={a.agente}
                         initial={{ opacity: 0 }}
@@ -1229,6 +1234,24 @@ function ReporteContent() {
                     ))}
                   </tbody>
                 </table>
+              {agentTotalPages > 1 && (
+                <div className="border-t border-[var(--sg-line)] px-5 py-3 flex items-center justify-end gap-2">
+                  <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    {(agentPage - 1) * AGENT_PER_PAGE + 1}–{Math.min(agentPage * AGENT_PER_PAGE, d.agentStats.length)} de {d.agentStats.length}
+                  </span>
+                  <button onClick={() => setAgentPage(p => Math.max(1, p - 1))} disabled={agentPage === 1}
+                    className="border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[10px] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">←</button>
+                  {Array.from({ length: agentTotalPages }, (_, i) => i + 1).map(p => (
+                    <button key={p} onClick={() => setAgentPage(p)}
+                      className={`border px-2 py-0.5 sg-font-mono text-[10px] transition-colors ${p === agentPage ? "border-[var(--sg-accent)] bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "border-[var(--sg-line)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"}`}>
+                      {p}
+                    </button>
+                  ))}
+                  <button onClick={() => setAgentPage(p => Math.min(agentTotalPages, p + 1))} disabled={agentPage === agentTotalPages}
+                    className="border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[10px] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">→</button>
+                </div>
+              )}
+                </>
               )}
             </div>
            </Section>

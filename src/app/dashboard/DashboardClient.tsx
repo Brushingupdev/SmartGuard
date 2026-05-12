@@ -660,7 +660,7 @@ export default function DashboardClient({
           </div>
         </section>
 
-        <CausasTop causas={delayReasons} totalDemoras={kpis.warn + kpis.deny} />
+        <CausasTop causas={delayReasons} totalDemoras={kpis.warn + kpis.deny} topProvider={topProvider} />
         
         <RankingPlantas
           plantas={zones
