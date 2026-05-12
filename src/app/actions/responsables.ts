@@ -95,3 +95,83 @@ export async function removeResponsable(id: number) {
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
+
+// ─── AGENTES ─────────────────────────────────────────────────────────────────
+
+export async function getAgentes(): Promise<string[]> {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+
+  let query = supabase
+    .from("agentes")
+    .select("nombre")
+    .eq("activo", true)
+    .order("nombre");
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    query = query.eq("company_id", ctx.companyId);
+  }
+
+  const { data, error } = await query;
+
+  if (!error && data && data.length > 0) {
+    return data.map((r: { nombre: string }) => r.nombre);
+  }
+
+  // Fallback: extraer dinámicamente de registros anteriores
+  let fallQuery = supabase
+    .from("atenciones")
+    .select("agente")
+    .not("agente", "is", null)
+    .order("id", { ascending: false })
+    .limit(300);
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    fallQuery = fallQuery.eq("company_id", ctx.companyId);
+  }
+
+  const { data: pastData } = await fallQuery;
+
+  if (pastData && pastData.length > 0) {
+    const unique = Array.from(new Set(pastData.map(r => r.agente).filter(Boolean)));
+    return unique.slice(0, 15) as string[];
+  }
+
+  return [];
+}
+
+export async function upsertAgentes(nombres: string[], companyId: string) {
+  const { createAdminClient } = await import("@/utils/supabase/admin");
+  const admin = createAdminClient();
+
+  const unique = Array.from(new Set(nombres.map(n => n.trim()).filter(Boolean)));
+  if (unique.length === 0) return { success: true, inserted: 0 };
+
+  const { error } = await admin
+    .from("agentes")
+    .upsert(
+      unique.map(nombre => ({ nombre, activo: true, company_id: companyId })),
+      { onConflict: "nombre,company_id", ignoreDuplicates: true }
+    );
+
+  if (error) return { success: false, error: error.message, inserted: 0 };
+  return { success: true, inserted: unique.length };
+}
+
+export async function upsertResponsables(nombres: string[], companyId: string) {
+  const { createAdminClient } = await import("@/utils/supabase/admin");
+  const admin = createAdminClient();
+
+  const unique = Array.from(new Set(nombres.map(n => n.trim()).filter(Boolean)));
+  if (unique.length === 0) return { success: true, inserted: 0 };
+
+  const { error } = await admin
+    .from("responsables")
+    .upsert(
+      unique.map(nombre => ({ nombre, activo: true, company_id: companyId })),
+      { onConflict: "nombre,company_id", ignoreDuplicates: true }
+    );
+
+  if (error) return { success: false, error: error.message, inserted: 0 };
+  return { success: true, inserted: unique.length };
+}

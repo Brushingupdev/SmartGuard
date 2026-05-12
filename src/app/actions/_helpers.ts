@@ -96,6 +96,14 @@ export function dateRange(timeframe: string): { from: string; to: string } {
   return { from: today, to: today };
 }
 
+export function isMissingColumnError(error: unknown, column: string): boolean {
+  const message = typeof error === "object" && error !== null && "message" in error
+    ? String((error as { message?: unknown }).message ?? "")
+    : String(error ?? "");
+  return message.toLowerCase().includes(column.toLowerCase())
+    && (message.toLowerCase().includes("column") || message.toLowerCase().includes("schema cache"));
+}
+
 // ─── Retry helper para errores transitorios de Supabase ─────────────────────
 
 export async function withRetry<T>(

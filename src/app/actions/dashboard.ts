@@ -3,12 +3,11 @@
 import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { normalizeGateAssignments, plantsForSite, formatGateLabelFromPlant } from "@/lib/gates";
-import { nowLima, daysAgoLima, logError, withRetry, dateRange } from "./_helpers";
+import { nowLima, daysAgoLima, logError, dateRange } from "./_helpers";
 import type {
   DashboardKpis,
   DashboardFlowRow,
   DashboardEvent,
-  DashboardEventFull,
   DashboardAlert,
   DashboardBreakdownEntry,
   DashboardZone,
@@ -16,10 +15,144 @@ import type {
   HeatmapCell,
 } from "@/types/dashboard";
 
-function groupByMode(timeframe: string): "hour" | "day" | "month" {
-  if (timeframe === "Día") return "hour";
-  if (/^\d{4}$/.test(timeframe)) return "month";
-  return "day";
+type DashboardMetricRow = {
+  razon_social: string | null;
+  empresa: string | null;
+  planta: string | null;
+  h_registro: string | null;
+  h_atencion: string | null;
+  hora_cita: string | null;
+  espera_min: number | null;
+  demora_cita_min: number | null;
+  motivo_demora: string | null;
+};
+
+function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "espera_min">): number | null {
+  return row.demora_cita_min ?? row.espera_min ?? null;
+}
+
+function buildDashboardStatsFromRows(rows: DashboardMetricRow[]): Omit<DashboardStatsResult, "delayReasons"> & { delayReasons: { motivo: string; count: number }[] } {
+  const kpis: DashboardKpis = {
+    ok: rows.filter((row) => {
+      const delay = effectiveDelay(row);
+      return delay != null && delay < 30;
+    }).length,
+    warn: rows.filter((row) => {
+      const delay = effectiveDelay(row);
+      return delay != null && delay >= 30 && delay < 45;
+    }).length,
+    deny: rows.filter((row) => {
+      const delay = effectiveDelay(row);
+      return delay != null && delay >= 45;
+    }).length,
+    pending: rows.filter((row) => effectiveDelay(row) == null).length,
+    total: rows.length,
+    anticipado: rows.filter((row) => row.hora_cita != null && row.h_atencion != null && (row.demora_cita_min ?? null) === 0).length,
+  };
+
+  const breakdown: Record<string, DashboardBreakdownEntry> = {};
+  rows.forEach((row) => {
+    const plantName = row.planta || "Sin planta";
+    if (!breakdown[plantName]) breakdown[plantName] = { total: 0, ok: 0 };
+    breakdown[plantName].total++;
+    const delay = effectiveDelay(row);
+    if (delay != null && delay < 30) breakdown[plantName].ok++;
+  });
+
+  const zones: DashboardZone[] = Object.entries(breakdown)
+    .map(([name, value]) => {
+      const pct = value.total > 0 ? Math.round((value.ok / value.total) * 100) : 0;
+      return {
+        name,
+        count: value.total,
+        pct,
+        tone: value.total > 0 && pct >= 70 ? "ok" as const : "deny" as const,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  const events: DashboardEvent[] = rows
+    .slice()
+    .sort((a, b) => (b.h_registro ?? "").localeCompare(a.h_registro ?? ""))
+    .slice(0, 6)
+    .map((row) => {
+      const delay = effectiveDelay(row);
+      let status: DashboardEvent["status"] = "ok";
+      let label = "Autorizado";
+      if (delay == null) {
+        status = "pending";
+        label = "En proceso";
+      } else if (delay >= 45) {
+        status = "deny";
+        label = "Con demora";
+      } else if (delay >= 30) {
+        status = "warn";
+        label = "Revisión";
+      }
+      return {
+        plate: row.razon_social || "N/A",
+        status,
+        label,
+        info: row.empresa || "Sin empresa",
+        gate: row.planta || "Sin planta",
+        time: row.h_registro ? row.h_registro.substring(0, 5) : "--:--",
+        espera_min: delay,
+      };
+    });
+
+  const alerts: DashboardAlert[] = rows
+    .map((row) => ({ row, delay: effectiveDelay(row) }))
+    .filter((entry) => entry.delay != null && entry.delay >= 45)
+    .sort((a, b) => (b.delay ?? 0) - (a.delay ?? 0))
+    .slice(0, 3)
+    .map(({ row, delay }) => ({
+      title: row.hora_cita ? "Alerta de Demora sobre Cita" : "Alerta de Espera",
+      sub: `${row.razon_social ?? "N/A"} · ${delay} min · ${formatGateLabelFromPlant(row.planta || "Sin planta")}`,
+      tone: "deny" as const,
+    }));
+
+  const flowMap: Record<string, DashboardFlowRow> = {};
+  rows.forEach((row) => {
+    const key = row.h_registro ? row.h_registro.substring(0, 2) : "00";
+    if (!flowMap[key]) flowMap[key] = { h: key, ok: 0, warn: 0, deny: 0 };
+    const delay = effectiveDelay(row);
+    if (delay != null && delay >= 45) flowMap[key].deny++;
+    else if (delay != null && delay >= 30) flowMap[key].warn++;
+    else flowMap[key].ok++;
+  });
+
+  const reasonMap: Record<string, number> = {};
+  rows.filter((row) => row.motivo_demora).forEach((row) => {
+    const reason = row.motivo_demora as string;
+    reasonMap[reason] = (reasonMap[reason] || 0) + 1;
+  });
+
+  // Top provider by delay rate (min 3 visits)
+  const provMap: Record<string, { total: number; delayed: number }> = {};
+  rows.filter(r => r.empresa).forEach(r => {
+    const k = r.empresa as string;
+    if (!provMap[k]) provMap[k] = { total: 0, delayed: 0 };
+    provMap[k].total++;
+    const delay = effectiveDelay(r);
+    if (delay != null && delay >= 30) provMap[k].delayed++;
+  });
+  const topProvider = Object.entries(provMap)
+    .filter(([, v]) => v.total >= 3)
+    .map(([empresa, v]) => ({ empresa, total: v.total, delayed: v.delayed, rate: Math.round((v.delayed / v.total) * 100) }))
+    .sort((a, b) => b.rate - a.rate)[0] ?? null;
+
+  return {
+    kpis,
+    breakdown,
+    zones,
+    events,
+    alerts,
+    topProvider,
+    flowData: Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h)),
+    delayReasons: Object.entries(reasonMap)
+      .map(([motivo, count]) => ({ motivo, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 }
 
 async function resolveSitePlants(
@@ -70,7 +203,6 @@ function mergeDashboardStats(results: DashboardStatsResult[]): DashboardStatsRes
   const flowMap: Record<string, DashboardFlowRow> = {};
   const delayReasonMap: Record<string, number> = {};
   const breakdown: Record<string, DashboardBreakdownEntry> = {};
-  const zones: DashboardZone[] = [];
 
   for (const result of results) {
     for (const row of result.flowData) {
@@ -80,84 +212,49 @@ function mergeDashboardStats(results: DashboardStatsResult[]): DashboardStatsRes
       flowMap[row.h].deny += row.deny;
     }
     for (const [plant, value] of Object.entries(result.breakdown)) {
-      if (!breakdown[plant]) breakdown[plant] = { total: 0, ok: 0 };
-      breakdown[plant].total += value.total;
-      breakdown[plant].ok += value.ok;
+      // Site aggregation may merge per-gate stats whose breakdown already contains
+      // the same company-wide rows. Keep the largest row per plant to avoid duplicates.
+      if (!breakdown[plant]) {
+        breakdown[plant] = { total: value.total, ok: value.ok };
+        continue;
+      }
+      breakdown[plant].total = Math.max(breakdown[plant].total, value.total);
+      breakdown[plant].ok = Math.max(breakdown[plant].ok, value.ok);
     }
-    zones.push(...result.zones);
     for (const reason of result.delayReasons ?? []) {
       delayReasonMap[reason.motivo] = (delayReasonMap[reason.motivo] ?? 0) + reason.count;
     }
   }
+
+  const zones: DashboardZone[] = Object.entries(breakdown)
+    .map(([name, value]) => {
+      const pct = value.total > 0 ? Math.round((value.ok / value.total) * 100) : 0;
+      return {
+        name,
+        count: value.total,
+        pct,
+        tone: (value.total > 0 && pct >= 70 ? "ok" : "deny") as DashboardZone["tone"],
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  const topProvider = results
+    .map(r => r.topProvider ?? null)
+    .filter((p): p is NonNullable<typeof p> => p != null)
+    .sort((a, b) => b.rate - a.rate)[0] ?? null;
 
   return {
     kpis,
     events: results.flatMap((result) => result.events).slice(0, 6),
     alerts: results.flatMap((result) => result.alerts).slice(0, 3),
     breakdown,
-    zones: zones.sort((a, b) => b.count - a.count),
+    zones,
+    topProvider,
     flowData: Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h)),
     delayReasons: Object.entries(delayReasonMap)
       .map(([motivo, count]) => ({ motivo, count }))
       .sort((a, b) => b.count - a.count),
   };
-}
-
-// ─── DASHBOARD STATS (SQL-powered, direct RPC calls) ────────────────────────
-// NOTE: unstable_cache was removed because it calls createClient() (which uses
-// cookies()) inside the cached callback — Next.js 15 does not allow cookies()
-// outside the request lifecycle, which caused production errors.
-
-async function _getDashboardKpis(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string, plant: string) {
-  const { data } = await supabase.rpc("get_dashboard_kpis", {
-    p_company_id: companyId,
-    p_date_from: from,
-    p_date_to: to,
-    p_planta: plant,
-  });
-  return data;
-}
-
-async function _getDashboardFlow(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string, plant: string, groupBy: string) {
-  const { data } = await supabase.rpc("get_dashboard_flow", {
-    p_company_id: companyId,
-    p_date_from: from,
-    p_date_to: to,
-    p_planta: plant,
-    p_group_by: groupBy,
-  });
-  return data;
-}
-
-async function _getDashboardBreakdown(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string) {
-  const { data } = await supabase.rpc("get_dashboard_breakdown", {
-    p_company_id: companyId,
-    p_date_from: from,
-    p_date_to: to,
-  });
-  return data;
-}
-
-async function _getDashboardEvents(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string, limit: number) {
-  const { data } = await supabase.rpc("get_dashboard_events", {
-    p_company_id: companyId,
-    p_date_from: from,
-    p_date_to: to,
-    p_limit: limit,
-  });
-  return data;
-}
-
-async function _getDashboardDelayReasons(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, from: string, to: string) {
-  const { data } = await supabase
-    .from("atenciones")
-    .select("motivo_demora")
-    .eq("company_id", companyId)
-    .not("motivo_demora", "is", null)
-    .gte("fecha", from)
-    .lte("fecha", to)
-    .limit(500);
-  return data;
 }
 
 export async function getDashboardStats(plant: string = "Todos", timeframe: string = "Día"): Promise<DashboardStatsResult> {
@@ -186,102 +283,19 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
   }
 
   const companyId = ctx.companyId!;
-  const groupBy = groupByMode(timeframe);
 
   try {
-    const [kpisData, flowData, breakdownRows, eventsData, reasonsRaw] = await withRetry(
-      () => Promise.all([
-        _getDashboardKpis(supabase, companyId, from, to, plant),
-        _getDashboardFlow(supabase, companyId, from, to, plant, groupBy),
-        _getDashboardBreakdown(supabase, companyId, from, to),
-        _getDashboardEvents(supabase, companyId, from, to, 6),
-        _getDashboardDelayReasons(supabase, companyId, from, to),
-      ]),
-      "getDashboardStats-direct"
-    );
-
-    // Conteo de anticipados (atendidos antes de su hora de cita)
-    let anticipadoQ = supabase
+    let query = supabase
       .from("atenciones")
-      .select("id", { count: "exact", head: true })
+      .select("razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora")
       .eq("company_id", companyId)
       .gte("fecha", from)
       .lte("fecha", to)
-      .eq("espera_min", 0)
-      .not("hora_cita", "is", null)
-      .not("h_atencion", "is", null);
-    if (plant !== "Todos") anticipadoQ = anticipadoQ.eq("planta", plant);
-    const { count: anticipadoCount } = await anticipadoQ;
-
-    const kpiRow = kpisData?.[0] ?? null;
-    const kpis: DashboardKpis = {
-      ok:         Number(kpiRow?.ok ?? 0),
-      deny:       Number(kpiRow?.deny ?? 0),
-      warn:       Number(kpiRow?.warn ?? 0),
-      pending:    Number(kpiRow?.pending ?? 0),
-      total:      Number(kpiRow?.total ?? 0),
-      anticipado: anticipadoCount ?? 0,
-    };
-
-    const bRows = (breakdownRows ?? []) as { planta: string; total: number; ok: number }[];
-    const breakdown: Record<string, DashboardBreakdownEntry> = {};
-    bRows.forEach(r => { breakdown[r.planta || "Sin planta"] = { total: Number(r.total), ok: Number(r.ok) }; });
-
-    const zones: DashboardZone[] = bRows.map(r => {
-      const total = Number(r.total);
-      const ok    = Number(r.ok);
-      const pct   = total > 0 ? Math.round((ok / total) * 100) : 0;
-      return {
-        name:  r.planta || "Sin planta",
-        count: total,
-        pct,
-        tone: (total > 0 && pct >= 70 ? "ok" : "deny") as DashboardZone["tone"],
-      };
-    }).sort((a, b) => b.count - a.count);
-
-    const eventsFull = (eventsData ?? []) as DashboardEventFull[];
-    const events: DashboardEvent[] = eventsFull;
-    const delayEvents = eventsFull.filter(e => e.status === "deny");
-
-    let alerts: DashboardAlert[];
-    if (delayEvents.length > 0) {
-      alerts = delayEvents.slice(0, 3).map(e => ({
-        title: "Alerta de Demora",
-        sub: `${e.plate} · ${e.espera_min ?? "?"} min · ${formatGateLabelFromPlant(e.gate)}`,
-        tone: "deny" as const,
-      }));
-    } else {
-      let q2 = supabase.from("atenciones")
-        .select("razon_social, espera_min, planta")
-        .gte("espera_min", 45)
-        .eq("company_id", companyId);
-      if (plant !== "Todos") q2 = q2.eq("planta", plant);
-      q2 = q2.gte("fecha", from).lte("fecha", to).order("espera_min", { ascending: false }).limit(3);
-      const { data: delayRows } = await q2;
-      alerts = (delayRows ?? []).map((d: Record<string, unknown>) => ({
-        title: "Alerta de Demora",
-        sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${formatGateLabelFromPlant(d.planta as string)}`,
-        tone: "deny" as const,
-      }));
-    }
-
-    const safeFlowData: DashboardFlowRow[] = (flowData ?? []).map((d: Record<string, unknown>) => ({
-      h: d.h,
-      ok: Number(d.ok),
-      warn: Number(d.warn),
-      deny: Number(d.deny),
-    }));
-
-    // Delay reasons for CausasTop — aggregated from parallel fetch
-    const reasonMap: Record<string, number> = {};
-    (reasonsRaw ?? []).forEach((r: { motivo_demora: string }) => {
-      reasonMap[r.motivo_demora] = (reasonMap[r.motivo_demora] || 0) + 1;
-    });
-    const delayReasons = Object.entries(reasonMap)
-      .map(([motivo, count]) => ({ motivo, count }))
-      .sort((a, b) => b.count - a.count);
-
-    return { events, kpis, breakdown, flowData: safeFlowData, zones, alerts, delayReasons };
+      .limit(5000);
+    if (plant !== "Todos") query = query.eq("planta", plant);
+    const { data, error } = await query;
+    if (error || !data) throw error ?? new Error("Sin datos de dashboard");
+    return buildDashboardStatsFromRows(data as DashboardMetricRow[]);
   } catch (err) {
     logError("getDashboardStats", err);
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
@@ -309,70 +323,7 @@ async function getDashboardStatsAdmin(
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
   }
 
-  const kpis: DashboardKpis = {
-    ok:         data.filter((d) => d.espera_min != null && d.espera_min < 30).length,
-    warn:       data.filter((d) => d.espera_min != null && d.espera_min >= 30 && d.espera_min < 45).length,
-    deny:       data.filter((d) => d.espera_min != null && d.espera_min >= 45).length,
-    pending:    data.filter((d) => d.espera_min == null).length,
-    total:      data.length,
-    anticipado: data.filter((d) => d.espera_min === 0 && d.hora_cita != null && d.h_atencion != null).length,
-  };
-
-  const breakdown: Record<string, DashboardBreakdownEntry> = {};
-  data.forEach((d) => {
-    const p = (d.planta as string) || "Sin planta";
-    if (!breakdown[p]) breakdown[p] = { total: 0, ok: 0 };
-    breakdown[p].total++;
-    if (d.espera_min != null && d.espera_min < 30) breakdown[p].ok++;
-  });
-
-  const zones: DashboardZone[] = Object.entries(breakdown)
-    .map(([name, v]) => {
-      const pct = v.total > 0 ? Math.round((v.ok / v.total) * 100) : 0;
-      return {
-        name,
-        count: v.total,
-        pct,
-        tone: v.total > 0 && pct >= 70 ? "ok" as const : "deny" as const,
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-
-    const events: DashboardEvent[] = data.slice(0, 6).map((d) => {
-    let status: DashboardEvent["status"] = "ok";
-    let label = "Autorizado";
-    if (d.espera_min == null) { status = "pending"; label = "En proceso"; }
-    else if (d.espera_min >= 45) { status = "deny"; label = "Con demora"; }
-    else if (d.espera_min >= 30) { status = "warn"; label = "Revisión"; }
-    return { plate: d.razon_social || "N/A", status, label, info: d.empresa || "Sin empresa", gate: d.planta, time: d.h_registro ? d.h_registro.substring(0, 5) : "--:--" };
-  });
-
-    const alerts: DashboardAlert[] = data
-    .filter((d) => d.espera_min && d.espera_min >= 45)
-    .slice(0, 3)
-    .map((d) => ({ title: "Alerta de Demora", sub: `${d.razon_social ?? "N/A"} · ${d.espera_min} min · ${formatGateLabelFromPlant(d.planta as string)}`, tone: "deny" }));
-
-  const groupingMap: Record<string, DashboardFlowRow> = {};
-  data.forEach((d) => {
-    const key = d.h_registro ? d.h_registro.substring(0, 2) : "00";
-    if (!groupingMap[key]) groupingMap[key] = { h: key, ok: 0, warn: 0, deny: 0 };
-    if (d.espera_min != null && d.espera_min >= 45) groupingMap[key].deny++;
-    else if (d.espera_min != null && d.espera_min >= 30) groupingMap[key].warn++;
-    else groupingMap[key].ok++;
-  });
-  const flowData = Object.values(groupingMap).sort((a, b) => a.h.localeCompare(b.h));
-
-  // Delay reasons from loaded data
-  const reasonMap: Record<string, number> = {};
-  data.filter(d => d.motivo_demora).forEach(d => {
-    const k = d.motivo_demora as string;
-    reasonMap[k] = (reasonMap[k] || 0) + 1;
-  });
-  const delayReasons = Object.entries(reasonMap)
-    .map(([motivo, count]) => ({ motivo, count }))
-    .sort((a, b) => b.count - a.count);
-
-  return { events, kpis, breakdown, flowData, zones, alerts, delayReasons };
+  return buildDashboardStatsFromRows(data as DashboardMetricRow[]);
 }
 
 // ─── TREND COMPARISON ─────────────────────────────────────────────────────────
@@ -413,16 +364,33 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
     const sitePlants = await resolveSitePlants(supabase, ctx, plant);
 
     const fetchKpis = async (fromDate: string, toDate: string) => {
-      if (!sitePlants) return _getDashboardKpis(supabase, companyId, fromDate, toDate, plant);
-      const rows = await Promise.all(sitePlants.map((sitePlant) => _getDashboardKpis(supabase, companyId, fromDate, toDate, sitePlant)));
-      const total = rows.flatMap((row) => row ?? []).reduce((acc, row) => ({
-        ok: acc.ok + Number(row?.ok ?? 0),
-        deny: acc.deny + Number(row?.deny ?? 0),
-        warn: acc.warn + Number(row?.warn ?? 0),
-        pending: acc.pending + Number(row?.pending ?? 0),
-        total: acc.total + Number(row?.total ?? 0),
-      }), { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 });
-      return [total];
+      let query = supabase
+        .from("atenciones")
+        .select("espera_min, demora_cita_min")
+        .eq("company_id", companyId)
+        .gte("fecha", fromDate)
+        .lte("fecha", toDate)
+        .limit(5000);
+      if (sitePlants) query = query.in("planta", sitePlants);
+      else if (plant !== "Todos") query = query.eq("planta", plant);
+      const { data } = await query;
+      const rows = (data ?? []) as Array<{ espera_min: number | null; demora_cita_min: number | null }>;
+      return [{
+        ok: rows.filter((row) => {
+          const delay = row.demora_cita_min ?? row.espera_min;
+          return delay != null && delay < 30;
+        }).length,
+        deny: rows.filter((row) => {
+          const delay = row.demora_cita_min ?? row.espera_min;
+          return delay != null && delay >= 45;
+        }).length,
+        warn: rows.filter((row) => {
+          const delay = row.demora_cita_min ?? row.espera_min;
+          return delay != null && delay >= 30 && delay < 45;
+        }).length,
+        pending: rows.filter((row) => (row.demora_cita_min ?? row.espera_min) == null).length,
+        total: rows.length,
+      }];
     };
 
     const [currData, prevData] = await Promise.all([
@@ -480,7 +448,7 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
 
     let query = supabase
       .from("atenciones")
-      .select("h_registro, fecha, espera_min")
+      .select("h_registro, fecha, espera_min, demora_cita_min")
       .eq("company_id", ctx.companyId)
       .gte("fecha", sixMonthsAgo)
       .lte("fecha", today)
@@ -498,7 +466,7 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
     if (!data?.length) return [];
 
     const hmMap: Record<string, { total: number; delayed: number }> = {};
-    (data as { h_registro: string; fecha: string; espera_min: number | null }[]).forEach((d) => {
+    (data as { h_registro: string; fecha: string; espera_min: number | null; demora_cita_min: number | null }[]).forEach((d) => {
       const hour = parseInt(d.h_registro.substring(0, 2));
       if (isNaN(hour)) return;
       const parts = d.fecha.split("-").map(Number);
@@ -506,7 +474,8 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
       const key = `${dow}-${hour}`;
       if (!hmMap[key]) hmMap[key] = { total: 0, delayed: 0 };
       hmMap[key].total++;
-      if (d.espera_min != null && d.espera_min >= 30) hmMap[key].delayed++;
+      const delay = d.demora_cita_min ?? d.espera_min;
+      if (delay != null && delay >= 30) hmMap[key].delayed++;
     });
 
     return Object.entries(hmMap).map(([key, v]) => {

@@ -15,10 +15,10 @@ export async function getAlertsData(plant?: string) {
 
   let closedQuery = db
     .from("atenciones")
-    .select("id, razon_social, empresa, company_id, planta, h_registro, h_atencion, espera_min, segmento_espera, tipo_operacion")
+    .select("id, razon_social, empresa, company_id, planta, h_registro, h_atencion, espera_min, demora_cita_min, segmento_espera, tipo_operacion")
     .eq("fecha", todayStr)
-    .gte("espera_min", 30)
-    .order("espera_min", { ascending: false })
+    .not("h_atencion", "is", null)
+    .order("h_atencion", { ascending: false })
     .limit(50);
   if (!ctx?.isAdmin && ctx?.companyId) closedQuery = closedQuery.eq("company_id", ctx.companyId);
   if (plant && plant !== "Todas") closedQuery = closedQuery.eq("planta", plant);
@@ -26,7 +26,7 @@ export async function getAlertsData(plant?: string) {
 
   let pendingQuery = db
     .from("atenciones")
-    .select("id, razon_social, empresa, company_id, planta, h_registro, tipo_operacion")
+    .select("id, razon_social, empresa, company_id, planta, h_registro, hora_cita, tipo_operacion")
     .eq("fecha", todayStr)
     .is("h_atencion", null)
     .not("h_registro", "is", null);
@@ -36,37 +36,50 @@ export async function getAlertsData(plant?: string) {
 
   const pendingAlerts = (pending || [])
     .map(d => {
-      const parts = (d.h_registro as string).split(":").map(Number);
-      const startMin = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
+      const horaCita = d.hora_cita as string | null;
+      const base = horaCita
+        ? horaCita.split(":").map(Number)
+        : (d.h_registro as string).split(":").map(Number);
+      const startMin = base[0] * 60 + base[1] + (base[2] || 0) / 60;
       let implicitMin = Math.round(nowMinutes - startMin);
       if (implicitMin < 0) implicitMin += 24 * 60;
+      if (horaCita && nowMinutes < startMin) implicitMin = 0;
       return { ...d, espera_min: implicitMin, h_atencion: null, segmento_espera: null, isLive: true };
     })
     .filter(d => d.espera_min >= 30);
 
   const pendingIds = new Set(pendingAlerts.map(d => d.id));
-  const closedFiltered = (closed || []).filter(d => !pendingIds.has(d.id)).map(d => ({ ...d, isLive: false as const }));
-  const alerts = [...pendingAlerts, ...closedFiltered].slice(0, 50);
+  const closedFiltered = (closed || [])
+    .map(d => ({
+      ...d,
+      espera_min: (d.demora_cita_min as number | null) ?? (d.espera_min as number | null),
+      isLive: false as const,
+    }))
+    .filter(d => !pendingIds.has(d.id) && (d.espera_min ?? 0) >= 30);
+  const alerts = [...pendingAlerts, ...closedFiltered]
+    .sort((a, b) => (b.espera_min ?? 0) - (a.espera_min ?? 0))
+    .slice(0, 50);
 
   let todayAllQuery = db
     .from("atenciones")
-    .select("id, espera_min, planta, h_atencion, h_registro")
+    .select("id, espera_min, demora_cita_min, planta, h_atencion, h_registro")
     .eq("fecha", todayStr);
   if (!ctx?.isAdmin && ctx?.companyId) todayAllQuery = todayAllQuery.eq("company_id", ctx.companyId);
   const { data: todayAll } = await todayAllQuery;
 
   let historyQuery = db
     .from("atenciones")
-    .select("fecha, espera_min")
+    .select("fecha, espera_min, demora_cita_min")
     .gte("fecha", sevenStr)
-    .gte("espera_min", 30)
     .order("fecha", { ascending: true });
   if (!ctx?.isAdmin && ctx?.companyId) historyQuery = historyQuery.eq("company_id", ctx.companyId);
   if (plant && plant !== "Todas") historyQuery = historyQuery.eq("planta", plant);
   const { data: history } = await historyQuery;
 
   const histMap: Record<string, { n: number; fullDate: string }> = {};
-  (history || []).forEach(d => {
+  (history || [])
+    .filter(d => ((d.demora_cita_min as number | null) ?? (d.espera_min as number | null) ?? 0) >= 30)
+    .forEach(d => {
     const day = d.fecha?.substring(5) ?? "";
     if (!histMap[day]) histMap[day] = { n: 0, fullDate: d.fecha ?? "" };
     histMap[day].n++;
@@ -78,7 +91,7 @@ export async function getAlertsData(plant?: string) {
   const allToday = todayAll || [];
   const liveWaitById = new Map(pendingAlerts.map(d => [d.id, d.espera_min]));
   const severityWaits = allToday
-    .map(d => liveWaitById.get(d.id) ?? d.espera_min)
+    .map(d => liveWaitById.get(d.id) ?? ((d.demora_cita_min as number | null) ?? (d.espera_min as number | null)))
     .filter((wait): wait is number => wait != null);
   const kpis = {
     total: allToday.length,
@@ -99,10 +112,9 @@ export async function getIncidentsByDate(date: string, plant?: string) {
 
   let query = db
     .from("atenciones")
-    .select("id, razon_social, empresa, company_id, planta, h_registro, h_atencion, espera_min, segmento_espera, tipo_operacion, motivo_demora, responsable, agente")
+    .select("id, razon_social, empresa, company_id, planta, h_registro, h_atencion, espera_min, demora_cita_min, segmento_espera, tipo_operacion, motivo_demora, responsable, agente")
     .eq("fecha", date)
-    .gte("espera_min", 30)
-    .order("espera_min", { ascending: false });
+    .order("h_atencion", { ascending: false });
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     query = query.eq("company_id", ctx.companyId);
@@ -113,7 +125,12 @@ export async function getIncidentsByDate(date: string, plant?: string) {
 
   const { data, error } = await query;
   if (error) return [];
-  return data ?? [];
+  return (data ?? [])
+    .map((row) => ({
+      ...row,
+      espera_min: (row.demora_cita_min as number | null) ?? (row.espera_min as number | null),
+    }))
+    .filter((row) => (row.espera_min ?? 0) >= 30);
 }
 
 export async function getAlertLogs(plant?: string) {

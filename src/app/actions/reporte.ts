@@ -4,10 +4,12 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { dateRange } from "./_helpers";
 import type { ReporteStatsRow } from "@/types/dashboard";
-import { getPlantsForSite } from "@/lib/gates";
+import { getPlantsForSite, plantsForSite, normalizeGateAssignments } from "@/lib/gates";
+import { getUserPlants } from "./companies";
 
 interface AtencionRaw {
   espera_min: number | null;
+  demora_cita_min?: number | null;
   h_registro: string | null;
   fecha: string | null;
   planta: string | null;
@@ -22,8 +24,8 @@ interface ReporteAtencionRow extends AtencionRaw {
   agente: string | null;
 }
 
-function hasEspera(row: ReporteAtencionRow): row is ReporteAtencionRow & { espera_min: number } {
-  return row.espera_min != null;
+function metricDelay(row: Pick<ReporteAtencionRow, "demora_cita_min" | "espera_min">): number | null {
+  return row.demora_cita_min ?? row.espera_min ?? null;
 }
 
 const MO = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -67,7 +69,12 @@ export async function getReporteData(
 
   // Site filter takes precedence over plant filter
   if (site && site !== "Todos") {
-    const sitePlants = getPlantsForSite(site);
+    // 1. Prefer company-specific gates (works for any company)
+    const allPlants = await getUserPlants();
+    const userGates = normalizeGateAssignments(null, allPlants);
+    let sitePlants = plantsForSite(site, userGates);
+    // 2. Fall back to static map for legacy clients (Cajamarquilla / Lomas)
+    if (sitePlants.length === 0) sitePlants = getPlantsForSite(site);
     if (sitePlants.length > 0) {
       query = query.in("planta", sitePlants);
     }
@@ -79,11 +86,11 @@ export async function getReporteData(
   if (segments && segments.length > 0) {
     const conditions: string[] = [];
     for (const seg of segments) {
-      if (seg === "Normal") conditions.push("espera_min.lt.30");
-      else if (seg === "Moderado") conditions.push("and(espera_min.gte.30,espera_min.lt.45)");
-      else if (seg === "Alto") conditions.push("and(espera_min.gte.45,espera_min.lt.90)");
-      else if (seg === "Crítico") conditions.push("espera_min.gte.90");
-      else if (seg === "Pendiente") conditions.push("espera_min.is.null");
+      if (seg === "Normal") conditions.push("or(demora_cita_min.lt.30,and(demora_cita_min.is.null,espera_min.lt.30))");
+      else if (seg === "Moderado") conditions.push("or(and(demora_cita_min.gte.30,demora_cita_min.lt.45),and(demora_cita_min.is.null,and(espera_min.gte.30,espera_min.lt.45)))");
+      else if (seg === "Alto") conditions.push("or(and(demora_cita_min.gte.45,demora_cita_min.lt.90),and(demora_cita_min.is.null,and(espera_min.gte.45,espera_min.lt.90)))");
+      else if (seg === "Crítico") conditions.push("or(demora_cita_min.gte.90,and(demora_cita_min.is.null,espera_min.gte.90))");
+      else if (seg === "Pendiente") conditions.push("and(demora_cita_min.is.null,espera_min.is.null)");
     }
     if (conditions.length > 0) {
       query = query.or(conditions.join(","));
@@ -92,7 +99,7 @@ export async function getReporteData(
   
   // Filtro "Solo demoras" — oculta Normal
   if (soloDemoras) {
-    query = query.gte("espera_min", 30);
+    query = query.or("demora_cita_min.gte.30,and(demora_cita_min.is.null,espera_min.gte.30)");
   }
   
   query = query.gte("fecha", from).lte("fecha", to).order("fecha", { ascending: false }).limit(ctx.isAdmin && !cid ? 5000 : 2000);
@@ -101,15 +108,15 @@ export async function getReporteData(
   if (error || !data) return null;
 
   const rows = data as ReporteAtencionRow[];
-  const withTime = rows.filter(hasEspera);
-  const esperas = withTime.map((d) => d.espera_min).sort((a, b) => a - b);
+  const withTime = rows.map((row) => ({ ...row, metric: metricDelay(row) })).filter((row): row is ReporteAtencionRow & { metric: number } => row.metric != null);
+  const esperas = withTime.map((d) => d.metric).sort((a, b) => a - b);
 
   const total    = baseStats ? Number(baseStats.total)    : rows.length;
-  const ok       = baseStats ? Number(baseStats.ok)       : withTime.filter((d) => d.espera_min < 30).length;
-  const warn     = baseStats ? Number(baseStats.warn)     : withTime.filter((d) => d.espera_min >= 30 && d.espera_min < 45).length;
-  const alto     = baseStats ? Number(baseStats.alto)     : withTime.filter((d) => d.espera_min >= 45 && d.espera_min < 90).length;
-  const critico  = baseStats ? Number(baseStats.critico)  : withTime.filter((d) => d.espera_min >= 90).length;
-  const pending  = baseStats ? Number(baseStats.pending)  : rows.filter((d) => d.espera_min == null).length;
+  const ok       = baseStats ? Number(baseStats.ok)       : withTime.filter((d) => d.metric < 30).length;
+  const warn     = baseStats ? Number(baseStats.warn)     : withTime.filter((d) => d.metric >= 30 && d.metric < 45).length;
+  const alto     = baseStats ? Number(baseStats.alto)     : withTime.filter((d) => d.metric >= 45 && d.metric < 90).length;
+  const critico  = baseStats ? Number(baseStats.critico)  : withTime.filter((d) => d.metric >= 90).length;
+  const pending  = baseStats ? Number(baseStats.pending)  : rows.filter((d) => metricDelay(d) == null).length;
   const avgEspera = baseStats ? Number(baseStats.avg_espera) : (esperas.length ? Math.round(esperas.reduce((s, v) => s + v, 0) / esperas.length) : 0);
   const maxEspera = baseStats ? Number(baseStats.max_espera) : (esperas.length ? esperas[esperas.length - 1] : 0);
   const p90Espera = esperas.length ? esperas[Math.min(Math.floor(esperas.length * 0.9), esperas.length - 1)] : 0;
@@ -119,13 +126,13 @@ export async function getReporteData(
   const plantNames = [...new Set(rows.map((d) => d.planta).filter((value): value is string => Boolean(value)))];
   const plantStats = plantNames.map(p => {
     const pRows = rows.filter((d) => d.planta === p);
-    const wt = pRows.filter(hasEspera);
-    const pOk = wt.filter((d) => d.espera_min < 30).length;
-    const pW = wt.filter((d) => d.espera_min >= 30 && d.espera_min < 45).length;
-    const pA = wt.filter((d) => d.espera_min >= 45 && d.espera_min < 90).length;
-    const pC = wt.filter((d) => d.espera_min >= 90).length;
-    const pPnd = pRows.filter((d) => d.espera_min == null).length;
-    const pEsp = wt.map((d) => d.espera_min);
+    const wt = pRows.map((row) => ({ ...row, metric: metricDelay(row) })).filter((row): row is ReporteAtencionRow & { metric: number } => row.metric != null);
+    const pOk = wt.filter((d) => d.metric < 30).length;
+    const pW = wt.filter((d) => d.metric >= 30 && d.metric < 45).length;
+    const pA = wt.filter((d) => d.metric >= 45 && d.metric < 90).length;
+    const pC = wt.filter((d) => d.metric >= 90).length;
+    const pPnd = pRows.filter((d) => metricDelay(d) == null).length;
+    const pEsp = wt.map((d) => d.metric);
     const pAvg = pEsp.length ? Math.round(pEsp.reduce((s, v) => s + v, 0) / pEsp.length) : 0;
     const pPct = wt.length > 0 ? Math.round((pOk / wt.length) * 100) : null;
     return { planta: p, total: pRows.length, ok: pOk, warn: pW, alto: pA, critico: pC, pending: pPnd, avg: pAvg, pctOnTime: pPct };
@@ -137,8 +144,9 @@ export async function getReporteData(
     const k = d.fecha ?? "";
     if (!trendMap[k]) trendMap[k] = { total: 0, onTime: 0, delayed: 0 };
     trendMap[k].total++;
-    if (d.espera_min != null && d.espera_min < 30) trendMap[k].onTime++;
-    else if (d.espera_min != null) trendMap[k].delayed++;
+    const delay = metricDelay(d);
+    if (delay != null && delay < 30) trendMap[k].onTime++;
+    else if (delay != null) trendMap[k].delayed++;
   });
   const trendData = Object.entries(trendMap)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -157,13 +165,29 @@ export async function getReporteData(
     { name: "Pendiente", range: "Sin cierre", count: pending, color: "var(--sg-info)" },
   ].map(s => ({ ...s, pct: total > 0 ? Math.round((s.count / total) * 100) : 0 }));
 
+  // SLA per provider: total visits + delay count + rate
+  const slaMap: Record<string, { total: number; delayed: number; esperas: number[] }> = {};
+  rows.filter(d => d.empresa).forEach(d => {
+    const k = d.empresa as string;
+    if (!slaMap[k]) slaMap[k] = { total: 0, delayed: 0, esperas: [] };
+    slaMap[k].total++;
+    const delay = metricDelay(d);
+    if (delay != null && delay >= 30) {
+      slaMap[k].delayed++;
+      slaMap[k].esperas.push(delay);
+    }
+  });
+
   // Top companies with delays
   const compMap: Record<string, { count: number; esperas: number[] }> = {};
-  rows.filter((d) => d.espera_min != null && d.espera_min >= 30 && d.empresa).forEach((d) => {
+  rows.filter((d) => {
+    const delay = metricDelay(d);
+    return delay != null && delay >= 30 && d.empresa;
+  }).forEach((d) => {
     const k = d.empresa as string;
     if (!compMap[k]) compMap[k] = { count: 0, esperas: [] };
     compMap[k].count++;
-    compMap[k].esperas.push(d.espera_min as number);
+    compMap[k].esperas.push(metricDelay(d) as number);
   });
   const topCompaniesSorted = Object.entries(compMap)
     .map(([empresa, v]) => ({
@@ -180,7 +204,7 @@ export async function getReporteData(
   const firstDates = new Set(trendData.slice(0, midIdx).map(t => t.date));
   const secondDates = new Set(trendData.slice(midIdx).map(t => t.date));
   const compTrend: Record<string, { first: number; second: number }> = {};
-  rows.filter((d) => d.empresa && d.espera_min != null && d.espera_min >= 30).forEach((d) => {
+  rows.filter((d) => d.empresa && (metricDelay(d) ?? 0) >= 30).forEach((d) => {
     const k = d.empresa as string;
     if (!compTrend[k]) compTrend[k] = { first: 0, second: 0 };
     if (d.fecha && firstDates.has(d.fecha)) compTrend[k].first++;
@@ -197,14 +221,36 @@ export async function getReporteData(
     return { ...c, trend };
   });
 
+  // SLA de proveedores: tasa de demora por empresa (mín. 3 visitas)
+  const providerSLA = Object.entries(slaMap)
+    .filter(([, v]) => v.total >= 3)
+    .map(([empresa, v]) => {
+      const onTime    = v.total - v.delayed;
+      const rate      = Math.round((v.delayed / v.total) * 100);
+      const avgEspera = v.esperas.length > 0
+        ? Math.round(v.esperas.reduce((s, e) => s + e, 0) / v.esperas.length)
+        : null;
+      const grade = rate <= 10 ? "A" : rate <= 25 ? "B" : rate <= 50 ? "C" : rate <= 75 ? "D" : "F";
+      const ct = compTrend[empresa];
+      let trend: "up" | "down" | "stable" = "stable";
+      if (ct && ct.first + ct.second >= 4) {
+        const delta = ct.second - ct.first;
+        if (delta >= 2) trend = "up";
+        else if (delta <= -2) trend = "down";
+      }
+      return { empresa, total: v.total, onTime, delayed: v.delayed, rate, grade, avgEspera, trend };
+    })
+    .sort((a, b) => b.rate - a.rate);
+
   // Operation types
   const opMap: Record<string, { count: number; delayed: number; esperas: number[] }> = {};
   rows.forEach((d) => {
     const k = d.tipo_operacion || "Sin tipo";
     if (!opMap[k]) opMap[k] = { count: 0, delayed: 0, esperas: [] };
     opMap[k].count++;
-    if (d.espera_min != null && d.espera_min >= 30) opMap[k].delayed++;
-    if (d.espera_min != null) opMap[k].esperas.push(d.espera_min);
+    const delay = metricDelay(d);
+    if (delay != null && delay >= 30) opMap[k].delayed++;
+    if (delay != null) opMap[k].esperas.push(delay);
   });
   const opTypes = Object.entries(opMap)
     .map(([tipo, v]) => ({
@@ -232,9 +278,10 @@ export async function getReporteData(
     const k = d.agente as string;
     if (!agentMap[k]) agentMap[k] = { total: 0, ok: 0, delayed: 0, pending: 0, esperas: [] };
     agentMap[k].total++;
-    if (d.espera_min == null)       { agentMap[k].pending++; }
-    else if (d.espera_min < 30)     { agentMap[k].ok++;     agentMap[k].esperas.push(d.espera_min); }
-    else                            { agentMap[k].delayed++; agentMap[k].esperas.push(d.espera_min); }
+    const delay = metricDelay(d);
+    if (delay == null)              { agentMap[k].pending++; }
+    else if (delay < 30)            { agentMap[k].ok++;     agentMap[k].esperas.push(delay); }
+    else                            { agentMap[k].delayed++; agentMap[k].esperas.push(delay); }
   });
   const agentStats = Object.entries(agentMap)
     .map(([agente, v]) => ({
@@ -257,8 +304,9 @@ export async function getReporteData(
     else if (timeframe === "Semana" || timeframe === "Mes") key = d.fecha ? d.fecha.substring(8, 10) : "01";
     else if (/^\d{4}$/.test(timeframe)) key = d.fecha ? d.fecha.substring(5, 7) : "01";
     if (!flowMap[key]) flowMap[key] = { h: key, ok: 0, warn: 0, deny: 0 };
-    if (d.espera_min != null && d.espera_min >= 45) flowMap[key].deny++;
-    else if (d.espera_min != null && d.espera_min >= 30) flowMap[key].warn++;
+    const delay = metricDelay(d);
+    if (delay != null && delay >= 45) flowMap[key].deny++;
+    else if (delay != null && delay >= 30) flowMap[key].warn++;
     else flowMap[key].ok++;
   });
   const flowData = Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h));
@@ -284,7 +332,7 @@ export async function getReporteData(
   return {
     total, ok, warn, alto, critico, pending,
     avgEspera, maxEspera, p90Espera, pctOnTime,
-    plantStats, segments: segmentDistribution, topCompanies, opTypes, delayReasons, agentStats,
+    plantStats, segments: segmentDistribution, topCompanies, providerSLA, opTypes, delayReasons, agentStats,
     flowData, trendData, heatmap,
   };
 }
