@@ -16,6 +16,7 @@ import type {
 } from "@/types/dashboard";
 
 type DashboardMetricRow = {
+  fecha: string | null;
   razon_social: string | null;
   empresa: string | null;
   planta: string | null;
@@ -31,7 +32,38 @@ function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "esper
   return row.demora_cita_min ?? row.espera_min ?? null;
 }
 
-function buildDashboardStatsFromRows(rows: DashboardMetricRow[]): Omit<DashboardStatsResult, "delayReasons"> & { delayReasons: { motivo: string; count: number }[] } {
+const DAYS_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function flowBucketKey(row: DashboardMetricRow, timeframe: string): string {
+  if (timeframe === "Día") return row.h_registro ? row.h_registro.substring(0, 2) : "00";
+  if (!row.fecha) return "1";
+  const d = new Date(row.fecha + "T12:00:00");
+  if (timeframe === "Semana") return String(d.getDay()); // 0=Dom … 6=Sáb
+  if (timeframe === "Mes") return String(Math.min(4, Math.ceil(d.getDate() / 7)));
+  if (/^\d{4}$/.test(timeframe)) return String(d.getMonth() + 1).padStart(2, "0");
+  return row.h_registro ? row.h_registro.substring(0, 2) : "00";
+}
+
+function padFlowData(
+  flowMap: Record<string, DashboardFlowRow>,
+  timeframe: string,
+): Record<string, DashboardFlowRow> {
+  const padded = { ...flowMap };
+  if (timeframe === "Semana") {
+    for (let i = 0; i < 7; i++) {
+      const k = String(i);
+      if (!padded[k]) padded[k] = { h: k, ok: 0, warn: 0, deny: 0 };
+    }
+  } else if (timeframe === "Mes") {
+    for (let i = 1; i <= 4; i++) {
+      const k = String(i);
+      if (!padded[k]) padded[k] = { h: k, ok: 0, warn: 0, deny: 0 };
+    }
+  }
+  return padded;
+}
+
+function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "Día"): Omit<DashboardStatsResult, "delayReasons"> & { delayReasons: { motivo: string; count: number }[] } {
   const kpis: DashboardKpis = {
     ok: rows.filter((row) => {
       const delay = effectiveDelay(row);
@@ -113,13 +145,14 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[]): Omit<Dashboard
 
   const flowMap: Record<string, DashboardFlowRow> = {};
   rows.forEach((row) => {
-    const key = row.h_registro ? row.h_registro.substring(0, 2) : "00";
+    const key = flowBucketKey(row, timeframe);
     if (!flowMap[key]) flowMap[key] = { h: key, ok: 0, warn: 0, deny: 0 };
     const delay = effectiveDelay(row);
     if (delay != null && delay >= 45) flowMap[key].deny++;
     else if (delay != null && delay >= 30) flowMap[key].warn++;
     else flowMap[key].ok++;
   });
+  const paddedFlowMap = padFlowData(flowMap, timeframe);
 
   const reasonMap: Record<string, number> = {};
   rows.filter((row) => row.motivo_demora).forEach((row) => {
@@ -148,7 +181,7 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[]): Omit<Dashboard
     events,
     alerts,
     topProvider,
-    flowData: Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h)),
+    flowData: Object.values(paddedFlowMap).sort((a, b) => a.h.localeCompare(b.h)),
     delayReasons: Object.entries(reasonMap)
       .map(([motivo, count]) => ({ motivo, count }))
       .sort((a, b) => b.count - a.count),
@@ -279,7 +312,7 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
   }
 
   if (ctx.isAdmin && !ctx.companyId) {
-    return getDashboardStatsAdmin(plant, from, to);
+    return getDashboardStatsAdmin(plant, from, to, timeframe);
   }
 
   const companyId = ctx.companyId!;
@@ -287,7 +320,7 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
   try {
     let query = supabase
       .from("atenciones")
-      .select("razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora")
+      .select("fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora")
       .eq("company_id", companyId)
       .gte("fecha", from)
       .lte("fecha", to)
@@ -295,7 +328,7 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
     if (plant !== "Todos") query = query.eq("planta", plant);
     const { data, error } = await query;
     if (error || !data) throw error ?? new Error("Sin datos de dashboard");
-    return buildDashboardStatsFromRows(data as DashboardMetricRow[]);
+    return buildDashboardStatsFromRows(data as DashboardMetricRow[], timeframe);
   } catch (err) {
     logError("getDashboardStats", err);
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
@@ -307,7 +340,8 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
 async function getDashboardStatsAdmin(
   plant: string,
   from: string,
-  to: string
+  to: string,
+  timeframe = "Día",
 ): Promise<DashboardStatsResult> {
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
@@ -323,7 +357,7 @@ async function getDashboardStatsAdmin(
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
   }
 
-  return buildDashboardStatsFromRows(data as DashboardMetricRow[]);
+  return buildDashboardStatsFromRows(data as DashboardMetricRow[], timeframe);
 }
 
 // ─── TREND COMPARISON ─────────────────────────────────────────────────────────

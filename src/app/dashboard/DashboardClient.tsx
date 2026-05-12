@@ -71,14 +71,21 @@ interface DashboardClientProps {
 
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
+const DAYS_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const DAYS_LONG  = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
 function formatXLabel(value: string, timeframe: string): string {
-  if (timeframe === "Día") return `${value}h`;
+  if (timeframe === "Día")    return `${value}h`;
+  if (timeframe === "Semana") return DAYS_SHORT[parseInt(value)] ?? value;
+  if (timeframe === "Mes")    return `S${value}`;
   if (/^\d{4}$/.test(timeframe)) return MONTHS[parseInt(value) - 1] ?? value;
   return `d.${value}`;
 }
 
 function formatTooltipLabel(label: string, timeframe: string): string {
-  if (timeframe === "Día") return `${label}:00 – ${label}:59`;
+  if (timeframe === "Día")    return `${label}:00 – ${label}:59`;
+  if (timeframe === "Semana") return DAYS_LONG[parseInt(label)] ?? label;
+  if (timeframe === "Mes")    return `Semana ${label}`;
   if (/^\d{4}$/.test(timeframe)) return MONTHS[parseInt(label) - 1] ?? label;
   return `Día ${label}`;
 }
