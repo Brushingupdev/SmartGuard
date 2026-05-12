@@ -8,33 +8,11 @@ export async function getResponsables(): Promise<string[]> {
   const supabase = await createClient();
   const ctx = await getUserContext();
 
-  // Solo mostrar responsables con actividad en el año en curso
-  const currentYear = new Date().getFullYear();
-
-  let activeQuery = supabase
-    .from("atenciones")
-    .select("responsable")
-    .not("responsable", "is", null)
-    .eq("anio", currentYear)
-    .limit(5000);
-
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    activeQuery = activeQuery.eq("company_id", ctx.companyId);
-  }
-
-  const { data: activeData } = await activeQuery;
-
-  if (activeData && activeData.length > 0) {
-    const unique = [...new Set(activeData.map((r: { responsable: string }) => r.responsable).filter(Boolean))].sort() as string[];
-    if (unique.length > 0) return unique;
-  }
-
-  // Fallback: tabla responsables completa
   let respQuery = supabase
     .from("responsables")
     .select("nombre")
     .eq("activo", true)
-    .order("nombre");
+    .order("id", { ascending: true });
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     respQuery = respQuery.eq("company_id", ctx.companyId);
