@@ -273,6 +273,66 @@ function TrendTip({ active, payload, label }: { active?: boolean; payload?: Char
   );
 }
 
+// ── Export dropdown ───────────────────────────────────────────────────────────
+
+function ExportDropdown({ onCSV, excelHref, pdfHref, exporting }: {
+  onCSV: () => void;
+  excelHref: string;
+  pdfHref: string;
+  exporting: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        disabled={exporting}
+        className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+      >
+        <Download className="h-3.5 w-3.5" />
+        Exportar
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          {/* backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[6px_6px_0_rgba(0,0,0,0.3)] min-w-[140px]">
+            <button
+              onClick={() => { setOpen(false); onCSV(); }}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:bg-[var(--sg-panel-2)] hover:text-[var(--sg-success)] transition-colors"
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              CSV
+            </button>
+            <a
+              href={excelHref}
+              download
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:bg-[var(--sg-panel-2)] hover:text-[#22c55e] transition-colors"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+              Excel
+            </a>
+            <a
+              href={pdfHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:bg-[var(--sg-panel-2)] hover:text-[#ef4444] transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              PDF
+            </a>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main content ─────────────────────────────────────────────────────────────
 
 function ReporteContent() {
@@ -463,40 +523,14 @@ function ReporteContent() {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {/* Exportar dropdown */}
           {data && !loading && (
-            <>
-              {/* CSV */}
-              <button
-                onClick={() => { setExporting(true); exportReporteCSV(data, plant, timeframe, selectedSegments, soloDemoras, compareMode); setExporting(false); }}
-                disabled={exporting}
-                title="Descargar CSV"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-success)] hover:text-[var(--sg-success)] transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" />
-                CSV
-              </button>
-              {/* Excel */}
-              <a
-                href={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
-                download
-                title="Descargar Excel (.xlsx)"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#22c55e] hover:text-[#22c55e] transition-colors"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel
-              </a>
-              {/* PDF */}
-              <a
-                href={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir reporte PDF"
-                className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                PDF
-              </a>
-            </>
+            <ExportDropdown
+              onCSV={() => { setExporting(true); exportReporteCSV(data, plant, timeframe, selectedSegments, soloDemoras, compareMode); setExporting(false); }}
+              excelHref={`/api/exportar/excel?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
+              pdfHref={`/api/exportar/pdf?plant=${encodeURIComponent(plant)}&timeframe=${encodeURIComponent(timeframe)}${selectedSegments.length > 0 ? `&segments=${encodeURIComponent(selectedSegments.join(","))}` : ""}${soloDemoras ? "&soloDemoras=1" : ""}${compareMode !== "Todas" ? `&site=${encodeURIComponent(compareMode)}` : ""}`}
+              exporting={exporting}
+            />
           )}
           <button
             onClick={load}
