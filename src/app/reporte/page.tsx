@@ -340,6 +340,7 @@ function ReporteContent() {
   const [plant,          setPlant]          = useState(searchParams.get("plant")     ?? "Todos");
   const [plants,         setPlants]         = useState<string[]>([]);
   const [timeframe,      setTimeframe]      = useState(searchParams.get("timeframe") ?? "Día");
+  const [selectedYear,   setSelectedYear]   = useState<string>("");
   const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [soloDemoras,    setSoloDemoras]    = useState(false);
   const [compareMode,    setCompareMode]    = useState<string>("Todas");
@@ -383,7 +384,14 @@ function ReporteContent() {
 
   useEffect(() => {
     getUserPlants().then(setPlants);
-    getAvailableYears().then(setAvailableYears);
+    getAvailableYears().then((years) => {
+      setAvailableYears(years);
+      if (years.includes(timeframe)) {
+        setSelectedYear(timeframe);
+      } else if (years.length > 0) {
+        setSelectedYear(years[0]);
+      }
+    });
     getUserGateOptions().then(setGateOptions);
   }, []);
   useEffect(() => {
@@ -440,8 +448,9 @@ function ReporteContent() {
     <AppLayout>
 
       {/* ── Topbar ──────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sg-line)] pb-5">
-        <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-4 border-b border-[var(--sg-line)] pb-5">
+        {/* Left: breadcrumb */}
+        <div className="flex items-center gap-3 flex-shrink-0">
           <Link
             href="/dashboard"
             className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)] transition-colors"
@@ -449,12 +458,14 @@ function ReporteContent() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </Link>
-          <div className="h-3.5 w-px bg-[var(--sg-line)]" />
-          <div className="sg-kicker">Análisis Detallado</div>
 
+        </div>
+
+        {/* Center: filters */}
+        <div className="flex-1 flex items-center justify-center gap-4">
           {/* Site comparison buttons — only shown when company has multiple sites */}
           {sites.length > 1 && (
-            <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+            <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-shrink-0">
               {["Todas", ...sites].map((s) => (
                 <button
                   key={s}
@@ -476,7 +487,7 @@ function ReporteContent() {
 
           {/* Gate filter (dropdown) — solo cuando hay sedes con múltiples puertas */}
           {showGateDropdown && (
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <select
                 aria-label="Seleccionar puerta"
                 value={plant}
@@ -498,7 +509,7 @@ function ReporteContent() {
           )}
 
           {/* Timeframe filter */}
-          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
+          <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-shrink-0">
             {["Día", "Semana", "Mes"].map((t) => (
               <button
                 key={t}
@@ -515,25 +526,33 @@ function ReporteContent() {
             {availableYears.length > 0 && (
               <>
                 <div className="w-px h-4 bg-[var(--sg-line)] mx-0.5" />
-                {availableYears.map((year) => (
-                  <button
-                    key={year}
-                    onClick={() => setTimeframe(year)}
-                    className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
-                      timeframe === year
-                        ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                        : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                    }`}
+                <div className="relative">
+                  <select
+                    aria-label="Seleccionar año"
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const year = e.target.value;
+                      setSelectedYear(year);
+                      setTimeframe(year);
+                    }}
+                    className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
                   >
-                    {year}
-                  </button>
-                ))}
+                    <option value="" disabled className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">Año</option>
+                    {availableYears.map((year) => (
+                      <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+                </div>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Exportar dropdown */}
           {data && !loading && (
             <ExportDropdown
