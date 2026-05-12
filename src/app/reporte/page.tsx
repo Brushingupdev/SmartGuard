@@ -291,7 +291,10 @@ function ReporteContent() {
   const [exporting, setExporting]   = useState(false);
   const [slaSort, setSlaSort]       = useState<{ col: string; dir: "asc" | "desc" }>({ col: "rate", dir: "desc" });
   const [gateOptions, setGateOptions] = useState<GateAssignment[]>([]);
-  const sites = useMemo(() => groupGatesBySite(gateOptions).map(s => s.site), [gateOptions]);
+  const siteGroups = useMemo(() => groupGatesBySite(gateOptions), [gateOptions]);
+  const sites = useMemo(() => siteGroups.map(s => s.site), [siteGroups]);
+  // Si cada sede tiene exactamente 1 puerta, el dropdown de puertas es redundante con los pills
+  const showGateDropdown = useMemo(() => siteGroups.some(s => s.gates.length > 1), [siteGroups]);
 
   const activeFilterCount = selectedSegments.length + (soloDemoras ? 1 : 0);
 
@@ -400,26 +403,28 @@ function ReporteContent() {
             </div>
           )}
 
-          {/* Gate filter (dropdown) */}
-          <div className="relative">
-            <select
-              aria-label="Seleccionar puerta"
-              value={plant}
-              onChange={(e) => {
-                setPlant(e.target.value);
-                setCompareMode("Todas");
-              }}
-              disabled={compareMode !== "Todas"}
-              className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {["Todos", ...plants].map((p) => (
-                <option key={p} value={p} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
-                  {p === "Todos" ? "Todas las puertas" : formatGateLabelFromPlant(p)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
-          </div>
+          {/* Gate filter (dropdown) — solo cuando hay sedes con múltiples puertas */}
+          {showGateDropdown && (
+            <div className="relative">
+              <select
+                aria-label="Seleccionar puerta"
+                value={plant}
+                onChange={(e) => {
+                  setPlant(e.target.value);
+                  setCompareMode("Todas");
+                }}
+                disabled={compareMode !== "Todas"}
+                className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {["Todos", ...plants].map((p) => (
+                  <option key={p} value={p} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
+                    {p === "Todos" ? "Todas las puertas" : formatGateLabelFromPlant(p)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+            </div>
+          )}
 
           {/* Timeframe filter */}
           <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
