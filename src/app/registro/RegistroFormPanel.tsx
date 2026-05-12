@@ -72,14 +72,14 @@ function SelectField({
     <div className="sg-field">
       <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">{label}</label>
       <div className="relative">
-        {Icon ? (
+        {Icon && !value ? (
           <Icon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
         ) : null}
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`sg-select h-10 appearance-none ${Icon ? "pl-9" : "pl-3"} pr-10 text-[13px] ${disabled ? "cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60" : ""}`}
+          className={`sg-select h-10 appearance-none ${Icon && !value ? "pl-9" : "pl-3"} pr-10 text-[13px] ${disabled ? "cursor-not-allowed bg-[var(--sg-panel-3)] opacity-60" : ""}`}
         >
           {options.map((option) => (
             <option key={option.value} value={option.value} className="bg-[var(--sg-panel-2)]">
@@ -171,7 +171,7 @@ function AutocompleteInput({
 
   return (
     <div ref={containerRef} className="relative">
-      <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+      {!value && <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />}
       <input
         type="text"
         value={value}
@@ -183,7 +183,7 @@ function AutocompleteInput({
         placeholder={placeholder}
         required={required}
         autoComplete="off"
-        className="sg-input h-10 w-full pl-9 text-[13px] uppercase"
+        className={`sg-input h-10 w-full ${value ? "pl-3" : "pl-9"} text-[13px] uppercase`}
       />
       {open ? (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[200px] overflow-y-auto border border-[var(--sg-accent)] bg-[var(--sg-panel)] shadow-[4px_4px_0_rgba(196,192,180,0.1)]">
@@ -219,6 +219,13 @@ function AgenteDropup({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Auto-seleccionar el primer agente si el valor actual no está en la lista
+  useEffect(() => {
+    if (options.length > 0 && !options.includes(value)) {
+      onChange(options[0]);
+    }
+  }, [options, value, onChange]);
+
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
@@ -245,11 +252,11 @@ function AgenteDropup({
 
   return (
     <div ref={ref} className="relative">
-      <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)] z-10" />
+      {!value && <Shield className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)] z-10" />}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="sg-select h-10 w-full appearance-none pl-9 pr-8 text-[13px] text-left flex items-center"
+        className={`sg-select h-10 w-full appearance-none ${value ? "pl-3" : "pl-9"} pr-8 text-[13px] text-left flex items-center`}
       >
         <span className="truncate">{value || <span className="text-[var(--sg-muted)]">Seleccionar agente</span>}</span>
       </button>
@@ -446,13 +453,13 @@ export default function RegistroFormPanel({
               <div className="sg-field">
                 <label className="mb-1.5 block text-[11px] font-medium text-[var(--sg-copy)]">Responsable de almacén *</label>
                 <div className="relative">
-                  <Package className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                  {!values.responsable && <Package className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />}
                   {responsablesList.length > 0 ? (
                     <>
                       <select
                         value={values.responsable}
                         onChange={(event) => onResponsableChange(event.target.value)}
-                        className="sg-select h-10 appearance-none pl-9 pr-8 text-[13px]"
+                        className={`sg-select h-10 appearance-none ${values.responsable ? "pl-3" : "pl-9"} pr-8 text-[13px]`}
                       >
                         {responsablesList.map((responsable) => (
                           <option key={responsable} value={responsable} className="bg-[var(--sg-panel-2)]">
@@ -468,7 +475,7 @@ export default function RegistroFormPanel({
                         value={values.responsable}
                         onChange={(event) => onResponsableChange(event.target.value.toUpperCase())}
                         placeholder="Nombre del responsable"
-                        className="sg-input h-10 pl-9 text-[13px] uppercase"
+                        className={`sg-input h-10 ${values.responsable ? "pl-3" : "pl-9"} text-[13px] uppercase`}
                       />
                     )}
                 </div>

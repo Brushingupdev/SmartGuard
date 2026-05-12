@@ -83,15 +83,13 @@ export default function PlacaInput({
         </label>
       ) : null}
       <div ref={containerRef} className="relative">
-        <Truck
-          className={`pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 transition-colors ${
-            compact ? "h-4 w-4" : "h-5 w-5"
-          } ${
-            focused
-              ? "text-[var(--sg-accent)]"
-              : "text-[var(--sg-muted)]"
-          }`}
-        />
+        {!value && (
+          <Truck
+            className={`pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 transition-colors ${
+              compact ? "h-4 w-4" : "h-5 w-5"
+            } ${focused ? "text-[var(--sg-accent)]" : "text-[var(--sg-muted)]"}`}
+          />
+        )}
         <input
           type="text"
           value={value}
@@ -103,7 +101,7 @@ export default function PlacaInput({
           autoComplete="off"
           autoFocus={autoFocus}
           required
-          className={`sg-input pl-10 uppercase font-bold tracking-[0.04em] transition-all ${
+          className={`sg-input uppercase font-bold tracking-[0.04em] transition-all ${value ? "pl-3" : "pl-10"} ${
             compact ? "h-11 text-[14px] sm:text-[15px]" : "h-14 text-[18px] sm:h-16 sm:text-[22px]"
           } ${
             focused ? "border-[var(--sg-accent)] shadow-[0_0_0_3px_rgba(200,168,75,0.12)] text-[var(--sg-accent)]" : ""

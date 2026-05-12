@@ -144,6 +144,7 @@ export default function TarjetaRegistro({
   closing = false,
   docsLoading = false,
   deleting = false,
+  compact = false,
 }: {
   reg: Registro;
   onClose?: () => void;
@@ -155,6 +156,7 @@ export default function TarjetaRegistro({
   closing?: boolean;
   docsLoading?: boolean;
   deleting?: boolean;
+  compact?: boolean;
 }) {
   const state = getState(reg);
   const isPending = state === "pending";
@@ -321,6 +323,65 @@ export default function TarjetaRegistro({
   })();
 
   const timeLabel = isScheduledOnly ? "Cita" : "Ingreso";
+
+  if (compact) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        className={`border bg-[var(--sg-panel-2)] ${borderClass}`}
+        style={shadowStyle}
+      >
+        {/* Fila principal */}
+        <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="flex flex-col items-start shrink-0">
+              <span className="sg-font-mono text-[13px] font-bold leading-none text-[var(--sg-ink)]">{reg.time}</span>
+              {leftBottomText && (
+                <span className={`sg-font-mono text-[10px] font-bold mt-0.5 ${isDemora ? "text-[var(--sg-danger)]" : "text-[var(--sg-accent)]"}`}>
+                  {leftBottomText}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)] truncate leading-tight">
+                {reg.razonSocial || "—"}
+              </div>
+              <div className="text-[10px] uppercase tracking-wide text-[var(--sg-muted)] truncate">
+                {reg.empresa || "Sin empresa"}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-[var(--sg-muted)]">
+                <span>{reg.type}</span>
+                {reg.tipoOperacion && <><span className="opacity-40">•</span><span>{reg.tipoOperacion}</span></>}
+                {reg.responsable && <><span className="opacity-40">•</span><span>{reg.responsable}</span></>}
+                {reg.agente && <><span className="opacity-40">•</span><span>{reg.agente}</span></>}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <StatePill state={state} isDemora={isDemora} isCitaActiva={isCitaActiva} isScheduledOnly={isScheduledOnly} />
+            {actionButton && <div className="w-full">{actionButton}</div>}
+          </div>
+        </div>
+        {/* Acciones secundarias */}
+        {(onEdit || onDelete) && (
+          <div className="border-t border-[var(--sg-line)] px-3 py-1.5 flex items-center gap-1">
+            {onEdit && (
+              <button onClick={onEdit} className="flex items-center gap-1 px-2 py-1 sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors">
+                <Pencil className="h-2.5 w-2.5" /> Editar
+              </button>
+            )}
+            {onDelete && (
+              <button onClick={onDelete} disabled={deleting} className={`flex items-center gap-1 px-2 py-1 sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-danger)] transition-colors ${deleting ? "opacity-40 cursor-not-allowed" : ""}`}>
+                <Trash2 className="h-2.5 w-2.5" /> Eliminar
+              </button>
+            )}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

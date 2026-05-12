@@ -18,6 +18,7 @@ const PAGE_SIZE = 10;
 type FilterKey = "todos" | "pendientes" | "atendidos" | "completados" | "demoras";
 
 interface RegistroHistoryPanelProps {
+  compact?: boolean;
   recentRegistrations: RecentRegistration[];
   recentTotal: number;
   abandonedRecords: RecentRegistration[];
@@ -42,6 +43,7 @@ export default function RegistroHistoryPanel({
   docsIds,
   deletingIds,
   userRole,
+  compact = false,
   onRefresh,
   onClose,
   onActivate,
@@ -110,74 +112,117 @@ export default function RegistroHistoryPanel({
   return (
     <div className="flex flex-col h-full">
       <section className="sg-panel flex flex-col h-full">
-        <div className="flex flex-col gap-4 border-b border-[var(--sg-line)] p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--sg-accent)] text-[var(--sg-canvas)]">
-              <Timer className="h-5 w-5" />
+        {compact ? (
+          /* ── Modo garita: compacto ── */
+          <div className="flex flex-col gap-2 border-b border-[var(--sg-line)] px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-[var(--sg-accent)] text-[var(--sg-canvas)]">
+                  <Timer className="h-3.5 w-3.5" />
+                </div>
+                <h2 className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)] truncate">
+                  Registros de Hoy
+                </h2>
+              </div>
+              <button
+                onClick={onRefresh}
+                className="flex shrink-0 items-center gap-1 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+              >
+                Actualizar <RefreshCw className="h-2.5 w-2.5" />
+              </button>
             </div>
-            <h2 className="sg-font-display text-[16px] font-bold uppercase tracking-tight text-[var(--sg-ink)] shrink-0">
-              Registros de Hoy
-            </h2>
-
-            <div className="relative flex-1 flex justify-center"><div className="relative w-full max-w-sm xl:max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value.toUpperCase());
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setCurrentPage(1); }}
                 placeholder="Buscar por placa o empresa..."
-                className="sg-input h-10 w-full pl-9 text-[11px]"
+                className="sg-input h-8 w-full pl-8 text-[11px]"
               />
-              {searchTerm ? (
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setCurrentPage(1);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                >
-                  <X className="h-3.5 w-3.5" />
+              {searchTerm && (
+                <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
+                  <X className="h-3 w-3" />
                 </button>
-              ) : null}
-            </div></div>
-
-            <button
-              onClick={onRefresh}
-              className="flex h-10 shrink-0 items-center justify-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-            >
-              Actualizar
-              <RefreshCw className="h-3 w-3" />
-            </button>
+              )}
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { key: "todos", label: "Todos" },
+                { key: "pendientes", label: "Pendientes" },
+                { key: "atendidos", label: "Atendidos" },
+                { key: "completados", label: "Completados" },
+                { key: "demoras", label: "Demoras" },
+              ].map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => { setActiveFilter(filter.key as FilterKey); setCurrentPage(1); }}
+                  className={`border px-2 py-0.5 sg-font-mono text-[8px] uppercase tracking-widest transition-colors ${
+                    activeFilter === filter.key
+                      ? "border-[var(--sg-accent)] text-[var(--sg-accent)]"
+                      : "border-[var(--sg-line)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+                  }`}
+                >
+                  {filter.label} ({counts[filter.key as FilterKey]})
+                </button>
+              ))}
+            </div>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "todos", label: "Todos" },
-              { key: "pendientes", label: "Pendientes" },
-              { key: "atendidos", label: "Atendidos" },
-              { key: "completados", label: "Completados" },
-              { key: "demoras", label: "Demoras" },
-            ].map((filter) => (
+        ) : (
+          /* ── Modo escritorio: original ── */
+          <div className="flex flex-col gap-4 border-b border-[var(--sg-line)] p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--sg-accent)] text-[var(--sg-canvas)]">
+                <Timer className="h-5 w-5" />
+              </div>
+              <h2 className="sg-font-display text-[16px] font-bold uppercase tracking-tight text-[var(--sg-ink)] shrink-0">
+                Registros de Hoy
+              </h2>
+              <div className="relative flex-1 flex justify-center"><div className="relative w-full max-w-sm xl:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setCurrentPage(1); }}
+                  placeholder="Buscar por placa o empresa..."
+                  className="sg-input h-10 w-full pl-9 text-[11px]"
+                />
+                {searchTerm && (
+                  <button onClick={() => { setSearchTerm(""); setCurrentPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div></div>
               <button
-                key={filter.key}
-                onClick={() => {
-                  setActiveFilter(filter.key as FilterKey);
-                  setCurrentPage(1);
-                }}
-                className={`border px-2.5 py-1 sg-font-mono text-[8px] uppercase tracking-widest transition-colors ${
-                  activeFilter === filter.key
-                    ? "border-[var(--sg-accent)] text-[var(--sg-accent)]"
-                    : "border-[var(--sg-line)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
-                }`}
+                onClick={onRefresh}
+                className="flex h-10 shrink-0 items-center justify-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
               >
-                {filter.label} ({counts[filter.key as FilterKey]})
+                Actualizar <RefreshCw className="h-3 w-3" />
               </button>
-            ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "todos", label: "Todos" },
+                { key: "pendientes", label: "Pendientes" },
+                { key: "atendidos", label: "Atendidos" },
+                { key: "completados", label: "Completados" },
+                { key: "demoras", label: "Demoras" },
+              ].map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => { setActiveFilter(filter.key as FilterKey); setCurrentPage(1); }}
+                  className={`border px-2.5 py-1 sg-font-mono text-[8px] uppercase tracking-widest transition-colors ${
+                    activeFilter === filter.key
+                      ? "border-[var(--sg-accent)] text-[var(--sg-accent)]"
+                      : "border-[var(--sg-line)] text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+                  }`}
+                >
+                  {filter.label} ({counts[filter.key as FilterKey]})
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {abandonedRecords.length > 0 && (
           <div className="flex items-center justify-between border-b border-[var(--sg-danger)] bg-[rgba(211,92,79,0.07)] px-5 py-2.5">
@@ -222,6 +267,7 @@ export default function RegistroHistoryPanel({
                   <TarjetaRegistro
                     key={record.id}
                     reg={record}
+                    compact={compact}
                     onClose={() => onClose(record)}
                     onActivate={record.scheduledOnly ? () => onActivate(record) : undefined}
                     onDocs={record.attended && !record.docsDelivered ? () => onDocs(record) : undefined}

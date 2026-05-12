@@ -984,7 +984,7 @@ export default function RegistroClient({
         <RegistroWizard pendingCount={pendingCount} attendedCount={attendedCount} completedCount={completedCount} />
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)] 2xl:grid-cols-[460px_minmax(0,1fr)] xl:justify-between xl:items-stretch">
+      <div className={`mt-4 grid gap-4 xl:items-stretch ${isKiosk ? "grid-cols-[400px_minmax(0,1fr)]" : "xl:grid-cols-[420px_minmax(0,1fr)] 2xl:grid-cols-[460px_minmax(0,1fr)]"}`}>
         <div className="flex flex-col gap-5 xl:sticky xl:top-5">
           <CitasDelDia
             plant={plant}
@@ -1039,6 +1039,7 @@ export default function RegistroClient({
             docsIds={docsIds}
             deletingIds={deletingIds}
             userRole={userRole}
+            compact={isKiosk}
             onRefresh={() => void refreshRecent(plant)}
             onClose={handleClose}
             onActivate={handleActivateScheduled}
@@ -1110,7 +1111,7 @@ export default function RegistroClient({
   return (
     isKiosk ? (
       <KioskLayout plant={plant} onExit={() => setIsKiosk(false)}>
-        <div className="max-w-[900px] mx-auto w-full px-4 py-6 sm:px-6 sm:py-8">
+        <div className="max-w-[1280px] mx-auto w-full px-4 py-4 sm:px-6 sm:py-6">
           {content}
         </div>
       </KioskLayout>

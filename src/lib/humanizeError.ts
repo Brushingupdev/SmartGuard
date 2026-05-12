@@ -10,10 +10,14 @@ const DB_ERRORS: [RegExp, string][] = [
   [/timeout/i, "La operación tardó demasiado. Intenta de nuevo."],
 ];
 
+const DB_NOISE = /constraint|null value in column|syntax for type|violates|permission denied|JWT|ECONNRESET|ETIMEDOUT|fetch failed|timeout/i;
+
 export function humanizeError(raw: string | null | undefined): string {
   if (!raw) return "Error inesperado. Intenta de nuevo.";
   for (const [pattern, friendly] of DB_ERRORS) {
     if (pattern.test(raw)) return friendly;
   }
+  // Si el mensaje no parece un error crudo de BD, mostrarlo directamente
+  if (!DB_NOISE.test(raw)) return raw;
   return "Error inesperado. Si persiste, contacta al administrador.";
 }
