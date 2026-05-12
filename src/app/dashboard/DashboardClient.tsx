@@ -404,7 +404,7 @@ export default function DashboardClient({
                     }}
                     className={`h-[26px] appearance-none border bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors cursor-pointer ${
                       availableYears.includes(selectedTimeframe)
-                        ? "border-[var(--sg-ink)] text-[var(--sg-canvas)] bg-[var(--sg-ink)]"
+                        ? "border-[var(--sg-ink)] text-[var(--sg-ink)] bg-white"
                         : "border-[var(--sg-line)] text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
                     }`}
                   >

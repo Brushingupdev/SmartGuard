@@ -340,7 +340,7 @@ function ReporteContent() {
   const [plant,          setPlant]          = useState(searchParams.get("plant")     ?? "Todos");
   const [plants,         setPlants]         = useState<string[]>([]);
   const [timeframe,      setTimeframe]      = useState(searchParams.get("timeframe") ?? "Día");
-  const [selectedYear,   setSelectedYear]   = useState<string>("");
+  const [selectedYear,   setSelectedYear]   = useState<string>("2026");
   const [selectedSegments, setSelectedSegments] = useState<string[]>([]);
   const [soloDemoras,    setSoloDemoras]    = useState(false);
   const [compareMode,    setCompareMode]    = useState<string>("Todas");
@@ -386,10 +386,14 @@ function ReporteContent() {
     getUserPlants().then(setPlants);
     getAvailableYears().then((years) => {
       setAvailableYears(years);
-      if (years.includes(timeframe)) {
+      if (years.includes("2026")) {
+        setSelectedYear("2026");
+        setTimeframe("2026");
+      } else if (years.includes(timeframe)) {
         setSelectedYear(timeframe);
       } else if (years.length > 0) {
         setSelectedYear(years[0]);
+        setTimeframe(years[0]);
       }
     });
     getUserGateOptions().then(setGateOptions);
