@@ -1,12 +1,15 @@
 import TarjetaRegistro from "@/components/TarjetaRegistro";
+import SemaforoVehiculos from "@/components/SemaforoVehiculos";
 import { AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  LayoutList,
   RefreshCw,
   Search,
   Timer,
+  TrafficCone,
   Truck,
   X,
 } from "lucide-react";
@@ -55,6 +58,7 @@ export default function RegistroHistoryPanel({
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("todos");
+  const [view, setView] = useState<"lista" | "semaforo">("semaforo");
   const canManageClosedRecords = userRole !== "guardia";
 
   const filteredRecords = useMemo(() => {
@@ -124,12 +128,31 @@ export default function RegistroHistoryPanel({
                   Registros de Hoy
                 </h2>
               </div>
-              <button
-                onClick={onRefresh}
-                className="flex shrink-0 items-center gap-1 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-              >
-                Actualizar <RefreshCw className="h-2.5 w-2.5" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Toggle semáforo / lista */}
+                <div className="flex border border-[var(--sg-line)]">
+                  <button
+                    onClick={() => setView("semaforo")}
+                    title="Vista semáforo"
+                    className={`flex items-center px-2 py-1 transition-colors ${view === "semaforo" ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "text-[var(--sg-muted)] hover:text-[var(--sg-accent)]"}`}
+                  >
+                    <TrafficCone className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => setView("lista")}
+                    title="Vista lista"
+                    className={`flex items-center px-2 py-1 border-l border-[var(--sg-line)] transition-colors ${view === "lista" ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "text-[var(--sg-muted)] hover:text-[var(--sg-accent)]"}`}
+                  >
+                    <LayoutList className="h-3 w-3" />
+                  </button>
+                </div>
+                <button
+                  onClick={onRefresh}
+                  className="flex items-center gap-1 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+                >
+                  <RefreshCw className="h-2.5 w-2.5" />
+                </button>
+              </div>
             </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
@@ -245,8 +268,18 @@ export default function RegistroHistoryPanel({
         )}
 
         <div className="flex-1 overflow-auto p-3">
+          {/* ── Vista semáforo ── */}
+          {view === "semaforo" && (
+            <SemaforoVehiculos
+              registrations={recentRegistrations}
+              onClose={onClose}
+              onDocs={onDocs}
+            />
+          )}
+
+          {/* ── Vista lista ── */}
           <AnimatePresence mode="popLayout">
-            {recentRegistrations.length === 0 ? (
+            {view === "lista" && recentRegistrations.length === 0 ? (
               <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 text-[var(--sg-muted)]">
                 <div className="flex h-16 w-16 items-center justify-center border border-dashed border-[var(--sg-line)]">
                   <Truck className="h-7 w-7 opacity-20" />
@@ -256,7 +289,7 @@ export default function RegistroHistoryPanel({
                   <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">Los vehículos registrados aparecerán aquí</p>
                 </div>
               </div>
-            ) : filteredRecords.length === 0 ? (
+            ) : view === "lista" && filteredRecords.length === 0 ? (
               <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 text-[var(--sg-muted)]">
                 <div className="flex h-16 w-16 items-center justify-center border border-dashed border-[var(--sg-line)]">
                   <Search className="h-7 w-7 opacity-20" />
@@ -266,7 +299,7 @@ export default function RegistroHistoryPanel({
                   <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">para "{searchTerm}"</p>
                 </div>
               </div>
-            ) : (
+            ) : view === "lista" ? (
               <div className="grid gap-3">
                 {paginatedRecords.map((record) => (
                   <TarjetaRegistro
@@ -285,7 +318,7 @@ export default function RegistroHistoryPanel({
                   />
                 ))}
               </div>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
 

@@ -33,8 +33,9 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { humanizeError } from "@/lib/humanizeError";
+import { usePWA } from "@/hooks/usePWA";
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import { useRegistroData } from "./useRegistroData";
 import {
@@ -719,6 +720,12 @@ export default function RegistroClient({
   const [responsablesList] = useState<string[]>(bootstrapResponsablesList);
   const [agentesList] = useState<string[]>(bootstrapAgentesList);
   const [isKiosk, setIsKiosk] = useState(false);
+  const isPWA = usePWA();
+
+  // Auto-activar modo garita cuando se abre como PWA instalada
+  useEffect(() => {
+    if (isPWA) setIsKiosk(true);
+  }, [isPWA]);
   const LOAD_LIMIT = 200;
 
   const {

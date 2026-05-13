@@ -1,6 +1,6 @@
 "use client";
 
-import { Truck } from "lucide-react";
+import { Camera, Truck, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { searchSuggestions } from "@/app/actions";
 
@@ -8,6 +8,7 @@ export default function PlacaInput({
   value,
   onChange,
   onSelect,
+  onPhoto,
   placeholder = "TRANSP. EMPRESA ABC-1234",
   autoFocus = false,
   onEnter,
@@ -18,6 +19,8 @@ export default function PlacaInput({
   onChange: (v: string) => void;
   /** Llamado al seleccionar sugerencia — recibe el valor elegido */
   onSelect?: (v: string) => void;
+  /** Llamado cuando el guardia captura una foto */
+  onPhoto?: (file: File, preview: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
   onEnter?: () => void;
@@ -28,8 +31,20 @@ export default function PlacaInput({
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [focused, setFocused] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPhotoPreview(url);
+    onPhoto?.(file, url);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
 
   const search = useCallback(async (term: string) => {
     if (term.length < 2) { setSuggestions([]); setOpen(false); return; }
@@ -101,12 +116,33 @@ export default function PlacaInput({
           autoComplete="off"
           autoFocus={autoFocus}
           required
-          className={`sg-input uppercase font-bold tracking-[0.04em] transition-all ${value ? "pl-3" : "pl-10"} ${
+          className={`sg-input uppercase font-bold tracking-[0.04em] transition-all ${value ? "pl-3" : "pl-10"} pr-11 ${
             compact ? "h-11 text-[14px] sm:text-[15px]" : "h-14 text-[18px] sm:h-16 sm:text-[22px]"
           } ${
             focused ? "border-[var(--sg-accent)] shadow-[0_0_0_3px_rgba(200,168,75,0.12)] text-[var(--sg-accent)]" : ""
           }`}
         />
+
+        {/* Botón cámara — solo en dispositivos táctiles */}
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          title="Tomar foto de placa"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sg-muted)] hover:text-[var(--sg-accent)] transition-colors"
+        >
+          <Camera className={compact ? "h-4 w-4" : "h-5 w-5"} />
+        </button>
+
+        {/* Input oculto para cámara */}
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleCameraCapture}
+        />
+
         {open && (
           <div className="absolute z-50 left-0 right-0 top-full mt-1 border border-[var(--sg-accent)] bg-[var(--sg-panel)] shadow-[4px_4px_0_rgba(196,192,180,0.1)] max-h-[200px] overflow-y-auto">
             {suggestions.map((s, i) => (
@@ -126,6 +162,28 @@ export default function PlacaInput({
           </div>
         )}
       </div>
+
+      {/* Miniatura de foto capturada */}
+      {photoPreview && (
+        <div className="relative mt-2 inline-flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoPreview}
+            alt="Foto placa"
+            className="h-16 w-28 object-cover border border-[var(--sg-accent)] opacity-90"
+          />
+          <button
+            type="button"
+            onClick={() => { setPhotoPreview(null); onPhoto?.(new File([], ""), ""); }}
+            className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center bg-[var(--sg-danger)] text-white"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+          <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-center sg-font-mono text-[8px] uppercase tracking-widest text-white py-0.5">
+            Foto guardada
+          </span>
+        </div>
+      )}
     </div>
   );
 }
