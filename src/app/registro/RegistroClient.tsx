@@ -77,7 +77,7 @@ function Toast({ show, message }: { show: boolean; message: string }) {
           initial={{ opacity: 0, y: 22, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 22, scale: 0.96 }}
-          className={`fixed bottom-6 right-6 z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)] ${isError ? "border-[var(--sg-danger)]" : "border-[var(--sg-success)]"}`}
+          className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)] ${isError ? "border-[var(--sg-danger)]" : "border-[var(--sg-success)]"}`}
         >
           <div className="flex items-center gap-3 text-sm text-[var(--sg-ink)]">
             <CheckCircle2 className={`h-5 w-5 ${isError ? "text-[var(--sg-danger)]" : "text-[var(--sg-success)]"}`} />

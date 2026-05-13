@@ -365,7 +365,7 @@ export default function CitasDelDia({ plant, citas, onToast, onRefresh }: Props)
                     {c.estado === "esperado" && (
                       <>
                         {editingId === c.id ? (
-                          <div className="flex flex-col gap-1 w-[160px]">
+                          <div className="flex flex-col gap-1 w-full sm:w-[160px]">
                             <input
                               type="time"
                               value={editHora}

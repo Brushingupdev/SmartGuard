@@ -505,11 +505,11 @@ export default function RegistroFormPanel({
             </div>
           </div>
 
-          <div className="mt-2 flex items-center gap-3 border-t border-[var(--sg-line)] pt-4">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 border-t border-[var(--sg-line)] pt-4">
             <button
               type="submit"
               disabled={isPending}
-              className={`sg-btn sg-btn-accent h-10 min-w-[200px] justify-center px-5 text-[12px] font-bold tracking-[0.1em] ${
+              className={`sg-btn sg-btn-accent h-11 w-full sm:h-10 sm:w-auto sm:min-w-[200px] justify-center px-5 text-[12px] font-bold tracking-[0.1em] ${
                 isPending ? "cursor-not-allowed opacity-70" : ""
               }`}
             >
@@ -535,7 +535,7 @@ export default function RegistroFormPanel({
               <button
                 type="button"
                 onClick={onClear}
-                className="ml-auto sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-accent)]"
+                className="sm:ml-auto w-full sm:w-auto text-center sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-accent)]"
               >
                 Limpiar
               </button>
