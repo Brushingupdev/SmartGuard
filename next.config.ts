@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import withSerwistInit from "@serwist/next";
+
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+});
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
@@ -14,8 +21,6 @@ const nextConfig: NextConfig = {
     },
   },
   webpack(config) {
-    // @opentelemetry/instrumentation usa require() dinámico para detección de plataforma.
-    // Es ruido del bundler — funciona bien en runtime. Sentry+Prisma lo arrastran indirectamente.
     config.ignoreWarnings = [
       ...(config.ignoreWarnings ?? []),
       {
@@ -27,4 +32,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);
