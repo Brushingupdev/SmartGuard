@@ -628,6 +628,55 @@ textarea {
 }
 
 /* ────────────────────────────────────────────────
+   PWA THEMES
+───────────────────────────────────────────────── */
+
+/* Dark (default — hereda :root) */
+[data-pwa-theme="dark"] {
+  --pwa-bg:        #0d0f0e;
+  --pwa-surface:   #131714;
+  --pwa-surface-2: #1c201d;
+  --pwa-border:    rgba(255,255,255,0.10);
+  --pwa-ink:       #e8e4d8;
+  --pwa-ink-soft:  #b0ab9e;
+  --pwa-muted:     #6e6a60;
+  --pwa-accent:    #c8a84b;
+  --pwa-accent-fg: #0d0f0e;
+  --pwa-danger:    #d35c4f;
+  --pwa-success:   #6bbd8a;
+}
+
+/* Light */
+[data-pwa-theme="light"] {
+  --pwa-bg:        #f2f0eb;
+  --pwa-surface:   #ffffff;
+  --pwa-surface-2: #ebe8e1;
+  --pwa-border:    rgba(0,0,0,0.10);
+  --pwa-ink:       #14110a;
+  --pwa-ink-soft:  #3d3830;
+  --pwa-muted:     #8a8278;
+  --pwa-accent:    #b8941e;
+  --pwa-accent-fg: #ffffff;
+  --pwa-danger:    #c0392b;
+  --pwa-success:   #27ae60;
+}
+
+/* Carbon */
+[data-pwa-theme="carbon"] {
+  --pwa-bg:        #000000;
+  --pwa-surface:   #0a0a0a;
+  --pwa-surface-2: #141414;
+  --pwa-border:    rgba(255,255,255,0.08);
+  --pwa-ink:       #ffffff;
+  --pwa-ink-soft:  #cccccc;
+  --pwa-muted:     #666666;
+  --pwa-accent:    #c8a84b;
+  --pwa-accent-fg: #000000;
+  --pwa-danger:    #ff4444;
+  --pwa-success:   #44ff88;
+}
+
+/* ────────────────────────────────────────────────
    RESPONSIVE
 ───────────────────────────────────────────────── */
 @media (max-width: 768px) {

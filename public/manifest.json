@@ -2,7 +2,7 @@
   "name": "SmartGuard",
   "short_name": "SmartGuard",
   "description": "Control de acceso vehicular industrial",
-  "start_url": "/registro",
+  "start_url": "/pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
