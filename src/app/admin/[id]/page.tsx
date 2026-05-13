@@ -230,7 +230,7 @@ export default function AdminCompanyPage() {
             }
             <div>
               <div className="sg-kicker mb-0.5">Detalle de empresa</div>
-              <h1 className="sg-font-display text-[24px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{company.name}</h1>
+              <h1 className="sg-font-display text-[18px] sm:text-[24px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{company.name}</h1>
               <p className="sg-font-mono text-[10px] text-[var(--sg-muted)] uppercase tracking-widest">{company.sector}</p>
             </div>
           </div>
@@ -261,7 +261,7 @@ export default function AdminCompanyPage() {
               <stat.icon className="h-4 w-4 text-[var(--sg-accent)]" />
               <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">{stat.label}</span>
             </div>
-            <div className="sg-font-mono text-[24px] font-bold text-[var(--sg-ink)] leading-none">{stat.value}</div>
+            <div className="sg-font-mono text-[20px] sm:text-[24px] font-bold text-[var(--sg-ink)] leading-none">{stat.value}</div>
             <div className="text-[10px] text-[var(--sg-muted)] mt-1 truncate">{stat.sub}</div>
           </div>
         ))}
@@ -394,7 +394,7 @@ export default function AdminCompanyPage() {
               { label: "Usuarios", value: company.users, sub: `${company.guardias}g · ${company.supervisors}s` },
             ] satisfies ActivityStat[]).map((stat) => (
               <div key={stat.label} className="sg-panel p-4">
-                <div className="sg-font-mono text-[24px] font-bold text-[var(--sg-ink)]">{stat.value}</div>
+                <div className="sg-font-mono text-[20px] sm:text-[24px] font-bold text-[var(--sg-ink)]">{stat.value}</div>
                 <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">{stat.label}</div>
                 {stat.sub && <div className="text-[10px] text-[var(--sg-muted)] mt-0.5">{stat.sub}</div>}
               </div>

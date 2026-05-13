@@ -100,7 +100,7 @@ function PlantSection({ companyId, planta, initial }: {
         <div className="flex items-center gap-3 min-w-0">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-[var(--sg-accent)]" />
           <span className="sg-font-display text-[13px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">{formatGateLabelFromPlant(planta)}</span>
-          <span className="flex items-center gap-2 text-[var(--sg-muted)] hidden sm:flex">
+          <span className="hidden sm:flex items-center gap-2 text-[var(--sg-muted)]">
             <Mail className="h-3 w-3" />
             <span className="sg-font-mono text-[9px]">{emails.length}</span>
             <MessageSquare className="h-3 w-3 ml-1" />
@@ -186,7 +186,7 @@ export default function EmpresaPage() {
             }
             <div>
               <div className="sg-kicker mb-0.5">Mi Empresa</div>
-              <h1 className="sg-font-display text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+              <h1 className="sg-font-display text-[18px] sm:text-[22px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
                 {company?.name ?? "—"}
               </h1>
               <p className="sg-font-mono text-[10px] text-[var(--sg-muted)] uppercase tracking-widest">
@@ -206,7 +206,7 @@ export default function EmpresaPage() {
           No hay empresa configurada
         </div>
       ) : (
-        <div className="grid lg:grid-cols-2 gap-6 items-start">
+        <div className="grid lg:grid-cols-2 gap-4 lg:gap-6 items-start">
 
           {/* ── Columna izquierda: Global ─────────────────────────────── */}
           <div className="sg-panel p-6 grid gap-5">

@@ -147,7 +147,7 @@ export default function PerfilPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
         {/* Left — identity card */}
         <div className="flex flex-col gap-6">
           <div className="sg-panel p-6">
@@ -266,7 +266,7 @@ export default function PerfilPage() {
             initial={{ opacity: 0, y: 22, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 22, scale: 0.96 }}
-            className={`fixed bottom-6 right-6 z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)] ${
+            className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)] ${
               toast.ok ? "border-[var(--sg-success)]" : "border-[var(--sg-danger)]"
             }`}
           >

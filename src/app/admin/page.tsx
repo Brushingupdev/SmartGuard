@@ -57,7 +57,7 @@ function StatCard({ label, value, sub, color, dim }: {
   return (
     <div className={`sg-panel p-5 flex flex-col gap-1 relative overflow-hidden transition-opacity ${dim ? "opacity-40" : ""}`}>
       {color && <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: color }} />}
-      <div className="sg-font-mono text-[32px] font-bold text-[var(--sg-ink)] leading-none">{value}</div>
+      <div className="sg-font-mono text-[26px] sm:text-[32px] font-bold text-[var(--sg-ink)] leading-none">{value}</div>
       <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">{label}</div>
       {sub && <div className="text-[10px] text-[var(--sg-muted)]">{sub}</div>}
     </div>
@@ -230,7 +230,7 @@ export default function AdminPage() {
       <div className="mb-6 border-b border-[var(--sg-line)] pb-5 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="sg-kicker mb-1">Panel de Administración</div>
-          <h1 className="sg-font-display text-[26px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+          <h1 className="sg-font-display text-[20px] sm:text-[26px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
             Empresas registradas
           </h1>
           <p className="text-[12px] text-[var(--sg-muted)] mt-1">

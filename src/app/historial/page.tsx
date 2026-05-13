@@ -955,7 +955,7 @@ export default function HistorialPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--sg-line)] lg:grid-cols-4"
+              className="grid grid-cols-1 gap-3 pt-2 border-t border-[var(--sg-line)] sm:grid-cols-2 lg:grid-cols-4"
             >
               {isAdmin && (
                 <div className="sg-field col-span-2 lg:col-span-1">
@@ -1012,10 +1012,10 @@ export default function HistorialPage() {
               </div>
             </div>
           )}
-          <table className="sg-table min-w-[1200px]">
+          <table className="sg-table min-w-[360px] sm:min-w-[700px] lg:min-w-[1200px]">
             <thead>
               <tr>
-                <th>ID</th>
+                <th className="hidden sm:table-cell">ID</th>
                 <th>
                   <button
                     onClick={toggleSortFecha}
@@ -1031,14 +1031,14 @@ export default function HistorialPage() {
                     }
                   </button>
                 </th>
-                <th>H. Reg.</th>
-                <th>H. Aten.</th>
-                <th>H. Docs.</th>
+                <th className="hidden lg:table-cell">H. Reg.</th>
+                <th className="hidden lg:table-cell">H. Aten.</th>
+                <th className="hidden lg:table-cell">H. Docs.</th>
                 <th>Razón Social</th>
-                <th>Empresa</th>
-                {isAdmin && <th>Cliente</th>}
-                <th>Puerta</th>
-                <th>Tipo Op.</th>
+                <th className="hidden sm:table-cell">Empresa</th>
+                {isAdmin && <th className="hidden md:table-cell">Cliente</th>}
+                <th className="hidden md:table-cell">Puerta</th>
+                <th className="hidden lg:table-cell">Tipo Op.</th>
                 <th>
                   <button
                     onClick={toggleSortEspera}
@@ -1054,9 +1054,9 @@ export default function HistorialPage() {
                     }
                   </button>
                 </th>
-                <th>T. Total</th>
+                <th className="hidden sm:table-cell">T. Total</th>
                 <th>Estado</th>
-                {canEditRecords && <th>Acciones</th>}
+                {canEditRecords && <th className="hidden sm:table-cell">Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -1072,26 +1072,26 @@ export default function HistorialPage() {
                     className="cursor-pointer hover:bg-[var(--sg-panel-2)] transition-colors"
                     title="Ver detalle completo"
                   >
-                    <td className="sg-mono text-[11px] text-[var(--sg-muted)]">#{r.id}</td>
+                    <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden sm:table-cell">#{r.id}</td>
                     <td className="sg-mono text-[11px] text-[var(--sg-copy)]">{r.fecha}</td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-copy)]">{r.h_registro?.substring(0, 5) || "--:--"}</td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{r.h_atencion?.substring(0, 5) || "—"}</td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{r.h_dev_docs?.substring(0, 5) || "—"}</td>
+                    <td className="sg-mono text-[11px] text-[var(--sg-copy)] hidden lg:table-cell">{r.h_registro?.substring(0, 5) || "--:--"}</td>
+                    <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden lg:table-cell">{r.h_atencion?.substring(0, 5) || "—"}</td>
+                    <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden lg:table-cell">{r.h_dev_docs?.substring(0, 5) || "—"}</td>
                     <td>
-                      <span className="font-semibold text-[var(--sg-ink)] block truncate max-w-[180px]" title={r.razon_social ?? undefined}>{r.razon_social || "-"}</span>
+                      <span className="font-semibold text-[var(--sg-ink)] block truncate max-w-[140px] sm:max-w-[180px]" title={r.razon_social ?? undefined}>{r.razon_social || "-"}</span>
                     </td>
-                    <td className="text-[var(--sg-copy)] truncate max-w-[140px]" title={r.empresa ?? undefined}>{r.empresa || "-"}</td>
+                    <td className="text-[var(--sg-copy)] truncate max-w-[140px] hidden sm:table-cell" title={r.empresa ?? undefined}>{r.empresa || "-"}</td>
                     {isAdmin && (
-                      <td>
+                      <td className="hidden md:table-cell">
                         <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-accent)] truncate max-w-[120px] block">
                           {r.company_id ? (companiesMap[r.company_id] ?? "—") : "—"}
                         </span>
                       </td>
                     )}
-                    <td>
+                    <td className="hidden md:table-cell">
                       <span className="sg-mono text-[10px] uppercase tracking-[0.12em] text-[var(--sg-muted)]">{formatGateLabelFromPlant(r.planta ?? "")}</span>
                     </td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-copy)]">
+                    <td className="sg-mono text-[11px] text-[var(--sg-copy)] hidden lg:table-cell">
                       {r.tipo_operacion || r.motivo_demora || "-"}
                     </td>
                     <td>
@@ -1099,14 +1099,14 @@ export default function HistorialPage() {
                         {getOperationalMetric(r) != null ? `${getOperationalMetric(r)} min` : "—"}
                       </span>
                     </td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-muted)]">
+                    <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden sm:table-cell">
                       {r.tiempo_total_min != null ? `${r.tiempo_total_min} min` : "—"}
                     </td>
                     <td>
                       <span className={`sg-badge ${wl.badge}`}>{wl.text}</span>
                     </td>
                     {canEditRecords && (
-                      <td>
+                      <td className="hidden sm:table-cell">
                         <button
                           onClick={(event) => {
                             event.stopPropagation();

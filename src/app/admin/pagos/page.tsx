@@ -315,7 +315,7 @@ export default function PagosPage() {
             <ChevronLeft className="h-3 w-3" /> Panel admin
           </Link>
           <div className="sg-kicker mb-1">Facturación</div>
-          <h1 className="sg-font-display text-[26px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+          <h1 className="sg-font-display text-[20px] sm:text-[26px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
             Pagos y activaciones
           </h1>
           <p className="text-[12px] text-[var(--sg-muted)] mt-1">
@@ -360,7 +360,7 @@ export default function PagosPage() {
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="sg-panel p-5 flex flex-col gap-1 relative overflow-hidden">
             {color && <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: color }} />}
-            <div className="sg-font-mono text-[28px] font-bold text-[var(--sg-ink)] leading-none">{value}</div>
+            <div className="sg-font-mono text-[22px] sm:text-[28px] font-bold text-[var(--sg-ink)] leading-none">{value}</div>
             <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">{label}</div>
             {sub && <div className="text-[10px] text-[var(--sg-muted)]">{sub}</div>}
           </div>

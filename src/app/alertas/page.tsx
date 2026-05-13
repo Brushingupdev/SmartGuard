@@ -439,7 +439,7 @@ export default function AlertasPage() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: easeOut }}
-        className="mb-6 grid grid-cols-2 gap-0 border border-[var(--sg-line)] md:grid-cols-5"
+        className="mb-6 grid grid-cols-2 gap-px bg-[var(--sg-line)] border border-[var(--sg-line)] sm:grid-cols-3 md:grid-cols-5"
       >
         {[
           { label: "Registros hoy",        val: kpis.total,     color: "var(--sg-ink)" },
@@ -657,15 +657,15 @@ export default function AlertasPage() {
             <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">{alertLogs.length} total</span>
           </div>
           <div className="sg-panel overflow-x-auto">
-            <table className="sg-table min-w-[640px]">
+            <table className="sg-table min-w-[360px] sm:min-w-[640px]">
               <thead>
                 <tr>
                   <th>Fecha</th>
-                  <th>Canal</th>
+                  <th className="hidden sm:table-cell">Canal</th>
                   <th>Vehículo</th>
-                  <th>Puerta</th>
+                  <th className="hidden md:table-cell">Puerta</th>
                   <th>Espera</th>
-                  <th>Destinatario</th>
+                  <th className="hidden sm:table-cell">Destinatario</th>
                   <th>Estado</th>
                 </tr>
               </thead>
@@ -675,7 +675,7 @@ export default function AlertasPage() {
                     <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] whitespace-nowrap">
                       {new Date(log.created_at).toLocaleString("es-PE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })}
                     </td>
-                    <td>
+                    <td className="hidden sm:table-cell">
                       <span className="flex items-center gap-1.5">
                         {log.channel === "email"
                           ? <Mail className="h-3.5 w-3.5 text-[var(--sg-accent)]" />
@@ -683,8 +683,8 @@ export default function AlertasPage() {
                         <span className="sg-font-mono text-[10px] uppercase">{log.channel}</span>
                       </span>
                     </td>
-                    <td className="max-w-[160px] truncate text-[12px]">{log.razon_social}</td>
-                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)]">{formatGateLabelFromPlant(log.planta ?? "") || "—"}</td>
+                    <td className="max-w-[120px] sm:max-w-[160px] truncate text-[12px]">{log.razon_social}</td>
+                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] hidden md:table-cell">{formatGateLabelFromPlant(log.planta ?? "") || "—"}</td>
                     <td>
                       <span className="sg-font-mono text-[12px] font-bold" style={{
                         color: log.espera_min >= 90 ? "var(--sg-danger)" : log.espera_min >= 45 ? "#e07b3a" : "var(--sg-warn)"
@@ -692,10 +692,11 @@ export default function AlertasPage() {
                         {log.espera_min} min
                       </span>
                     </td>
-                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] max-w-[160px] truncate">{log.recipient}</td>
+                    <td className="sg-font-mono text-[10px] text-[var(--sg-muted)] max-w-[160px] truncate hidden sm:table-cell">{log.recipient}</td>
                     <td>
                       <span className={`sg-font-mono text-[9px] uppercase tracking-widest ${log.success ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}>
-                        {log.success ? "✓ Enviado" : "✗ Error"}
+                        {log.success ? "✓" : "✗"}
+                        <span className="hidden sm:inline">{log.success ? " Enviado" : " Error"}</span>
                       </span>
                     </td>
                   </tr>

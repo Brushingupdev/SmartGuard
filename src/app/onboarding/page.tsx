@@ -849,7 +849,7 @@ export default function OnboardingPage() {
                     { label: "Guardias",         value: guardias.length > 0 ? `${guardias.length} cuenta${guardias.length !== 1 ? "s" : ""} · ${guardias.map(g => g.email).join(", ")}` : "No agregados" },
                     { label: "Datos históricos", value: excelValidRows.length > 0 ? `${excelValidRows.length.toLocaleString()} registros a importar` : "No seleccionados" },
                   ].map((row) => (
-                    <div key={row.label} className="grid grid-cols-[160px_1fr] gap-4 border-b border-[var(--sg-line)] pb-3">
+                    <div key={row.label} className="flex flex-col gap-0.5 sm:grid sm:grid-cols-[160px_1fr] sm:gap-4 border-b border-[var(--sg-line)] pb-3">
                       <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">{row.label}</span>
                       <span className="text-[13px] text-[var(--sg-ink)]">{row.value}</span>
                     </div>

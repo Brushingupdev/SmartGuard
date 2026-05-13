@@ -338,11 +338,39 @@ export default function DashboardClient({
       )}
 
       {/* Topbar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sg-line)] pb-5">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-col gap-3 border-b border-[var(--sg-line)] pb-4 sm:pb-5">
+        {/* Fila 1: título + acciones derechas */}
+        <div className="flex items-center justify-between gap-2">
           <div className="sg-kicker">Dashboard</div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/reporte?plant=${encodedPlant}&timeframe=${encodedTimeframe}`}
+              className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Análisis</span>
+            </Link>
+            {lastRefresh && (
+              <div className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`} />
+                <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  {refreshing ? "…" : lastRefresh.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            )}
+            <div className="hidden xl:flex flex-col items-end">
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                {new Date().toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+              <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">{liveTime}</span>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5 flex-wrap">
+        {/* Fila 2: filtros de planta + período */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Selector de sede */}
+          <div className="flex bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
             {["Todos", ...sites.map((site) => site.site)].map((site) => (
               <button
                 key={site}
@@ -350,7 +378,7 @@ export default function DashboardClient({
                   setSelectedSite(site);
                   setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
                 }}
-                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
                   selectedSite === site
                     ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
@@ -360,35 +388,33 @@ export default function DashboardClient({
               </button>
             ))}
           </div>
+
           {currentSiteGates.length > 0 && (
             <div className="relative">
               <select
                 aria-label="Seleccionar puerta"
                 value={selectedPlant}
                 onChange={(e) => setSelectedPlant(e.target.value)}
-                className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
+                className="h-[30px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
               >
-                <option value={`site:${selectedSite}`} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
-                  Todas las puertas
-                </option>
+                <option value={`site:${selectedSite}`} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">Todas las puertas</option>
                 {currentSiteGates.map((gate) => (
-                  <option key={gate.plant} value={gate.plant} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">
-                    {gate.gate}
-                  </option>
+                  <option key={gate.plant} value={gate.plant} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">{gate.gate}</option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
             </div>
           )}
 
-          <div className="w-[1px] h-4 bg-[var(--sg-line)]" />
+          <div className="w-px h-4 bg-[var(--sg-line)] hidden sm:block" />
 
+          {/* Selector de período */}
           <div className="flex items-center bg-[var(--sg-panel-2)] border border-[var(--sg-line)] p-0.5">
             {["Día", "Semana", "Mes"].map((t) => (
               <button
                 key={t}
                 onClick={() => setSelectedTimeframe(t)}
-                className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold transition-colors ${
                   selectedTimeframe === t
                     ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
                     : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
@@ -410,9 +436,12 @@ export default function DashboardClient({
                         setSelectedTimeframe(e.target.value);
                       }
                     }}
-                    className="h-[26px] appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)] cursor-pointer"
+                    className={`h-[26px] appearance-none border bg-[var(--sg-panel-2)] pr-6 pl-2.5 text-[10px] uppercase tracking-widest font-bold outline-none transition-colors cursor-pointer ${
+                      availableYears.includes(selectedTimeframe)
+                        ? "border-[var(--sg-ink)] text-[var(--sg-canvas)] bg-[var(--sg-ink)]"
+                        : "border-[var(--sg-line)] text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
+                    }`}
                   >
-                    <option value="" disabled className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">Año</option>
                     {availableYears.map((year) => (
                       <option key={year} value={year} className="bg-[var(--sg-panel)] text-[var(--sg-ink)]">{year}</option>
                     ))}
@@ -421,36 +450,6 @@ export default function DashboardClient({
                 </div>
               </>
             )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/reporte?plant=${encodedPlant}&timeframe=${encodedTimeframe}`}
-            className="flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-          >
-            <BarChart3 className="h-3.5 w-3.5" />
-            Análisis
-          </Link>
-
-          <div className="h-4 w-px bg-[var(--sg-line)]" />
-
-          {lastRefresh && (
-            <div className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`} />
-              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                {refreshing ? "…" : lastRefresh.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
-              </span>
-            </div>
-          )}
-
-          <div className="hidden xl:flex flex-col items-end">
-            <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-              {new Date().toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-            </span>
-            <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">
-              {liveTime}
-            </span>
           </div>
         </div>
       </div>
@@ -756,55 +755,55 @@ export default function DashboardClient({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
+            <table className="w-full min-w-[480px]">
               <thead>
                 <tr className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)] border-b border-[var(--sg-line)]">
-                  <th className="py-4 px-5 text-left font-normal">Razón Social</th>
-                  <th className="py-4 px-5 text-left font-normal">Estado</th>
-                  <th className="py-4 px-5 text-left font-normal">Empresa</th>
-                    <th className="py-4 px-5 text-left font-normal">Puerta</th>
-                    <th className="py-4 px-5 text-right font-normal">Hora</th>
+                  <th className="py-3 px-4 text-left font-normal">Razón Social</th>
+                  <th className="py-3 px-4 text-left font-normal">Estado</th>
+                  <th className="py-3 px-4 text-left font-normal hidden sm:table-cell">Empresa</th>
+                  <th className="py-3 px-4 text-left font-normal hidden md:table-cell">Puerta</th>
+                  <th className="py-3 px-4 text-right font-normal">Hora</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--sg-line)]">
+                {loading && recentEvents.length === 0 ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={`skel-${i}`}>
+                      <td colSpan={5} className="py-3 px-4">
+                        <div className="h-6 w-full animate-pulse bg-[var(--sg-panel-2)]" />
+                      </td>
+                    </tr>
+                  ))
+                ) : recentEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-[var(--sg-muted)] sg-font-mono text-[10px] uppercase tracking-widest">
+                      No hay eventos recientes
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--sg-line)]">
-                  {loading && recentEvents.length === 0 ? (
-                    [...Array(5)].map((_, i) => (
-                      <tr key={`skel-${i}`}>
-                        <td colSpan={5} className="py-4 px-5">
-                          <div className="h-6 w-full animate-pulse bg-[var(--sg-panel-2)]" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : recentEvents.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-[var(--sg-muted)] sg-font-mono text-[10px] uppercase tracking-widest">
-                        No hay eventos recientes
-                      </td>
-                    </tr>
-                  ) : recentEvents.map((event, index) => (
-                    <tr key={`${event.time}-${index}`} className="hover:bg-[var(--sg-panel-2)] transition-colors">
-                      <td className="py-4 px-5 text-[13px] font-bold text-[var(--sg-ink)]">
-                        {event.plate}
-                      </td>
-                      <td className="py-4 px-5">
-                        <span className={`border border-[var(--sg-line)] px-2 py-1 sg-font-mono text-[9px] uppercase tracking-[0.16em] ${event.status === 'ok' ? 'text-[var(--sg-success)]' : event.status === 'warn' ? 'text-[var(--sg-warn)]' : 'text-[var(--sg-muted)]'}`}>
-                          {event.label}
-                        </span>
-                      </td>
-                      <td className="py-4 px-5 text-[12px] text-[var(--sg-copy)] uppercase tracking-wider">
-                        {event.info}
-                      </td>
-                      <td className="py-4 px-5 sg-font-mono text-[11px] text-[var(--sg-muted)] tracking-widest">
-                        {formatGateLabelFromPlant(event.gate)}
-                      </td>
-                      <td className="py-4 px-5 text-right sg-font-mono text-[11px] text-[var(--sg-muted)]">
-                        {event.time}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ) : recentEvents.map((event, index) => (
+                  <tr key={`${event.time}-${index}`} className="hover:bg-[var(--sg-panel-2)] transition-colors">
+                    <td className="py-3 px-4 text-[12px] font-bold text-[var(--sg-ink)]">
+                      {event.plate}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[9px] uppercase tracking-[0.16em] ${event.status === 'ok' ? 'text-[var(--sg-success)]' : event.status === 'warn' ? 'text-[var(--sg-warn)]' : 'text-[var(--sg-muted)]'}`}>
+                        {event.label}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-[11px] text-[var(--sg-copy)] uppercase tracking-wider hidden sm:table-cell">
+                      {event.info}
+                    </td>
+                    <td className="py-3 px-4 sg-font-mono text-[11px] text-[var(--sg-muted)] tracking-widest hidden md:table-cell">
+                      {formatGateLabelFromPlant(event.gate)}
+                    </td>
+                    <td className="py-3 px-4 text-right sg-font-mono text-[11px] text-[var(--sg-muted)]">
+                      {event.time}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           </section>
         </div>
     </AppLayout>

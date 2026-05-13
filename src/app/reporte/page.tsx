@@ -664,7 +664,7 @@ function ReporteContent() {
         ].map(k => (
           <div key={k.label} className="sg-panel p-4 flex flex-col gap-1">
             <div>
-              <span className="sg-font-mono text-[26px] font-bold leading-none" style={{ color: k.color }}>
+              <span className="sg-font-mono text-[20px] sm:text-[26px] font-bold leading-none" style={{ color: k.color }}>
                 {loading ? "—" : (k.val ?? "—")}
               </span>
               {!loading && k.val != null && k.suffix && (
@@ -1067,23 +1067,23 @@ function ReporteContent() {
         {!loading && d && d.providerSLA.length > 0 && (
           <Section title="SLA de Proveedores" sub="tasa de demora por proveedor · mín. 3 visitas · ordenado por peor tasa">
             <div className="sg-panel overflow-x-auto">
-              <table className="sg-table min-w-[600px]">
+              <table className="sg-table min-w-[360px] sm:min-w-[600px]">
                 <thead>
                   <tr>
-                    <th>#</th>
+                    <th className="hidden sm:table-cell">#</th>
                     {([
-                      { col: "empresa",   label: "Proveedor"    },
-                      { col: "total",     label: "Visitas"      },
-                      { col: "onTime",    label: "A tiempo"     },
-                      { col: "delayed",   label: "Demoras"      },
-                      { col: "rate",      label: "Tasa demora"  },
-                      { col: "grade",     label: "Grade"        },
-                      { col: "avgEspera", label: "Prom. espera" },
-                    ] as const).map(({ col, label }) => (
+                      { col: "empresa",   label: "Proveedor",    hide: ""                  },
+                      { col: "total",     label: "Visitas",      hide: "hidden sm:table-cell" },
+                      { col: "onTime",    label: "A tiempo",     hide: "hidden md:table-cell" },
+                      { col: "delayed",   label: "Demoras",      hide: "hidden md:table-cell" },
+                      { col: "rate",      label: "Tasa demora",  hide: ""                  },
+                      { col: "grade",     label: "Grade",        hide: ""                  },
+                      { col: "avgEspera", label: "Prom. espera", hide: "hidden sm:table-cell" },
+                    ] as const).map(({ col, label, hide }) => (
                       <th
                         key={col}
                         onClick={() => toggleSlaSort(col)}
-                        className="cursor-pointer select-none hover:text-[var(--sg-ink)] transition-colors"
+                        className={`cursor-pointer select-none hover:text-[var(--sg-ink)] transition-colors ${hide}`}
                       >
                         <span className="flex items-center gap-1">
                           {label}
@@ -1093,7 +1093,7 @@ function ReporteContent() {
                         </span>
                       </th>
                     ))}
-                    <th title="Tendencia 1ª vs 2ª mitad del período">Tend.</th>
+                    <th className="hidden sm:table-cell" title="Tendencia 1ª vs 2ª mitad del período">Tend.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1104,19 +1104,19 @@ function ReporteContent() {
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.02 }}
                     >
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{(slaPage - 1) * SLA_PER_PAGE + i + 1}</td>
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden sm:table-cell">{(slaPage - 1) * SLA_PER_PAGE + i + 1}</td>
                       <td>
-                        <span className="font-semibold text-[13px] text-[var(--sg-ink)] block truncate max-w-[200px]" title={p.empresa}>
+                        <span className="font-semibold text-[13px] text-[var(--sg-ink)] block truncate max-w-[140px] sm:max-w-[200px]" title={p.empresa}>
                           {p.empresa}
                         </span>
                       </td>
-                      <td>
+                      <td className="hidden sm:table-cell">
                         <span className="sg-font-mono text-[12px] text-[var(--sg-copy)]">{p.total}</span>
                       </td>
-                      <td>
+                      <td className="hidden md:table-cell">
                         <span className="sg-font-mono text-[12px] text-[var(--sg-success)]">{p.onTime}</span>
                       </td>
-                      <td>
+                      <td className="hidden md:table-cell">
                         <span className="sg-font-mono text-[12px] text-[var(--sg-danger)]">{p.delayed}</span>
                       </td>
                       <td>
@@ -1125,12 +1125,12 @@ function ReporteContent() {
                         </span>
                       </td>
                       <td><GradeBadge grade={p.grade} /></td>
-                      <td>
+                      <td className="hidden sm:table-cell">
                         <span className="sg-font-mono text-[12px]" style={{ color: p.avgEspera != null ? esperaColor(p.avgEspera) : "var(--sg-muted)" }}>
                           {p.avgEspera != null ? `${p.avgEspera} min` : "—"}
                         </span>
                       </td>
-                      <td><TrendIcon trend={p.trend} /></td>
+                      <td className="hidden sm:table-cell"><TrendIcon trend={p.trend} /></td>
                     </motion.tr>
                   ))}
                 </tbody>
@@ -1199,15 +1199,15 @@ function ReporteContent() {
                 <div className="p-8"><EmptyMsg text="Sin datos de agentes" /></div>
               ) : (
                 <>
-                <table className="sg-table min-w-[560px]">
+                <table className="sg-table min-w-[300px] sm:min-w-[560px]">
                   <thead>
                     <tr>
                       <th>Agente</th>
-                      <th>Total</th>
-                      <th>A tiempo</th>
-                      <th>Con demora</th>
+                      <th className="hidden sm:table-cell">Total</th>
+                      <th className="hidden sm:table-cell">A tiempo</th>
+                      <th className="hidden md:table-cell">Con demora</th>
                       <th>% a tiempo</th>
-                      <th>Prom. espera</th>
+                      <th className="hidden sm:table-cell">Prom. espera</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1228,11 +1228,11 @@ function ReporteContent() {
                             </span>
                           )}
                         </td>
-                        <td className="sg-mono text-[12px] text-[var(--sg-copy)]">{a.total}</td>
-                        <td>
+                        <td className="sg-mono text-[12px] text-[var(--sg-copy)] hidden sm:table-cell">{a.total}</td>
+                        <td className="hidden sm:table-cell">
                           <span className="sg-mono text-[12px] text-[var(--sg-success)]">{a.ok}</span>
                         </td>
-                        <td>
+                        <td className="hidden md:table-cell">
                           <span className="sg-mono text-[12px] text-[var(--sg-danger)]">{a.delayed}</span>
                         </td>
                         <td>
@@ -1244,7 +1244,7 @@ function ReporteContent() {
                             <span className="text-[var(--sg-muted)]">—</span>
                           )}
                         </td>
-                        <td>
+                        <td className="hidden sm:table-cell">
                           {a.avgEspera !== null ? (
                             <span className="sg-mono text-[12px]" style={{ color: esperaColor(a.avgEspera) }}>
                               {a.avgEspera} min

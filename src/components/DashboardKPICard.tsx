@@ -32,13 +32,13 @@ export default function DashboardKPICard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="sg-panel relative flex flex-col overflow-hidden px-5 py-6"
+      className="sg-panel relative flex flex-col overflow-hidden px-4 py-5 sm:px-5 sm:py-6"
     >
       <div className="absolute left-0 right-0 top-0 h-[3px]" style={{ background: accent }} />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-4">
-          <span className="sg-font-display text-[32px] font-bold leading-none text-[var(--sg-ink)]">
+        <div className="flex items-center gap-3">
+          <span className="sg-font-display text-[24px] sm:text-[32px] font-bold leading-none text-[var(--sg-ink)]">
             {value.toLocaleString()}
           </span>
           {TrendIcon && (

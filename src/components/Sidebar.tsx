@@ -229,7 +229,7 @@ export default function Sidebar() {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ duration: 0.28, ease: easeOut }}
-              className="fixed inset-y-0 left-0 z-[60] flex w-[300px] flex-col border-r border-[var(--sg-line)] bg-[var(--sg-canvas-2)] lg:hidden"
+              className="fixed inset-y-0 left-0 z-[60] flex w-[min(300px,85vw)] flex-col border-r border-[var(--sg-line)] bg-[var(--sg-canvas-2)] lg:hidden"
             >
               <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
                 <Logo company={companyName} logoUrl={logoUrl} isAdmin={isAdmin} />

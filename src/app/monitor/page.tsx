@@ -32,7 +32,7 @@ function KpiCard({ icon: Icon, label, value, sub, color = "var(--sg-ink)" }: {
         <Icon className="h-4 w-4" style={{ color }} />
         <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">{label}</span>
       </div>
-      <div className="sg-font-mono text-[30px] font-bold leading-none" style={{ color }}>{value}</div>
+      <div className="sg-font-mono text-[24px] sm:text-[30px] font-bold leading-none" style={{ color }}>{value}</div>
       {sub && <p className="text-[10px] text-[var(--sg-muted)]">{sub}</p>}
     </div>
   );
@@ -103,7 +103,7 @@ export default function MonitorPage() {
       <div className="mb-6 border-b border-[var(--sg-line)] pb-5 flex items-center justify-between">
         <div>
           <div className="sg-kicker mb-1">Monitor de Plataforma</div>
-          <h1 className="sg-font-display text-[24px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+          <h1 className="sg-font-display text-[20px] sm:text-[24px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
             Salud del sistema
           </h1>
           <p className="text-[11px] text-[var(--sg-muted)] mt-1">

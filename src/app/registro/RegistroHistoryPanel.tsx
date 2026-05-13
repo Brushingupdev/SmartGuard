@@ -263,7 +263,7 @@ export default function RegistroHistoryPanel({
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <p className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-ink)] opacity-30">Sin resultados</p>
-                  <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">para &quot;{searchTerm}&quot;</p>
+                  <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">para "{searchTerm}"</p>
                 </div>
               </div>
             ) : (

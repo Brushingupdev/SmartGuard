@@ -643,15 +643,15 @@ export default function UsuariosPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="sg-table min-w-[640px]">
+            <table className="sg-table min-w-[320px] sm:min-w-[640px]">
               <thead>
                 <tr>
                   <th>Correo electrónico</th>
                   <th>Rol</th>
-                  <th>Empresa</th>
-                  <th>Puertas</th>
-                  <th>Creado</th>
-                  <th>Último acceso</th>
+                  <th className="hidden sm:table-cell">Empresa</th>
+                  <th className="hidden md:table-cell">Puertas</th>
+                  <th className="hidden lg:table-cell">Creado</th>
+                  <th className="hidden lg:table-cell">Último acceso</th>
                   <th className="text-right">Acciones</th>
                 </tr>
               </thead>
@@ -665,7 +665,7 @@ export default function UsuariosPage() {
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.04 }}
                     >
-                      <td className="text-[var(--sg-ink)]">{u.email}</td>
+                      <td className="text-[var(--sg-ink)] max-w-[140px] sm:max-w-none truncate">{u.email}</td>
                       <td>
                         <span
                           className="sg-font-mono text-[9px] uppercase tracking-widest px-2 py-1 border"
@@ -674,14 +674,14 @@ export default function UsuariosPage() {
                           {u.role}
                         </span>
                       </td>
-                      <td className="text-[12px] text-[var(--sg-copy)]">{u.companyName || "—"}</td>
-                      <td className="max-w-[220px] truncate text-[12px] text-[var(--sg-copy)]" title={(u.assignedGates ?? []).map(formatGateLabelFromPlantTitle).join(", ")}>
+                      <td className="text-[12px] text-[var(--sg-copy)] hidden sm:table-cell">{u.companyName || "—"}</td>
+                      <td className="max-w-[220px] truncate text-[12px] text-[var(--sg-copy)] hidden md:table-cell" title={(u.assignedGates ?? []).map(formatGateLabelFromPlantTitle).join(", ")}>
                         {u.role === "Guardia"
                           ? ((u.assignedGates?.length ? u.assignedGates.map(formatGateLabelFromPlantTitle).join(", ") : u.assignedPlants?.join(", ")) || u.plant || "—")
                           : "—"}
                       </td>
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.createdAt)}</td>
-                      <td className="sg-mono text-[11px] text-[var(--sg-muted)]">{formatDate(u.lastSignIn)}</td>
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden lg:table-cell">{formatDate(u.createdAt)}</td>
+                      <td className="sg-mono text-[11px] text-[var(--sg-muted)] hidden lg:table-cell">{formatDate(u.lastSignIn)}</td>
                       <td className="text-right">
                         {u.role === "Administrador" ? (
                           <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] px-2 py-1">
@@ -744,7 +744,7 @@ export default function UsuariosPage() {
             initial={{ opacity: 0, y: 22, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 22, scale: 0.96 }}
-            className="fixed bottom-6 right-6 z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)]"
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)]"
             style={{ borderColor: toast.ok ? "var(--sg-success)" : "var(--sg-danger)" }}
           >
             <div className="flex items-center gap-3 text-sm text-[var(--sg-ink)]">
