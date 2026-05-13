@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { login } from "@/app/login/actions";
+import { loginPWA } from "./actions";
 
 const ease: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -87,7 +87,7 @@ export default function PWALoginPage() {
     formData.append("password", password);
 
     try {
-      const result = await login(formData);
+      const result = await loginPWA(formData);
       if (result?.error) {
         setError(result.error);
         setLoading(false);
