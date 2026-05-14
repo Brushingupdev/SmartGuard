@@ -10,6 +10,7 @@ import {
   CheckCircle2, ChevronDown, Clock, FileCheck2, Home, LogOut,
   Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
+import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
 import {
   getRecentRegistrations, getCitasDelDia,
@@ -1165,6 +1166,15 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
           </p>
         </div>
       )}
+
+      {/* Push notifications */}
+      <div className="mx-4 mt-4">
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.22em",
+          textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
+          Notificaciones
+        </p>
+        <PushSubscribeButton />
+      </div>
 
       {/* Apariencia */}
       <div className="mx-4 mt-4 p-4"

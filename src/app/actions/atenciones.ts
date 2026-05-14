@@ -176,6 +176,19 @@ export async function createAtencion(rawData: unknown) {
     logError("createAtencion", error);
     return { success: false, error: error.message };
   }
+
+  // Push notification — fire-and-forget, no bloquea la respuesta
+  if (ctx.companyId) {
+    import("@/lib/push").then(({ sendPushToCompany }) => {
+      sendPushToCompany(ctx.companyId!, data.plant, {
+        title: "Nuevo vehículo en portería",
+        body: `${data.razonSocial} · ${data.plant}`,
+        tag: `vehicle-${data.plant}`,
+        url: "/pwa/supervisor",
+      }).catch(() => {/* silent */});
+    }).catch(() => {/* silent */});
+  }
+
   return { success: true, time: timeStr };
 }
 
@@ -759,7 +772,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
     const demoraField = includeDemoraCitaMin ? ", demora_cita_min" : "";
     let activeQuery = supabase
       .from("atenciones")
-      .select(`id, razon_social, empresa, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
+      .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
       .eq("planta", plant)
       .eq("fecha", dateStr)
       .not("h_registro", "is", null)
@@ -768,7 +781,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
 
     let overdueExpectedQuery = supabase
       .from("atenciones")
-      .select(`id, razon_social, empresa, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
+      .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
       .eq("planta", plant)
       .eq("fecha", dateStr)
       .eq("estado", "esperado")
@@ -807,6 +820,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
       id: number;
       razon_social?: string | null;
       empresa?: string | null;
+      planta?: string | null;
       tipo?: string | null;
       h_registro?: string | null;
       hora_cita?: string | null;
@@ -827,6 +841,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
       id: row.id,
       razonSocial: row.razon_social || "",
       empresa: row.empresa || "",
+      planta: row.planta || "",
       type: row.tipo || "Proveedor",
       time: row.h_registro ? row.h_registro.substring(0, 5) : (row.hora_cita ? row.hora_cita.substring(0, 5) : "--:--"),
       reason: row.h_registro ? (row.tipo_operacion || row.motivo_demora || "Ingreso") : "Cita pendiente",
@@ -851,6 +866,102 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
   records.sort((a, b) => b.id - a.id);
 
   return { records, total: (activeCount ?? 0) + (overdueExpectedCount ?? 0) };
+}
+
+// ─── Supervisor: todos los vehículos y citas del día (todas las plantas) ──────
+
+export async function getSupervisorHoyData() {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  const { date: dateStr, time: timeStr } = nowLima();
+
+  const sel = "id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado";
+
+  let activeQ = supabase
+    .from("atenciones")
+    .select(sel)
+    .eq("fecha", dateStr)
+    .not("h_registro", "is", null)
+    .order("id", { ascending: false })
+    .limit(500);
+
+  let overdueQ = supabase
+    .from("atenciones")
+    .select(sel)
+    .eq("fecha", dateStr)
+    .eq("estado", "esperado")
+    .not("hora_cita", "is", null)
+    .lt("hora_cita", timeStr)
+    .order("hora_cita", { ascending: true });
+
+  let citasQ = supabase
+    .from("atenciones")
+    .select("id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min")
+    .eq("fecha", dateStr)
+    .not("hora_cita", "is", null)
+    .in("estado", ["esperado", "activo"])
+    .order("hora_cita", { ascending: true });
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    activeQ   = activeQ.eq("company_id", ctx.companyId);
+    overdueQ  = overdueQ.eq("company_id", ctx.companyId);
+    citasQ    = citasQ.eq("company_id", ctx.companyId);
+  }
+
+  const [{ data: aD }, { data: oD }, { data: cD }] = await Promise.all([activeQ, overdueQ, citasQ]);
+
+  const merged = ([...(aD ?? []), ...(oD ?? [])]) as Array<Record<string, unknown>>;
+  const seen = new Set<number>();
+  const records = merged
+    .filter(d => { const id = d.id as number; if (seen.has(id)) return false; seen.add(id); return true; })
+    .map(d => ({
+      id: d.id as number,
+      razonSocial: (d.razon_social as string) || "",
+      empresa: (d.empresa as string) || "",
+      planta: (d.planta as string) || "",
+      type: (d.tipo as string) || "Proveedor",
+      time: d.h_registro ? (d.h_registro as string).substring(0, 5) : (d.hora_cita ? (d.hora_cita as string).substring(0, 5) : "--:--"),
+      reason: d.h_registro ? ((d.tipo_operacion as string) || "Ingreso") : "Cita pendiente",
+      tipoOperacion: (d.tipo_operacion as string) || null,
+      responsable: (d.responsable as string) || "",
+      agente: (d.agente as string) || "",
+      observacion: (d.observacion as string) || "",
+      attended: !!(d.h_atencion),
+      h_atencion: d.h_atencion ? (d.h_atencion as string).substring(0, 5) : null,
+      espera_min: (d.espera_min as number) ?? null,
+      demora_cita_min: null as number | null,
+      docsDelivered: !!(d.h_dev_docs),
+      h_dev_docs: d.h_dev_docs ? (d.h_dev_docs as string).substring(0, 5) : null,
+      tiempo_total_min: (d.tiempo_total_min as number) ?? null,
+      hora_cita: d.hora_cita ? (d.hora_cita as string).substring(0, 5) : null,
+      estado: ((d.estado as string) ?? "activo") as "esperado" | "activo" | "atendido",
+      hasArrived: !!(d.h_registro),
+      scheduledOnly: !d.h_registro && d.estado === "esperado",
+    }));
+
+  records.sort((a, b) => b.id - a.id);
+
+  const citas = (cD ?? []).map(c => ({
+    id: c.id as number,
+    razonSocial: (c.razon_social as string) || "—",
+    empresa: (c.empresa as string) || "—",
+    planta: (c.planta as string) || "",
+    fecha: (c.fecha as string) || "",
+    horaCita: c.hora_cita ? (c.hora_cita as string).substring(0, 5) : "—",
+    hRegistro: c.h_registro ? (c.h_registro as string).substring(0, 5) : null,
+    hAtencion: c.h_atencion ? (c.h_atencion as string).substring(0, 5) : null,
+    tipo: (c.tipo as string) || "Proveedor",
+    tipoOperacion: (c.tipo_operacion as string) || null,
+    responsable: (c.responsable as string) || null,
+    agente: (c.agente as string) || null,
+    observacion: (c.observacion as string) || null,
+    estado: c.estado as "esperado" | "activo" | "atendido",
+    esperaMin: (c.espera_min as number) ?? null,
+  }));
+
+  const plantas = [...new Set(records.map(r => r.planta).filter(Boolean))].sort();
+
+  return { records, citas, plantas };
 }
 
 // ─── Importación histórica desde Excel ───────────────────────────────────────

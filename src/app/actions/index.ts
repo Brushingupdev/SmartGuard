@@ -1,6 +1,7 @@
 export * from "./atenciones";
 export * from "./alertas";
 export * from "./citas";
+export * from "./citas-public";
 export * from "./dashboard";
 export * from "./historial";
 export * from "./reporte";
