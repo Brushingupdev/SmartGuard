@@ -6,9 +6,9 @@ import { createClient } from "@/utils/supabase/client";
 import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
-  AlertOctagon, AlertTriangle, BookOpen, Calendar, Camera,
-  CheckCircle2, ChevronDown, Clock, FileCheck2, Home, LogOut,
-  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, X, Zap,
+  AlertTriangle, BookOpen, Calendar, Camera,
+  CheckCircle2, ChevronDown, FileCheck2, LogOut,
+  Palette, Plus, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
@@ -86,7 +86,7 @@ function ThemeToggle() {
   );
 }
 
-// ── Bottom Tab Bar ────────────────────────────────────────────────────────────
+// ── Bottom Tab Bar (pill style) ───────────────────────────────────────────────
 
 function TabBar({ active, onChange, urgentes, citasPendientes }: {
   active: Tab;
@@ -96,56 +96,84 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
 }) {
   const router = useRouter();
 
-  const tabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio",  icon: <Home className="h-5 w-5" />,     label: "Inicio",
+  const leftTabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
+    { key: "inicio",  icon: <Shield className="h-[18px] w-[18px]" />, label: "Inicio",
       badge: urgentes > 0 ? urgentes : undefined },
-    { key: "citas",   icon: <Calendar className="h-5 w-5" />, label: "Citas",
+    { key: "citas",   icon: <Calendar className="h-[18px] w-[18px]" />, label: "Citas",
       badge: citasPendientes > 0 ? citasPendientes : undefined },
-    { key: "eventos", icon: <BookOpen className="h-5 w-5" />, label: "Bitácora" },
-    { key: "perfil",  icon: <User className="h-5 w-5" />,     label: "Perfil" },
+  ];
+  const rightTabs: { key: Tab; icon: React.ReactNode; label: string }[] = [
+    { key: "eventos", icon: <BookOpen className="h-[18px] w-[18px]" />, label: "Bitácora" },
+    { key: "perfil",  icon: <User className="h-[18px] w-[18px]" />,     label: "Perfil" },
   ];
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40"
-      style={{
-        background: "var(--pwa-surface)",
-        borderTop: "1px solid var(--pwa-border)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      }}
+      className="fixed bottom-0 left-0 right-0 z-40 flex items-end px-4"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)", paddingTop: 8 }}
     >
-      <div className="flex items-stretch">
-        {/* Tabs izquierda (2) */}
-        {tabs.slice(0, 2).map(tab => (
-          <TabButton key={tab.key} tab={tab} active={active} onChange={onChange} />
-        ))}
+      <div className="flex items-center w-full gap-1"
+        style={{ height: 58, background: "var(--pwa-surface)", borderRadius: 34,
+          border: "1px solid var(--pwa-border)", padding: "4px" }}>
+
+        {/* Tabs izquierda */}
+        {leftTabs.map(tab => {
+          const isActive = active === tab.key;
+          return (
+            <button key={tab.key} onClick={() => onChange(tab.key)}
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative"
+              style={{ borderRadius: 28, background: isActive ? "var(--pwa-accent)" : "transparent",
+                border: "none", cursor: "pointer",
+                color: isActive ? "var(--pwa-accent-fg)" : "var(--pwa-muted)" }}>
+              <div className="relative">
+                {tab.icon}
+                {tab.badge !== undefined && (
+                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
+                    style={{ background: "#d35c4f", color: "#fff",
+                      fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
 
         {/* Botón central Registrar */}
-        <div className="flex flex-col items-center justify-center px-2 py-2">
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={() => router.push("/pwa/registro")}
-            className="flex flex-col items-center justify-center gap-1 h-12 w-14"
-            style={{
-              background: "var(--pwa-accent)",
-              border: "none", cursor: "pointer",
-              color: "var(--pwa-accent-fg)",
-            }}
-          >
-            <Plus className="h-5 w-5" />
-            <span style={{
-              fontFamily: "var(--sg-font-mono)", fontSize: 7,
-              letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700,
-            }}>
-              Nuevo
-            </span>
-          </motion.button>
-        </div>
+        <motion.button whileTap={{ scale: 0.88 }}
+          onClick={() => router.push("/pwa/registro")}
+          className="flex flex-col items-center justify-center gap-0.5 shrink-0"
+          style={{ width: 50, height: 50, borderRadius: 25,
+            background: "var(--pwa-accent)", border: "none", cursor: "pointer",
+            color: "var(--pwa-accent-fg)" }}>
+          <Plus className="h-5 w-5" />
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
+            letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>
+            Nuevo
+          </span>
+        </motion.button>
 
-        {/* Tabs derecha (2) */}
-        {tabs.slice(2).map(tab => (
-          <TabButton key={tab.key} tab={tab} active={active} onChange={onChange} />
-        ))}
+        {/* Tabs derecha */}
+        {rightTabs.map(tab => {
+          const isActive = active === tab.key;
+          return (
+            <button key={tab.key} onClick={() => onChange(tab.key)}
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
+              style={{ borderRadius: 28, background: isActive ? "var(--pwa-accent)" : "transparent",
+                border: "none", cursor: "pointer",
+                color: isActive ? "var(--pwa-accent-fg)" : "var(--pwa-muted)" }}>
+              {tab.icon}
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -345,21 +373,21 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
 
   return (
     <div className="flex flex-col">
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-px mx-4 mt-4 mb-3"
-        style={{ background: "var(--pwa-border)" }}>
+      {/* KPI chips */}
+      <div className="flex gap-2 px-4 mt-4 mb-3">
         {[
-          { label: "Pendientes", value: pendientes, color: pendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
-          { label: "Urgentes",   value: urgentes,   color: urgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
-          { label: "Atendidos",  value: atendidos,  color: "#6ba7ff" },
-          { label: "Completos",  value: completos,  color: "#6bbd8a" },
+          { label: "HOY",        value: rows.length, color: "var(--pwa-ink)" },
+          { label: "PENDIENTES", value: pendientes,  color: pendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
+          { label: "URGENTES",   value: urgentes,    color: urgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
+          { label: "COMPLETOS",  value: completos,   color: "#6bbd8a" },
         ].map(s => (
-          <div key={s.label} className="flex flex-col items-center justify-center py-3 gap-0.5"
+          <div key={s.label} className="flex flex-col flex-1 px-3 py-2.5"
             style={{ background: "var(--pwa-surface)" }}>
             <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22,
               fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
             <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
-              letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
+              marginTop: 2 }}>
               {s.label}
             </span>
           </div>
@@ -787,7 +815,7 @@ function EmergencyButton({ onPress }: { onPress: () => void }) {
         <div className="w-full max-w-[320px] flex flex-col gap-5 p-6"
           style={{ background: "var(--pwa-surface)", borderTop: "4px solid #d35c4f" }}>
           <div className="flex items-center gap-3">
-            <AlertOctagon className="h-6 w-6 shrink-0" style={{ color: "#d35c4f" }} />
+            <AlertTriangle className="h-6 w-6 shrink-0" style={{ color: "#d35c4f" }} />
             <div>
               <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800,
                 textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
@@ -814,7 +842,7 @@ function EmergencyButton({ onPress }: { onPress: () => void }) {
               style={{ background: "#d35c4f", color: "#fff", border: "none", cursor: "pointer",
                 fontFamily: "var(--sg-font-mono)", fontSize: 11,
                 letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
-              <AlertOctagon className="h-4 w-4" /> Sí, emergencia
+              <AlertTriangle className="h-4 w-4" /> Sí, emergencia
             </motion.button>
           </div>
         </div>
@@ -838,7 +866,7 @@ function EmergencyButton({ onPress }: { onPress: () => void }) {
       animate={{ boxShadow: ["0 4px 20px rgba(211,92,79,0.4)", "0 4px 28px rgba(211,92,79,0.7)", "0 4px 20px rgba(211,92,79,0.4)"] }}
       transition={{ repeat: Infinity, duration: 2 }}
     >
-      <AlertOctagon className="h-4 w-4" />
+      <AlertTriangle className="h-4 w-4" />
       Emergencia
     </motion.button>
   );
@@ -1351,42 +1379,45 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
       style={{ background: "var(--pwa-bg)" }}>
 
       {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3"
+      <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3"
         style={{ background: "var(--pwa-surface)", borderBottom: "1px solid var(--pwa-border)" }}>
 
-        {/* Avatar guardia */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center"
-          style={{ background: "color-mix(in srgb, var(--pwa-accent) 12%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--pwa-accent) 30%, transparent)",
-            color: "var(--pwa-accent)", fontFamily: "var(--sg-font-display)",
-            fontSize: 12, fontWeight: 800 }}>
-          {initials}
+        {/* Logo + brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center"
+            style={{ background: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)",
+              border: "1px solid var(--pwa-accent)" }}>
+            <Shield className="h-3.5 w-3.5" style={{ color: "var(--pwa-accent)" }} />
+          </div>
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 800,
+              textTransform: "uppercase", letterSpacing: "-0.01em",
+              color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+              Smart<span style={{ color: "var(--pwa-accent)" }}>Guard</span>
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              {plantLabel || "Guardia"}
+            </p>
+          </div>
         </div>
 
-        {/* Nombre + planta */}
-        <div className="flex-1 min-w-0">
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700,
-            textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }} className="truncate">
-            {guardName.split(" ")[0]}
-          </p>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em",
-            textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
-            {plantLabel || "SmartGuard"}
-          </p>
-        </div>
-
-        {/* Acciones header */}
+        {/* Acciones + avatar */}
         <div className="flex items-center gap-2 shrink-0">
           <ThemeToggle />
           <button onClick={() => refresh(false)} disabled={refreshing}
-            style={{ background: "none", border: "none", cursor: "pointer",
-              color: "var(--pwa-muted)" }}>
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}>
             <motion.div
               animate={refreshing ? { rotate: 360 } : { rotate: 0 }}
               transition={refreshing ? { repeat: Infinity, duration: 0.8, ease: "linear" } : {}}>
               <RefreshCw className="h-4 w-4" />
             </motion.div>
           </button>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
+              fontFamily: "var(--sg-font-display)", fontSize: 11, fontWeight: 800 }}>
+            {initials}
+          </div>
         </div>
       </div>
 

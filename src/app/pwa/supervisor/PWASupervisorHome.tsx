@@ -7,8 +7,8 @@ import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
   AlertTriangle, Building2, Calendar, CheckCircle2,
-  ChevronDown, Copy, FileCheck2, Home, Link2,
-  LogOut, Plus, QrCode, RefreshCw, Truck,
+  ChevronDown, Copy, FileCheck2, Link2,
+  LogOut, Plus, QrCode, RefreshCw, Shield, Truck,
   User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
@@ -222,20 +222,19 @@ function TabInicio({ records, plantas, onSelectPlanta }: {
 
   return (
     <div className="flex flex-col mt-4 gap-4">
-      {/* Stats globales */}
-      <div className="grid grid-cols-4 gap-px mx-4" style={{ background: "var(--pwa-border)" }}>
+      {/* KPI chips */}
+      <div className="flex gap-2 px-4">
         {[
-          { l: "Pendientes", v: totalPendientes, c: totalPendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
-          { l: "Urgentes",   v: totalUrgentes,   c: totalUrgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
-          { l: "Atendidos",  v: totalAtendidos,  c: "#6ba7ff" },
-          { l: "Completos",  v: totalCompletos,  c: "#6bbd8a" },
+          { l: "ACCESOS HOY", v: records.length,   c: "var(--pwa-ink)" },
+          { l: "PENDIENTES",  v: totalPendientes,  c: totalPendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
+          { l: "URGENTES",    v: totalUrgentes,    c: totalUrgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
         ].map(s => (
-          <div key={s.l} className="flex flex-col items-center py-3 gap-0.5"
+          <div key={s.l} className="flex flex-col flex-1 px-3 py-2.5"
             style={{ background: "var(--pwa-surface)" }}>
             <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22, fontWeight: 800,
               color: s.c, lineHeight: 1 }}>{s.v}</span>
             <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7, letterSpacing: "0.1em",
-              textTransform: "uppercase", color: "var(--pwa-muted)" }}>{s.l}</span>
+              textTransform: "uppercase", color: "var(--pwa-muted)", marginTop: 2 }}>{s.l}</span>
           </div>
         ))}
       </div>
@@ -371,7 +370,7 @@ function TabVehiculos({ records, plantas, filterPlant, onFilterChange, onTap, on
                 background: filterPlant === p ? "var(--pwa-accent)" : "var(--pwa-surface-2)",
                 border: `1px solid ${filterPlant === p ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
                 color: filterPlant === p ? "var(--pwa-accent-fg)" : "var(--pwa-muted)",
-                cursor: "pointer",
+                cursor: "pointer", borderRadius: 999,
                 fontFamily: "var(--sg-font-mono)", fontSize: 9,
                 letterSpacing: "0.12em", textTransform: "uppercase",
                 fontWeight: filterPlant === p ? 700 : 400,
@@ -530,20 +529,21 @@ function TabCitasSupervisor({ citas, plantas, companyId, responsables, onActivat
       {/* Header */}
       <div className="flex items-center justify-between mx-4">
         <div>
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 800,
-            textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
-            Citas del día
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800,
+            textTransform: "uppercase", letterSpacing: "-0.02em",
+            color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+            CITAS
           </p>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em",
-            textTransform: "uppercase", color: "var(--pwa-muted)", margin: "3px 0 0" }}>
-            {citas.length} programada{citas.length !== 1 ? "s" : ""}
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.08em",
+            color: "var(--pwa-muted)", margin: "4px 0 0" }}>
+            {now.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowLink(true)}
             className="flex items-center gap-1.5 px-3 py-2"
             style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
-              color: "var(--pwa-muted)", cursor: "pointer",
+              color: "var(--pwa-muted)", cursor: "pointer", borderRadius: 6,
               fontFamily: "var(--sg-font-mono)", fontSize: 9,
               letterSpacing: "0.12em", textTransform: "uppercase" }}>
             <QrCode className="h-4 w-4" /> Link
@@ -551,7 +551,7 @@ function TabCitasSupervisor({ citas, plantas, companyId, responsables, onActivat
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 px-3 py-2.5"
             style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
-              border: "none", cursor: "pointer",
+              border: "none", cursor: "pointer", borderRadius: 6,
               fontFamily: "var(--sg-font-mono)", fontSize: 9,
               letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
             <Plus className="h-4 w-4" /> Nueva
@@ -569,9 +569,10 @@ function TabCitasSupervisor({ citas, plantas, companyId, responsables, onActivat
                 background: filterPlant === p ? "var(--pwa-accent)" : "var(--pwa-surface-2)",
                 border: `1px solid ${filterPlant === p ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
                 color: filterPlant === p ? "var(--pwa-accent-fg)" : "var(--pwa-muted)",
-                cursor: "pointer",
+                cursor: "pointer", borderRadius: 999,
                 fontFamily: "var(--sg-font-mono)", fontSize: 9,
                 letterSpacing: "0.12em", textTransform: "uppercase",
+                fontWeight: filterPlant === p ? 700 : 400,
               }}>
               {p === "Todos" ? "Todos" : formatGateLabelFromPlant(p)}
             </button>
@@ -1051,13 +1052,12 @@ export default function PWASupervisorHome({
   const initials = supervisorName.split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase();
 
   const tabsDef: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio",    icon: <Home className="h-5 w-5" />,     label: "Inicio",
+    { key: "inicio",    icon: <Shield className="h-[18px] w-[18px]" />,   label: "Inicio",
       badge: urgentes > 0 ? urgentes : undefined },
-    { key: "vehiculos", icon: <Truck className="h-5 w-5" />,    label: "Vehículos",
-      badge: undefined },
-    { key: "citas",     icon: <Calendar className="h-5 w-5" />, label: "Citas",
+    { key: "vehiculos", icon: <Truck className="h-[18px] w-[18px]" />,    label: "Accesos" },
+    { key: "citas",     icon: <Calendar className="h-[18px] w-[18px]" />, label: "Citas",
       badge: citasPendientes > 0 ? citasPendientes : undefined },
-    { key: "perfil",    icon: <User className="h-5 w-5" />,     label: "Perfil" },
+    { key: "perfil",    icon: <User className="h-[18px] w-[18px]" />,     label: "Perfil" },
   ];
 
   return (
@@ -1065,30 +1065,32 @@ export default function PWASupervisorHome({
       style={{ background: "var(--pwa-bg)" }}>
 
       {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3"
+      <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3"
         style={{ background: "var(--pwa-surface)", borderBottom: "1px solid var(--pwa-border)" }}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center"
-          style={{
-            background: "color-mix(in srgb, #6ba7ff 14%, transparent)",
-            border: "1px solid color-mix(in srgb, #6ba7ff 30%, transparent)",
-            color: "#6ba7ff", fontFamily: "var(--sg-font-display)", fontSize: 12, fontWeight: 800,
-          }}>
-          {initials}
+
+        {/* Logo + brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center"
+            style={{ background: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)",
+              border: "1px solid var(--pwa-accent)" }}>
+            <Shield className="h-3.5 w-3.5" style={{ color: "var(--pwa-accent)" }} />
+          </div>
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 800,
+              textTransform: "uppercase", letterSpacing: "-0.01em",
+              color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+              Smart<span style={{ color: "var(--pwa-accent)" }}>Guard</span>
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              Supervisor · {plantas.length} planta{plantas.length !== 1 ? "s" : ""}
+            </p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700,
-            textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }} className="truncate">
-            {supervisorName.split(" ")[0]}
-          </p>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em",
-            textTransform: "uppercase", color: "#6ba7ff", margin: 0 }}>
-            Supervisor · {plantas.length} planta{plantas.length !== 1 ? "s" : ""}
-          </p>
-        </div>
+
+        {/* Acciones + avatar */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => refresh(false)}
-            disabled={refreshing}
+          <button onClick={() => refresh(false)} disabled={refreshing}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}>
             <motion.div
               animate={refreshing ? { rotate: 360 } : { rotate: 0 }}
@@ -1096,6 +1098,11 @@ export default function PWASupervisorHome({
               <RefreshCw className="h-4 w-4" />
             </motion.div>
           </button>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
+              fontFamily: "var(--sg-font-display)", fontSize: 11, fontWeight: 800 }}>
+            {initials}
+          </div>
         </div>
       </div>
 
@@ -1166,74 +1173,38 @@ export default function PWASupervisorHome({
         onMarkDocs={() => { if (selectedReg) handleDocs(selectedReg); }}
       />
 
-      {/* Bottom Tab Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40"
-        style={{ background: "var(--pwa-surface)", borderTop: "1px solid var(--pwa-border)",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <div className="flex items-stretch">
-          {tabsDef.slice(0, 2).map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className="flex flex-col items-center justify-center gap-1 flex-1 py-3 relative"
-              style={{ background: "none", border: "none", cursor: "pointer",
-                color: tab === t.key ? "#6ba7ff" : "var(--pwa-muted)" }}>
-              <div className="relative">
-                {t.icon}
-                {t.badge !== undefined && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
-                    style={{ background: "#d35c4f", color: "#fff",
-                      fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
-                    {t.badge}
-                  </span>
-                )}
-              </div>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
-                letterSpacing: "0.12em", textTransform: "uppercase" }}>{t.label}</span>
-              {tab === t.key && (
-                <motion.div layoutId="sup-tab"
-                  className="absolute top-0 left-0 right-0 h-0.5"
-                  style={{ background: "#6ba7ff" }} />
-              )}
-            </button>
-          ))}
-
-          {/* Botón central Registrar */}
-          <div className="flex flex-col items-center justify-center px-2 py-2">
-            <motion.button whileTap={{ scale: 0.88 }}
-              onClick={() => router.push("/pwa/registro")}
-              className="flex flex-col items-center justify-center gap-1 h-12 w-14"
-              style={{ background: "#6ba7ff", border: "none", cursor: "pointer", color: "#000" }}>
-              <Plus className="h-5 w-5" />
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
-                letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>
-                Nuevo
-              </span>
-            </motion.button>
-          </div>
-
-          {tabsDef.slice(2).map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className="flex flex-col items-center justify-center gap-1 flex-1 py-3 relative"
-              style={{ background: "none", border: "none", cursor: "pointer",
-                color: tab === t.key ? "#6ba7ff" : "var(--pwa-muted)" }}>
-              <div className="relative">
-                {t.icon}
-                {t.badge !== undefined && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
-                    style={{ background: "#d35c4f", color: "#fff",
-                      fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
-                    {t.badge}
-                  </span>
-                )}
-              </div>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
-                letterSpacing: "0.12em", textTransform: "uppercase" }}>{t.label}</span>
-              {tab === t.key && (
-                <motion.div layoutId="sup-tab"
-                  className="absolute top-0 left-0 right-0 h-0.5"
-                  style={{ background: "#6ba7ff" }} />
-              )}
-            </button>
-          ))}
+      {/* Pill Tab Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex items-end px-4"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)", paddingTop: 8 }}>
+        <div className="flex items-center w-full gap-1"
+          style={{ height: 58, background: "var(--pwa-surface)", borderRadius: 34,
+            border: "1px solid var(--pwa-border)", padding: "4px" }}>
+          {tabsDef.map(t => {
+            const isActive = tab === t.key;
+            return (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative"
+                style={{ borderRadius: 28,
+                  background: isActive ? "var(--pwa-accent)" : "transparent",
+                  border: "none", cursor: "pointer",
+                  color: isActive ? "var(--pwa-accent-fg)" : "var(--pwa-muted)" }}>
+                <div className="relative">
+                  {t.icon}
+                  {t.badge !== undefined && (
+                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
+                      style={{ background: "#d35c4f", color: "#fff",
+                        fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
+                      {t.badge}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                  letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                  {t.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
