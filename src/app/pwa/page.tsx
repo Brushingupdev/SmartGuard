@@ -6,7 +6,7 @@ import { usePWATheme } from "@/contexts/PWAThemeContext";
 import { useEffect, useState, useCallback } from "react";
 import {
   ArrowLeft, Eye, EyeOff, Lock, Mail,
-  Palette, Smartphone, Tablet,
+  Palette, Shield, UserCheck,
 } from "lucide-react";
 import { validateGuardPIN, getDeviceCompanyInfo, type GuardSession } from "./actions";
 import { loginPWA } from "./login/actions";
@@ -91,93 +91,85 @@ function PWAHeader({ subtitle, onBack }: { subtitle?: string; onBack?: () => voi
 
 type Mode = "home" | "email" | "pin-setup" | "pin";
 
-function HomeScreen({ onSelect, hasPinDevice }: {
+function HomeScreen({ onSelect }: {
   onSelect: (mode: "email" | "pin") => void;
-  hasPinDevice: boolean;
 }) {
   return (
     <div className="flex flex-col min-h-screen min-h-[100dvh]">
       <PWAHeader />
 
-      <div className="flex flex-1 flex-col justify-center px-6 pb-10 gap-8">
+      <div className="flex flex-1 flex-col justify-center px-6 pb-10 gap-10">
 
-        {/* Título */}
+        {/* Logo + título */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease }} className="text-center">
-          <div className="flex justify-center mb-6">
-            <Logo size={64} />
+          transition={{ duration: 0.5, ease }} className="text-center flex flex-col items-center gap-5">
+          <Logo size={72} />
+          <div>
+            <h1 style={{ fontFamily: "var(--sg-font-display)", fontSize: 32, fontWeight: 800,
+              textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--pwa-ink)",
+              lineHeight: 1.1, margin: 0 }}>
+              Smart<span style={{ color: "var(--pwa-accent)" }}>Guard</span>
+            </h1>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.22em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", marginTop: 8 }}>
+              Control de acceso vehicular
+            </p>
           </div>
-          <h1 style={{ fontFamily: "var(--sg-font-display)", fontSize: 28, fontWeight: 800,
-            textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--pwa-ink)",
-            lineHeight: 1.15, margin: 0 }}>
-            ¿Cómo quieres
-            <br />entrar?
-          </h1>
         </motion.div>
 
-        {/* Opciones */}
+        {/* Opciones de rol */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.5, ease }}
+          transition={{ delay: 0.2, duration: 0.5, ease }}
           className="flex flex-col gap-3">
 
-          {/* Opción 1 — Celular personal */}
+          {/* Supervisor */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => onSelect("email")}
-            className="flex items-center gap-4 p-5 text-left transition-all"
-            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)",
-              cursor: "pointer" }}>
+            className="flex items-center gap-4 p-5 text-left w-full transition-colors"
+            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", cursor: "pointer" }}>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center"
               style={{ background: "color-mix(in srgb, var(--pwa-accent) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--pwa-accent) 40%, transparent)" }}>
-              <Smartphone className="h-5 w-5" style={{ color: "var(--pwa-accent)" }} />
+                border: "1px solid color-mix(in srgb, var(--pwa-accent) 35%, transparent)" }}>
+              <Shield className="h-5 w-5" style={{ color: "var(--pwa-accent)" }} />
             </div>
-            <div className="min-w-0">
-              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 700,
+            <div className="min-w-0 flex-1">
+              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 17, fontWeight: 700,
                 textTransform: "uppercase", letterSpacing: "0.02em", color: "var(--pwa-ink)", margin: 0 }}>
-                Mi celular
+                Supervisor
               </p>
               <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em",
-                textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
-                Correo y contraseña · Sesión personal
+                textTransform: "uppercase", color: "var(--pwa-muted)", margin: "3px 0 0" }}>
+                Correo y contraseña
               </p>
             </div>
-            <span style={{ color: "var(--pwa-muted)", marginLeft: "auto", fontSize: 18 }}>→</span>
+            <span style={{ color: "var(--pwa-accent)", fontSize: 20, fontWeight: 300 }}>→</span>
           </motion.button>
 
-          {/* Opción 2 — Tablet compartida */}
+          {/* Guardia */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => onSelect("pin")}
-            className="flex items-center gap-4 p-5 text-left transition-all"
-            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)",
-              cursor: "pointer" }}>
+            className="flex items-center gap-4 p-5 text-left w-full transition-colors"
+            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", cursor: "pointer" }}>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center"
-              style={{ background: "color-mix(in srgb, #6ba7ff 12%, transparent)",
-                border: "1px solid color-mix(in srgb, #6ba7ff 40%, transparent)" }}>
-              <Tablet className="h-5 w-5" style={{ color: "#6ba7ff" }} />
+              style={{ background: "color-mix(in srgb, #6bbd8a 12%, transparent)",
+                border: "1px solid color-mix(in srgb, #6bbd8a 35%, transparent)" }}>
+              <UserCheck className="h-5 w-5" style={{ color: "#6bbd8a" }} />
             </div>
-            <div className="min-w-0">
-              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 700,
+            <div className="min-w-0 flex-1">
+              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 17, fontWeight: 700,
                 textTransform: "uppercase", letterSpacing: "0.02em", color: "var(--pwa-ink)", margin: 0 }}>
-                Tablet de garita
+                Guardia
               </p>
               <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em",
-                textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
-                {hasPinDevice ? "PIN de 4 dígitos · Dispositivo vinculado" : "PIN de 4 dígitos · Dispositivo compartido"}
+                textTransform: "uppercase", color: "var(--pwa-muted)", margin: "3px 0 0" }}>
+                PIN de 4 dígitos
               </p>
             </div>
-            <span style={{ color: "var(--pwa-muted)", marginLeft: "auto", fontSize: 18 }}>→</span>
+            <span style={{ color: "#6bbd8a", fontSize: 20, fontWeight: 300 }}>→</span>
           </motion.button>
         </motion.div>
-
-        {/* Footer */}
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-          className="text-center"
-          style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
-            textTransform: "uppercase", color: "var(--pwa-muted)", opacity: 0.6 }}>
-          Control de acceso vehicular industrial
-        </motion.p>
       </div>
     </div>
   );
@@ -535,11 +527,6 @@ export default function PWAPage() {
     return <EmailLoginScreen onBack={() => setMode("home")} />;
   }
 
-  // Home — elegir cómo entrar
-  return (
-    <HomeScreen
-      hasPinDevice={!!device}
-      onSelect={(m) => setMode(m)}
-    />
-  );
+  // Home — elegir rol
+  return <HomeScreen onSelect={(m) => setMode(m)} />;
 }
