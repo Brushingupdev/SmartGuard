@@ -347,7 +347,7 @@ function ThemeSwitcher() {
 
 // ── Main Wizard ───────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 3;
 
 export default function PWARegistroWizard({
   defaultPlant,
@@ -513,40 +513,59 @@ export default function PWARegistroWizard({
             className="flex flex-col flex-1"
           >
 
-            {/* ── Step 0: Vehículo ── */}
+            {/* ── Step 0: Vehículo + Empresa (fusionados) ── */}
             {step === 0 && (
               <div className="flex flex-col flex-1">
                 <StepHeader
                   step={0}
                   total={TOTAL_STEPS}
                   label="¿Quién llega?"
-                  sublabel="Razón social o nombre del vehículo"
+                  sublabel="Razón social y empresa destino"
                 />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <BigTextInput
-                    value={data.razonSocial}
-                    onChange={(v) => update("razonSocial", v)}
-                    placeholder="TRANSP. EMPRESA ABC..."
-                    autoFocus
-                  />
+                <div className="px-6 flex flex-col gap-4 flex-1 pt-4">
+                  <div>
+                    <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "var(--pwa-muted)", marginBottom: 8 }}>
+                      Vehículo / Transportista
+                    </p>
+                    <BigTextInput
+                      value={data.razonSocial}
+                      onChange={(v) => update("razonSocial", v)}
+                      placeholder="TRANSP. EMPRESA ABC..."
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "var(--pwa-muted)", marginBottom: 8 }}>
+                      Empresa destino (opcional)
+                    </p>
+                    <BigTextInput
+                      value={data.empresa}
+                      onChange={(v) => update("empresa", v)}
+                      placeholder="EMPRESA DESTINO..."
+                    />
+                  </div>
                   {/* Foto */}
                   <button
                     type="button"
                     onClick={() => cameraRef.current?.click()}
-                    className="flex items-center gap-3 h-12 px-4 transition-colors"
+                    className="flex items-center gap-3 h-14 px-4 transition-colors"
                     style={{
                       background: "var(--pwa-surface)",
                       border: "1px dashed var(--pwa-border)",
                       color: "var(--pwa-muted)",
                       fontFamily: "var(--sg-font-mono)",
-                      fontSize: 10,
+                      fontSize: 11,
                       letterSpacing: "0.14em",
                       textTransform: "uppercase",
                       cursor: "pointer",
                     }}
                   >
-                    <Camera className="h-4 w-4" />
-                    {data.photoPreview ? "Foto capturada ✓" : "Tomar foto de placa (opcional)"}
+                    <Camera className="h-5 w-5" />
+                    {data.photoPreview ? "Foto capturada ✓" : "Foto de placa (opcional)"}
                   </button>
                   <input
                     ref={cameraRef}
@@ -566,8 +585,8 @@ export default function PWARegistroWizard({
                       <img src={data.photoPreview} alt="placa" className="w-full h-32 object-cover" style={{ border: "1px solid var(--pwa-accent)" }} />
                       <button
                         onClick={() => update("photoPreview", null)}
-                        className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center text-white text-xs"
-                        style={{ background: "var(--pwa-danger)" }}
+                        className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center text-white text-sm"
+                        style={{ background: "var(--pwa-danger)", cursor: "pointer", border: "none" }}
                       >✕</button>
                     </div>
                   )}
@@ -575,92 +594,45 @@ export default function PWARegistroWizard({
               </div>
             )}
 
-            {/* ── Step 1: Empresa ── */}
+            {/* ── Step 1: Tipo + Responsable (fusionados) ── */}
             {step === 1 && (
               <div className="flex flex-col flex-1">
                 <StepHeader
                   step={1}
                   total={TOTAL_STEPS}
-                  label="¿A qué empresa?"
-                  sublabel="Empresa destino dentro de la planta"
+                  label="Operación"
+                  sublabel="Tipo y responsable de atención"
                   onBack={() => setStep(0)}
                 />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <BigTextInput
-                    value={data.empresa}
-                    onChange={(v) => update("empresa", v)}
-                    placeholder="EMPRESA DESTINO..."
-                    autoFocus
-                  />
-                  <p
-                    style={{
-                      fontFamily: "var(--sg-font-mono)",
-                      fontSize: 9,
-                      color: "var(--pwa-muted)",
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Déjalo vacío si no aplica
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 2: Tipo operación ── */}
-            {step === 2 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={2}
-                  total={TOTAL_STEPS}
-                  label="¿Qué tipo?"
-                  sublabel="Tipo de operación"
-                  onBack={() => setStep(1)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <TipoGrid
-                    value={data.tipoOperacion}
-                    onChange={(v) => update("tipoOperacion", v)}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 3: Responsable ── */}
-            {step === 3 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={3}
-                  total={TOTAL_STEPS}
-                  label="¿Quién lo atiende?"
-                  sublabel="Responsable de almacén"
-                  onBack={() => setStep(2)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <DropdownPicker
-                    value={data.responsable}
-                    onChange={(v) => update("responsable", v)}
-                    options={responsables}
-                    placeholder="Selecciona responsable..."
-                  />
-                  {/* Agente */}
-                  <div
-                    style={{
-                      borderTop: "1px solid var(--pwa-border)",
-                      paddingTop: 16,
-                      marginTop: 4,
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontFamily: "var(--sg-font-mono)",
-                        fontSize: 9,
-                        color: "var(--pwa-muted)",
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
-                        marginBottom: 8,
-                      }}
-                    >
+                <div className="px-6 flex flex-col gap-5 flex-1 pt-4">
+                  <div>
+                    <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "var(--pwa-muted)", marginBottom: 10 }}>
+                      Tipo de operación
+                    </p>
+                    <TipoGrid
+                      value={data.tipoOperacion}
+                      onChange={(v) => update("tipoOperacion", v)}
+                    />
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--pwa-border)", paddingTop: 16 }}>
+                    <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "var(--pwa-muted)", marginBottom: 8 }}>
+                      Responsable de almacén
+                    </p>
+                    <DropdownPicker
+                      value={data.responsable}
+                      onChange={(v) => update("responsable", v)}
+                      options={responsables}
+                      placeholder="Selecciona responsable..."
+                    />
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--pwa-border)", paddingTop: 16 }}>
+                    <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "var(--pwa-muted)", marginBottom: 8 }}>
                       Guardia que registra
                     </p>
                     <DropdownPicker
@@ -674,15 +646,15 @@ export default function PWARegistroWizard({
               </div>
             )}
 
-            {/* ── Step 4: Confirmar ── */}
-            {step === 4 && (
+            {/* ── Step 2: Confirmar ── */}
+            {step === 2 && (
               <div className="flex flex-col flex-1">
                 <StepHeader
-                  step={4}
+                  step={2}
                   total={TOTAL_STEPS}
                   label="Confirmar"
                   sublabel="Revisa y registra el ingreso"
-                  onBack={() => setStep(3)}
+                  onBack={() => setStep(1)}
                 />
                 <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
                   {/* Summary */}
@@ -700,11 +672,11 @@ export default function PWARegistroWizard({
                       { icon: UserCheck, label: "Responsable",    value: data.responsable || "—" },
                       { icon: User,      label: "Guardia",        value: data.agente },
                     ].map(({ icon: Icon, label, value }) => (
-                      <div key={label} className="flex items-center gap-3 px-4 py-3">
-                        <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-accent)" }} />
+                      <div key={label} className="flex items-center gap-3 px-4 py-3.5">
+                        <Icon className="h-5 w-5 shrink-0" style={{ color: "var(--pwa-accent)" }} />
                         <div className="min-w-0 flex-1">
-                          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 2 }}>{label}</p>
-                          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
+                          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 2 }}>{label}</p>
+                          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                         </div>
                       </div>
                     ))}
@@ -735,12 +707,12 @@ export default function PWARegistroWizard({
 
       {/* Footer */}
       <div className="px-6 pb-8 pt-4 flex flex-col gap-3">
-        {step < 4 ? (
+        {step < 2 ? (
           <NextButton
             onClick={() => setStep((s) => s + 1)}
             disabled={
               (step === 0 && !data.razonSocial.trim()) ||
-              (step === 3 && !data.responsable)
+              (step === 1 && !data.responsable)
             }
           />
         ) : (

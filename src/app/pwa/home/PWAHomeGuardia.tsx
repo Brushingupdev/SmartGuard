@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertOctagon, AlertTriangle, BookOpen, Calendar, Camera,
   CheckCircle2, Clock, FileCheck2, Home, LogOut,
-  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, Zap,
+  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, WifiOff, Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -77,7 +77,7 @@ function ThemeToggle() {
   return (
     <button onClick={() => setTheme(next.key)}
       style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}>
-      <Palette className="h-4 w-4" />
+      <Palette className="h-5 w-5" />
     </button>
   );
 }
@@ -91,47 +91,47 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
   citasPendientes: number;
 }) {
   const tabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio",   icon: <Home className="h-5 w-5" />,         label: "Inicio",
+    { key: "inicio",   icon: <Home className="h-6 w-6" />,         label: "Inicio",
       badge: urgentes > 0 ? urgentes : undefined },
-    { key: "citas",    icon: <Calendar className="h-5 w-5" />,     label: "Citas",
+    { key: "citas",    icon: <Calendar className="h-6 w-6" />,     label: "Citas",
       badge: citasPendientes > 0 ? citasPendientes : undefined },
-    { key: "eventos",  icon: <BookOpen className="h-5 w-5" />,     label: "Bitácora" },
-    { key: "turno",    icon: <User className="h-5 w-5" />,         label: "Mi turno" },
+    { key: "eventos",  icon: <BookOpen className="h-6 w-6" />,     label: "Bitácora" },
+    { key: "turno",    icon: <User className="h-6 w-6" />,         label: "Mi turno" },
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex items-stretch z-40"
-      style={{ background: "var(--pwa-surface)", borderTop: "1px solid var(--pwa-border)",
+    <div className="fixed bottom-0 left-0 right-0 flex items-stretch z-40 pwa-glass-heavy"
+      style={{ borderTop: "1px solid var(--pwa-border)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {tabs.map(tab => (
         <button key={tab.key} onClick={() => onChange(tab.key)}
-          className="flex flex-col items-center justify-center gap-1 flex-1 py-3 relative transition-opacity active:opacity-70"
+          className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3.5 relative transition-opacity active:opacity-70"
           style={{ background: "none", border: "none", cursor: "pointer",
             color: active === tab.key ? "var(--pwa-accent)" : "var(--pwa-muted)" }}>
           <div className="relative">
             {tab.icon}
             {tab.badge !== undefined && (
-              <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
+              <span className="absolute -top-2 -right-2.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1"
                 style={{ background: "#d35c4f", color: "#fff",
-                  fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
+                  fontFamily: "var(--sg-font-mono)", fontSize: 10, fontWeight: 700 }}>
                 {tab.badge}
               </span>
             )}
           </div>
-          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
-            letterSpacing: "0.14em", textTransform: "uppercase" }}>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+            letterSpacing: "0.12em", textTransform: "uppercase" }}>
             {tab.label}
           </span>
           {active === tab.key && (
             <motion.div layoutId="tab-indicator"
-              className="absolute top-0 left-0 right-0 h-0.5"
+              className="absolute top-0 left-2 right-2 h-0.5"
               style={{ background: "var(--pwa-accent)" }} />
           )}
         </button>
       ))}
 
       {/* FAB Registrar */}
-      <div className="flex items-center justify-center px-4">
+      <div className="flex items-center justify-center px-3">
         <RegisterFABInline />
       </div>
     </div>
@@ -143,12 +143,12 @@ function RegisterFABInline() {
   return (
     <motion.button whileTap={{ scale: 0.92 }}
       onClick={() => router.push("/pwa/registro")}
-      className="flex items-center gap-1.5 h-10 px-4"
+      className="flex items-center gap-2 h-12 px-5 pwa-fab-glow"
       style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
         border: "none", cursor: "pointer",
-        fontFamily: "var(--sg-font-mono)", fontSize: 10,
+        fontFamily: "var(--sg-font-mono)", fontSize: 11,
         letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
-      <Plus className="h-4 w-4" /> Registrar
+      <Plus className="h-5 w-5" strokeWidth={2.5} /> Registrar
     </motion.button>
   );
 }
@@ -162,30 +162,31 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
   onAction: () => void;
 }) {
   const cfg = LEVEL_CFG[level];
+  const isUrgent = level === "urgente";
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}
-      className="flex gap-0 overflow-hidden"
+      className={`flex gap-0 overflow-hidden${isUrgent ? " pwa-urgent-pulse" : ""}`}
       style={{ background: cfg.bg, borderBottom: "1px solid var(--pwa-border)" }}>
 
-      {/* Acento lateral */}
-      <div className="w-1 shrink-0" style={{ background: cfg.color }} />
+      {/* Acento lateral — más grueso */}
+      <div className="w-1.5 shrink-0" style={{ background: cfg.color }} />
 
       {/* Contenido */}
-      <div className="flex flex-1 items-start gap-3 px-4 py-3.5">
+      <div className="flex flex-1 items-center gap-3 px-4 py-4">
         <div className="flex-1 min-w-0">
           {/* Empresa */}
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700,
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: "0.01em",
             color: "var(--pwa-ink)", margin: 0 }} className="truncate">
             {reg.razonSocial}
           </p>
 
           {/* Meta info */}
-          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
             {reg.empresa && reg.empresa !== reg.razonSocial && (
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11,
                 letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)" }}
                 className="truncate max-w-[140px]">
                 {reg.empresa}
@@ -193,14 +194,14 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
             )}
             {reg.responsable && (
               <span className="flex items-center gap-1"
-                style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
+                style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11,
                   letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-                <UserCheck className="h-3 w-3 shrink-0" />
+                <UserCheck className="h-3.5 w-3.5 shrink-0" />
                 {reg.responsable.split(" ")[0]}
               </span>
             )}
             {reg.tipoOperacion && (
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
                 letterSpacing: "0.1em", textTransform: "uppercase",
                 color: cfg.color, opacity: 0.8 }}>
                 {reg.tipoOperacion}
@@ -210,11 +211,11 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
         </div>
 
         {/* Derecha: tiempo + acción */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        <div className="flex flex-col items-end gap-2.5 shrink-0">
           {/* Tiempo */}
           <div className="flex items-center gap-1.5">
-            <Clock className="h-3 w-3" style={{ color: cfg.color }} />
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 12,
+            <Clock className="h-3.5 w-3.5" style={{ color: cfg.color }} />
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 14,
               fontWeight: 700, color: cfg.color }}>
               {level === "completo" ? fmtTime(reg.time) : fmtWait(waitMin)}
             </span>
@@ -223,32 +224,31 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
           {/* Estado/Acción */}
           {level === "completo" ? (
             <span className="flex items-center gap-1"
-              style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
+              style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
                 letterSpacing: "0.12em", textTransform: "uppercase", color: "#6bbd8a" }}>
-              <CheckCircle2 className="h-3 w-3" /> Completo
+              <CheckCircle2 className="h-3.5 w-3.5" /> Completo
             </span>
           ) : level === "atendido" ? (
             <motion.button whileTap={{ scale: 0.93 }} onClick={onAction}
-              className="flex items-center gap-1 px-2.5 py-1.5"
+              className="flex items-center gap-1.5 px-3.5 py-2.5"
               style={{ background: "rgba(107,167,255,0.15)", border: "1px solid rgba(107,167,255,0.4)",
-                color: "#6ba7ff", cursor: "pointer",
-                fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                color: "#6ba7ff", cursor: "pointer", minHeight: 44,
+                fontFamily: "var(--sg-font-mono)", fontSize: 11,
                 letterSpacing: "0.12em", textTransform: "uppercase" }}>
-              <FileCheck2 className="h-3 w-3" /> Docs
+              <FileCheck2 className="h-4 w-4" /> Docs
             </motion.button>
           ) : (
             <motion.button whileTap={{ scale: 0.93 }} onClick={onAction}
-              className="flex items-center gap-1 px-2.5 py-1.5"
+              className="flex items-center gap-1.5 px-3.5 py-2.5"
               style={{
-                background: level === "urgente"
-                  ? "rgba(211,92,79,0.15)" : "var(--pwa-surface-2)",
-                border: `1px solid ${level === "urgente" ? "rgba(211,92,79,0.4)" : "var(--pwa-border)"}`,
-                color: level === "urgente" ? "#d35c4f" : "var(--pwa-ink-soft)",
-                cursor: "pointer",
-                fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                background: isUrgent ? "rgba(211,92,79,0.15)" : "var(--pwa-surface-2)",
+                border: `1px solid ${isUrgent ? "rgba(211,92,79,0.4)" : "var(--pwa-border)"}`,
+                color: isUrgent ? "#d35c4f" : "var(--pwa-ink-soft)",
+                cursor: "pointer", minHeight: 44,
+                fontFamily: "var(--sg-font-mono)", fontSize: 11,
                 letterSpacing: "0.12em", textTransform: "uppercase",
               }}>
-              <CheckCircle2 className="h-3 w-3" /> Atendí
+              <CheckCircle2 className="h-4 w-4" /> Atendí
             </motion.button>
           )}
         </div>
@@ -278,21 +278,22 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs }: {
 
   return (
     <div className="flex flex-col">
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-px mx-4 mt-4 mb-3"
-        style={{ background: "var(--pwa-border)" }}>
+      {/* Stats — horizontal scroll */}
+      <div className="flex gap-2.5 overflow-x-auto px-4 mt-4 mb-3 pwa-scrollbar-hide">
         {[
           { label: "Pendientes", value: pendientes, color: pendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
           { label: "Urgentes",   value: urgentes,   color: urgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
           { label: "Atendidos",  value: atendidos,  color: "#6ba7ff" },
           { label: "Completos",  value: completos,  color: "#6bbd8a" },
         ].map(s => (
-          <div key={s.label} className="flex flex-col items-center justify-center py-3 gap-0.5"
-            style={{ background: "var(--pwa-surface)" }}>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22,
+          <div key={s.label} className="flex flex-col items-center justify-center py-4 px-5 shrink-0"
+            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)",
+              minWidth: 82, borderTop: `2px solid ${s.color}` }}>
+            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 26,
               fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
-              letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+              letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
+              marginTop: 4 }}>
               {s.label}
             </span>
           </div>
@@ -386,9 +387,9 @@ function TabCitas({ citas, onActivate, onRefresh }: {
     <div className="flex flex-col gap-4 mx-4 mt-4">
       {groups.map(group => (
         <div key={group.key}>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-3 w-0.5" style={{ background: group.color }} />
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="h-4 w-0.5" style={{ background: group.color }} />
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11, letterSpacing: "0.14em",
               textTransform: "uppercase", color: group.color }}>
               {group.label} · {group.items.length}
             </span>
@@ -427,13 +428,13 @@ function TabCitas({ citas, onActivate, onRefresh }: {
                   {cita.estado === "esperado" && (
                     <motion.button whileTap={{ scale: 0.93 }}
                       onClick={() => onActivate(cita.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 shrink-0"
+                      className="flex items-center gap-1.5 px-4 py-2.5 shrink-0"
                       style={{ background: `${group.color}15`,
                         border: `1px solid ${group.color}60`,
-                        color: group.color, cursor: "pointer",
-                        fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                        color: group.color, cursor: "pointer", minHeight: 44,
+                        fontFamily: "var(--sg-font-mono)", fontSize: 11,
                         letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                      <CheckCircle2 className="h-3 w-3" /> Llegó
+                      <CheckCircle2 className="h-4 w-4" /> Llegó
                     </motion.button>
                   )}
                   {(cita.estado === "activo" || cita.estado === "atendido") && (
@@ -590,11 +591,11 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
                 border: `1px solid ${tipo === t.key ? t.color : "var(--pwa-border)"}`,
                 cursor: "pointer",
               }}>
-              <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 12, fontWeight: 700,
+              <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 13, fontWeight: 700,
                 textTransform: "uppercase", color: tipo === t.key ? t.color : "var(--pwa-ink-soft)" }}>
                 {t.label}
               </span>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em",
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.1em",
                 textTransform: "uppercase", color: "var(--pwa-muted)" }}>
                 {t.desc}
               </span>
@@ -623,7 +624,7 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
               color: "var(--pwa-muted)", cursor: "pointer",
               fontFamily: "var(--sg-font-mono)", fontSize: 9,
               letterSpacing: "0.12em", textTransform: "uppercase" }}>
-            <Camera className="h-3.5 w-3.5" />
+            <Camera className="h-4 w-4" />
             {photoUrl ? "Foto ✓" : "Adjuntar foto"}
           </button>
           {photoUrl && (
@@ -682,11 +683,11 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
                   <div className="w-0.5 shrink-0 rounded-full" style={{ background: color }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                        letterSpacing: "0.14em", textTransform: "uppercase", color, fontWeight: 600 }}>
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11,
+                        letterSpacing: "0.12em", textTransform: "uppercase", color, fontWeight: 600 }}>
                         {ev.tipo}
                       </span>
-                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
                         color: "var(--pwa-muted)" }}>
                         {fmtEvento(ev.created_at)}
                       </span>
@@ -819,6 +820,43 @@ function TabTurno({ guardName, plant, records, onLogout }: {
   );
 }
 
+// ── Connectivity Banner ───────────────────────────────────────────────────────
+
+function ConnectivityBanner() {
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {!online && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-2.5"
+            style={{ background: "rgba(212,134,74,0.10)",
+              borderBottom: "1px solid rgba(212,134,74,0.25)" }}>
+            <WifiOff className="h-4 w-4 shrink-0" style={{ color: "#d4864a" }} />
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11,
+              letterSpacing: "0.1em", textTransform: "uppercase", color: "#d4864a" }}>
+              Sin conexión · Datos locales
+            </span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -922,48 +960,62 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
     <div className="flex flex-col min-h-screen min-h-[100dvh]"
       style={{ background: "var(--pwa-bg)" }}>
 
-      {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3"
-        style={{ background: "var(--pwa-surface)", borderBottom: "1px solid var(--pwa-border)" }}>
+      {/* Header — glassmorphism */}
+      <div className="sticky top-0 z-30 flex items-center gap-3 px-4 py-3 pwa-glass-heavy"
+        style={{ borderBottom: "1px solid var(--pwa-border)" }}>
 
         {/* Avatar guardia */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center"
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center"
           style={{ background: "color-mix(in srgb, var(--pwa-accent) 12%, transparent)",
-            border: "1px solid color-mix(in srgb, var(--pwa-accent) 30%, transparent)",
+            border: "2px solid color-mix(in srgb, var(--pwa-accent) 40%, transparent)",
             color: "var(--pwa-accent)", fontFamily: "var(--sg-font-display)",
-            fontSize: 12, fontWeight: 800 }}>
+            fontSize: 14, fontWeight: 800 }}>
           {initials}
         </div>
 
-        {/* Nombre + planta */}
+        {/* Nombre + planta + live dot */}
         <div className="flex-1 min-w-0">
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700,
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700,
             textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }} className="truncate">
             {guardName.split(" ")[0]}
           </p>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em",
-            textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
-            {plantLabel || "SmartGuard"}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.16em",
+              textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+              {plantLabel || "SmartGuard"}
+            </p>
+            <div className="flex items-center gap-1">
+              <div className="pwa-live-dot" style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: "var(--pwa-success)" }} />
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                color: "var(--pwa-success)" }}>Live</span>
+            </div>
+          </div>
         </div>
 
         {/* Acciones header */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <ThemeToggle />
           <button onClick={() => refresh(false)} disabled={refreshing}
+            className="flex items-center justify-center h-9 w-9"
             style={{ background: "none", border: "none", cursor: "pointer",
               color: "var(--pwa-muted)" }}>
             <motion.div
               animate={refreshing ? { rotate: 360 } : { rotate: 0 }}
               transition={refreshing ? { repeat: Infinity, duration: 0.8, ease: "linear" } : {}}>
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-5 w-5" />
             </motion.div>
           </button>
         </div>
       </div>
 
+      {/* Connectivity awareness */}
+      <ConnectivityBanner />
+
       {/* Contenido scrollable */}
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 overflow-y-auto pb-28">
         <AnimatePresence mode="wait">
           {tab === "inicio" && (
             <motion.div key="inicio"
