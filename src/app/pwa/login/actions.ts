@@ -32,8 +32,7 @@ export async function loginPWA(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   const role = user?.user_metadata?.role as string | undefined
 
-  // Cada rol va a su propia pantalla PWA
-  if (role === 'administrador') redirect('/admin')
-  if (role === 'supervisor')    redirect('/pwa/supervisor')
-  redirect('/pwa/home')
+  // Si viene del setup del dispositivo (no redirect, solo retorna éxito)
+  // El caller decide si redirigir o solo guardar la sesión
+  return { success: true, role: role ?? 'supervisor' }
 }

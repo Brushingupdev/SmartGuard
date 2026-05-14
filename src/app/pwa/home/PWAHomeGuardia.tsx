@@ -249,6 +249,14 @@ function VehicleRow({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+export type GuardLocal = {
+  id: number;
+  nombre: string;
+  planta: string | null;
+  turno: string;
+  avatar_color: string;
+};
+
 interface Props {
   plant: string;
   guardName: string;
