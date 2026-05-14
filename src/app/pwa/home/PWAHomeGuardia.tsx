@@ -3,14 +3,16 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle, Calendar, CheckCircle2, Clock,
-  FileCheck2, Home, LogOut, Palette, Plus,
-  RefreshCw, Truck, User, UserCheck, Zap,
+  AlertOctagon, AlertTriangle, BookOpen, Calendar, Camera,
+  CheckCircle2, Clock, FileCheck2, Home, LogOut,
+  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   getRecentRegistrations, getCitasDelDia,
   closeAtencion, closeAtencionDocs, activateCita,
+  crearGuardiaEvento, getGuardiaEventosHoy,
+  type GuardiaEvento,
 } from "@/app/actions";
 import { formatGateLabelFromPlant } from "@/lib/gates";
 import { isAbandonedRecord, isDelayedRecord } from "@/app/registro/status";
@@ -65,7 +67,7 @@ const LEVEL_CFG: Record<Level, { color: string; bg: string; label: string; order
   completo:  { color: "#6bbd8a", bg: "transparent",            label: "Completo",   order: 5 },
 };
 
-type Tab = "inicio" | "citas" | "turno";
+type Tab = "inicio" | "citas" | "eventos" | "turno";
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 
@@ -89,11 +91,12 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
   citasPendientes: number;
 }) {
   const tabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio", icon: <Home className="h-5 w-5" />, label: "Inicio",
+    { key: "inicio",   icon: <Home className="h-5 w-5" />,         label: "Inicio",
       badge: urgentes > 0 ? urgentes : undefined },
-    { key: "citas",  icon: <Calendar className="h-5 w-5" />, label: "Citas",
+    { key: "citas",    icon: <Calendar className="h-5 w-5" />,     label: "Citas",
       badge: citasPendientes > 0 ? citasPendientes : undefined },
-    { key: "turno",  icon: <User className="h-5 w-5" />, label: "Mi turno" },
+    { key: "eventos",  icon: <BookOpen className="h-5 w-5" />,     label: "Bitácora" },
+    { key: "turno",    icon: <User className="h-5 w-5" />,         label: "Mi turno" },
   ];
 
   return (
@@ -450,6 +453,270 @@ function TabCitas({ citas, onActivate, onRefresh }: {
   );
 }
 
+// ── Botón de emergencia ───────────────────────────────────────────────────────
+
+function EmergencyButton({ onPress }: { onPress: () => void }) {
+  const [confirm, setConfirm] = useState(false);
+
+  if (confirm) {
+    return (
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="fixed inset-0 z-50 flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}
+      >
+        <div className="w-full max-w-[320px] flex flex-col gap-5 p-6"
+          style={{ background: "var(--pwa-surface)", borderTop: "4px solid #d35c4f" }}>
+          <div className="flex items-center gap-3">
+            <AlertOctagon className="h-6 w-6 shrink-0" style={{ color: "#d35c4f" }} />
+            <div>
+              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800,
+                textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+                ¿Confirmar emergencia?
+              </p>
+              <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em",
+                textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
+                Se notificará al supervisor inmediatamente
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirm(false)}
+              className="flex-1 h-12"
+              style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+                color: "var(--pwa-muted)", cursor: "pointer",
+                fontFamily: "var(--sg-font-mono)", fontSize: 11,
+                letterSpacing: "0.14em", textTransform: "uppercase" }}>
+              Cancelar
+            </button>
+            <motion.button whileTap={{ scale: 0.95 }}
+              onClick={() => { setConfirm(false); onPress(); }}
+              className="flex-1 h-12 flex items-center justify-center gap-2"
+              style={{ background: "#d35c4f", color: "#fff", border: "none", cursor: "pointer",
+                fontFamily: "var(--sg-font-mono)", fontSize: 11,
+                letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
+              <AlertOctagon className="h-4 w-4" /> Sí, emergencia
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={() => setConfirm(true)}
+      className="fixed bottom-24 right-4 z-30 flex items-center gap-2 h-11 px-4"
+      style={{
+        background: "#d35c4f",
+        border: "none", cursor: "pointer",
+        color: "#fff",
+        fontFamily: "var(--sg-font-mono)", fontSize: 10,
+        letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700,
+        boxShadow: "0 4px 20px rgba(211,92,79,0.5)",
+      }}
+      animate={{ boxShadow: ["0 4px 20px rgba(211,92,79,0.4)", "0 4px 28px rgba(211,92,79,0.7)", "0 4px 20px rgba(211,92,79,0.4)"] }}
+      transition={{ repeat: Infinity, duration: 2 }}
+    >
+      <AlertOctagon className="h-4 w-4" />
+      Emergencia
+    </motion.button>
+  );
+}
+
+// ── Tab: Bitácora/Eventos ─────────────────────────────────────────────────────
+
+const TIPO_OPTIONS = [
+  { key: "incidente", label: "Incidente",   color: "#d4864a", desc: "Situación anormal" },
+  { key: "novedad",   label: "Novedad",     color: "#6ba7ff", desc: "Observación del turno" },
+] as const;
+
+function TabEventos({ eventos, agente, planta, onRefresh }: {
+  eventos: GuardiaEvento[];
+  agente: string;
+  planta: string;
+  onRefresh: () => void;
+}) {
+  const [tipo, setTipo]       = useState<"incidente" | "novedad">("incidente");
+  const [desc, setDesc]       = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent]       = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const handleSend = async () => {
+    if (!desc.trim()) return;
+    setSending(true);
+    const result = await crearGuardiaEvento({
+      tipo, descripcion: desc.trim(),
+      foto_url: photoUrl,
+      agente, planta,
+    });
+    setSending(false);
+    if (result.success) {
+      setDesc("");
+      setPhotoUrl(null);
+      setSent(true);
+      setTimeout(() => setSent(false), 2500);
+      onRefresh();
+    }
+  };
+
+  function fmtEvento(ts: string): string {
+    return new Date(ts).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div className="flex flex-col gap-4 mx-4 mt-4">
+
+      {/* Formulario */}
+      <div className="flex flex-col gap-3 p-4"
+        style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
+          textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+          Nuevo reporte
+        </p>
+
+        {/* Tipo */}
+        <div className="flex gap-2">
+          {TIPO_OPTIONS.map(t => (
+            <button key={t.key} onClick={() => setTipo(t.key)}
+              className="flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-all"
+              style={{
+                background: tipo === t.key ? `${t.color}18` : "var(--pwa-surface-2)",
+                border: `1px solid ${tipo === t.key ? t.color : "var(--pwa-border)"}`,
+                cursor: "pointer",
+              }}>
+              <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 12, fontWeight: 700,
+                textTransform: "uppercase", color: tipo === t.key ? t.color : "var(--pwa-ink-soft)" }}>
+                {t.label}
+              </span>
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em",
+                textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                {t.desc}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Descripción */}
+        <textarea
+          value={desc}
+          onChange={e => setDesc(e.target.value)}
+          placeholder="Describe lo que ocurrió..."
+          rows={3}
+          className="w-full outline-none resize-none p-3 text-[14px]"
+          style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+            color: "var(--pwa-ink)", fontFamily: "var(--sg-font-body)" }}
+          onFocus={e => e.target.style.borderColor = tipo === "incidente" ? "#d4864a" : "#6ba7ff"}
+          onBlur={e => e.target.style.borderColor = "var(--pwa-border)"}
+        />
+
+        {/* Foto */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => cameraRef.current?.click()}
+            className="flex items-center gap-2 px-3 py-2 transition-opacity active:opacity-60"
+            style={{ background: "var(--pwa-surface-2)", border: "1px dashed var(--pwa-border)",
+              color: "var(--pwa-muted)", cursor: "pointer",
+              fontFamily: "var(--sg-font-mono)", fontSize: 9,
+              letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            <Camera className="h-3.5 w-3.5" />
+            {photoUrl ? "Foto ✓" : "Adjuntar foto"}
+          </button>
+          {photoUrl && (
+            <button onClick={() => setPhotoUrl(null)}
+              style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, color: "var(--pwa-danger)",
+                letterSpacing: "0.1em", textTransform: "uppercase", background: "none", border: "none",
+                cursor: "pointer" }}>
+              Eliminar
+            </button>
+          )}
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) setPhotoUrl(URL.createObjectURL(f));
+              e.target.value = "";
+            }} />
+        </div>
+
+        {/* Enviar */}
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={handleSend}
+          disabled={sending || !desc.trim()}
+          className="w-full h-12 flex items-center justify-center gap-2 transition-opacity disabled:opacity-40"
+          style={{
+            background: sent ? "#6bbd8a" : TIPO_OPTIONS.find(t => t.key === tipo)?.color,
+            color: "#000", border: "none", cursor: "pointer",
+            fontFamily: "var(--sg-font-mono)", fontSize: 11,
+            letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700,
+          }}>
+          {sent
+            ? <><CheckCircle2 className="h-4 w-4" /> Reportado</>
+            : sending
+            ? "Enviando..."
+            : <><Send className="h-4 w-4" /> Enviar reporte</>
+          }
+        </motion.button>
+      </div>
+
+      {/* Historial del día */}
+      {eventos.length > 0 && (
+        <div>
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
+            textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
+            Reportes de hoy · {eventos.length}
+          </p>
+          <div className="flex flex-col" style={{ border: "1px solid var(--pwa-border)" }}>
+            {eventos.map(ev => {
+              const color = ev.tipo === "emergencia" ? "#d35c4f"
+                : ev.tipo === "incidente" ? "#d4864a" : "#6ba7ff";
+              return (
+                <div key={ev.id} className="flex gap-3 px-4 py-3"
+                  style={{ borderBottom: "1px solid var(--pwa-border)",
+                    background: "var(--pwa-surface)" }}>
+                  <div className="w-0.5 shrink-0 rounded-full" style={{ background: color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                        letterSpacing: "0.14em", textTransform: "uppercase", color, fontWeight: 600 }}>
+                        {ev.tipo}
+                      </span>
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                        color: "var(--pwa-muted)" }}>
+                        {fmtEvento(ev.created_at)}
+                      </span>
+                    </div>
+                    <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13,
+                      color: "var(--pwa-ink)", margin: 0 }}>
+                      {ev.descripcion}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {eventos.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-2 py-10"
+          style={{ opacity: 0.5 }}>
+          <BookOpen className="h-8 w-8" style={{ color: "var(--pwa-muted)" }} />
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+            Sin reportes hoy
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tab: Mi Turno ─────────────────────────────────────────────────────────────
 
 function TabTurno({ guardName, plant, records, onLogout }: {
@@ -559,13 +826,15 @@ interface Props {
   guardName: string;
   initialRecords: RecentRegistration[];
   initialCitas: CitaRow[];
+  initialEventos: GuardiaEvento[];
 }
 
-export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas }: Props) {
+export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas, initialEventos }: Props) {
   const router = useRouter();
   const [tab, setTab]             = useState<Tab>("inicio");
   const [records, setRecords]     = useState(initialRecords);
   const [citas, setCitas]         = useState(initialCitas);
+  const [eventos, setEventos]     = useState(initialEventos);
   const [refreshing, setRefreshing] = useState(false);
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
   const inactivityRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -592,14 +861,26 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
   // Auto-refresh silencioso
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
-    const [{ records: fresh }, freshCitas] = await Promise.all([
+    const [{ records: fresh }, freshCitas, freshEventos] = await Promise.all([
       getRecentRegistrations(plant, 100),
       getCitasDelDia(plant),
+      getGuardiaEventosHoy(plant),
     ]);
     setRecords(fresh);
     setCitas(freshCitas);
+    setEventos(freshEventos);
     if (!silent) setRefreshing(false);
   }, [plant]);
+
+  const handleEmergencia = async () => {
+    await crearGuardiaEvento({
+      tipo: "emergencia",
+      descripcion: "EMERGENCIA activada desde el PWA",
+      agente: guardName,
+      planta: plant,
+    });
+    await refresh(true);
+  };
 
   useEffect(() => {
     const id = setInterval(() => refresh(true), 30_000);
@@ -708,6 +989,18 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               />
             </motion.div>
           )}
+          {tab === "eventos" && (
+            <motion.div key="eventos"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <TabEventos
+                eventos={eventos}
+                agente={guardName}
+                planta={plant}
+                onRefresh={() => refresh(true)}
+              />
+            </motion.div>
+          )}
           {tab === "turno" && (
             <motion.div key="turno"
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -722,6 +1015,9 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
           )}
         </AnimatePresence>
       </div>
+
+      {/* Botón de emergencia flotante */}
+      <EmergencyButton onPress={handleEmergencia} />
 
       {/* Bottom Tab Bar */}
       <TabBar

@@ -8,3 +8,4 @@ export * from "./users";
 export * from "./companies";
 export * from "./responsables";
 export * from "./contacts";
+export * from "./guardia-eventos";
