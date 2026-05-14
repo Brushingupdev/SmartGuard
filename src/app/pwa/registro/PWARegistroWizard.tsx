@@ -5,8 +5,9 @@ import { useState, useCallback } from "react";
 import {
   ArrowLeft, ArrowRight, Camera, Check,
   CheckCircle2, ChevronDown, Truck, User, Building2,
-  Package, UserCheck, Palette,
+  Home, Package, UserCheck, Palette, Plus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createAtencion } from "@/app/actions";
 import type { GateAssignment } from "@/lib/gates";
 import { formatGateLabelFromPlant } from "@/lib/gates";
@@ -356,6 +357,7 @@ export default function PWARegistroWizard({
   agentes,
   gateOptions,
 }: Props) {
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -412,79 +414,83 @@ export default function PWARegistroWizard({
 
   if (done) {
     return (
-      <div className="flex flex-col min-h-screen min-h-[100dvh] items-center justify-center px-6 gap-6">
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 16 }}
-          className="flex h-20 w-20 items-center justify-center"
-          style={{ border: "2px solid var(--pwa-success)" }}
-        >
-          <CheckCircle2 className="h-10 w-10" style={{ color: "var(--pwa-success)" }} />
-        </motion.div>
+      <div className="flex flex-col min-h-screen min-h-[100dvh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-6 pb-2">
+          <button onClick={() => router.replace("/pwa/home")}
+            style={{ background: "none", border: "none", cursor: "pointer",
+              fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.16em",
+              textTransform: "uppercase", color: "var(--pwa-muted)",
+              display: "flex", alignItems: "center", gap: 6 }}>
+            <Home className="h-4 w-4" /> Inicio
+          </button>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-center"
-        >
-          <h2
-            style={{
-              fontFamily: "var(--sg-font-display)",
-              fontSize: 28,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: "-0.02em",
-              color: "var(--pwa-ink)",
-            }}
+        <div className="flex flex-1 flex-col items-center justify-center px-6 gap-6">
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 16 }}
+            className="flex h-24 w-24 items-center justify-center"
+            style={{ background: "color-mix(in srgb, var(--pwa-success) 12%, transparent)",
+              border: "2px solid var(--pwa-success)" }}
           >
-            Registrado
-          </h2>
-          <p
-            style={{
-              fontFamily: "var(--sg-font-mono)",
-              fontSize: 10,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--pwa-muted)",
-              marginTop: 8,
-            }}
-          >
-            {data.razonSocial} · {plantLabel}
-          </p>
-        </motion.div>
+            <CheckCircle2 className="h-12 w-12" style={{ color: "var(--pwa-success)" }} />
+          </motion.div>
 
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          onClick={() => {
-            setDone(false);
-            setStep(0);
-            setData((d) => ({
-              ...d,
-              razonSocial: "",
-              empresa: "",
-              tipoOperacion: "Descarga",
-              photoPreview: null,
-            }));
-          }}
-          className="w-full h-14 mt-4"
-          style={{
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }} className="text-center">
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
+              textTransform: "uppercase", color: "var(--pwa-success)", margin: "0 0 8px" }}>
+              ✓ Ingreso registrado
+            </p>
+            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 26, fontWeight: 800,
+              textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--pwa-ink)",
+              margin: 0 }}>
+              {data.razonSocial}
+            </h2>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", marginTop: 6 }}>
+              {plantLabel} · {new Date().toLocaleTimeString("es-PE",
+                { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }} className="flex flex-col gap-3 w-full max-w-[320px]">
+            {/* Nuevo registro */}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => {
+                setDone(false);
+                setStep(0);
+                setData((d) => ({ ...d, razonSocial: "", empresa: "",
+                  tipoOperacion: "Descarga", photoPreview: null }));
+              }}
+              className="w-full h-14 flex items-center justify-center gap-2"
+              style={{
             background: "var(--pwa-accent)",
-            color: "var(--pwa-accent-fg)",
-            fontFamily: "var(--sg-font-mono)",
-            fontSize: 12,
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 700,
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Nuevo registro →
-        </motion.button>
+              color: "var(--pwa-accent-fg)",
+              fontFamily: "var(--sg-font-mono)", fontSize: 12,
+              letterSpacing: "0.2em", textTransform: "uppercase",
+              fontWeight: 700, border: "none", cursor: "pointer",
+            }}>
+              <Plus className="h-4 w-4" /> Nuevo registro
+            </motion.button>
+
+            {/* Ir al inicio */}
+            <motion.button whileTap={{ scale: 0.97 }}
+              onClick={() => router.replace("/pwa/home")}
+              className="w-full h-12 flex items-center justify-center gap-2"
+              style={{ background: "var(--pwa-surface)",
+                border: "1px solid var(--pwa-border)", cursor: "pointer",
+                color: "var(--pwa-muted)",
+                fontFamily: "var(--sg-font-mono)", fontSize: 11,
+                letterSpacing: "0.16em", textTransform: "uppercase" }}>
+              <Home className="h-4 w-4" /> Volver al inicio
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
     );
   }
@@ -499,6 +505,22 @@ export default function PWARegistroWizard({
 
   return (
     <div className="flex flex-col min-h-screen min-h-[100dvh]">
+      {/* Top header con botón de inicio */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-0">
+        <button onClick={() => router.replace("/pwa/home")}
+          style={{ background: "none", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6,
+            fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em",
+            textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+          <Home className="h-3.5 w-3.5" /> Inicio
+        </button>
+        <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+          textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+          Nuevo registro
+        </span>
+        <div style={{ width: 60 }} />
+      </div>
+
       <StepProgress current={step} total={TOTAL_STEPS} />
 
       <div className="flex-1 flex flex-col">

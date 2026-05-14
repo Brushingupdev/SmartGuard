@@ -70,7 +70,7 @@ const LEVEL_CFG: Record<Level, { color: string; bg: string; label: string; order
   completo:  { color: "#6bbd8a", bg: "transparent",            label: "Completo",   order: 5 },
 };
 
-type Tab = "inicio" | "citas" | "eventos" | "turno";
+type Tab = "inicio" | "citas" | "eventos" | "perfil";
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 
@@ -93,66 +93,100 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
   urgentes: number;
   citasPendientes: number;
 }) {
+  const router = useRouter();
+
   const tabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio",   icon: <Home className="h-5 w-5" />,         label: "Inicio",
+    { key: "inicio",  icon: <Home className="h-5 w-5" />,     label: "Inicio",
       badge: urgentes > 0 ? urgentes : undefined },
-    { key: "citas",    icon: <Calendar className="h-5 w-5" />,     label: "Citas",
+    { key: "citas",   icon: <Calendar className="h-5 w-5" />, label: "Citas",
       badge: citasPendientes > 0 ? citasPendientes : undefined },
-    { key: "eventos",  icon: <BookOpen className="h-5 w-5" />,     label: "Bitácora" },
-    { key: "turno",    icon: <User className="h-5 w-5" />,         label: "Mi turno" },
+    { key: "eventos", icon: <BookOpen className="h-5 w-5" />, label: "Bitácora" },
+    { key: "perfil",  icon: <User className="h-5 w-5" />,     label: "Perfil" },
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex items-stretch z-40"
-      style={{ background: "var(--pwa-surface)", borderTop: "1px solid var(--pwa-border)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      {tabs.map(tab => (
-        <button key={tab.key} onClick={() => onChange(tab.key)}
-          className="flex flex-col items-center justify-center gap-1 flex-1 py-3 relative transition-opacity active:opacity-70"
-          style={{ background: "none", border: "none", cursor: "pointer",
-            color: active === tab.key ? "var(--pwa-accent)" : "var(--pwa-muted)" }}>
-          <div className="relative">
-            {tab.icon}
-            {tab.badge !== undefined && (
-              <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
-                style={{ background: "#d35c4f", color: "#fff",
-                  fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
-                {tab.badge}
-              </span>
-            )}
-          </div>
-          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
-            letterSpacing: "0.14em", textTransform: "uppercase" }}>
-            {tab.label}
-          </span>
-          {active === tab.key && (
-            <motion.div layoutId="tab-indicator"
-              className="absolute top-0 left-0 right-0 h-0.5"
-              style={{ background: "var(--pwa-accent)" }} />
-          )}
-        </button>
-      ))}
+    <div
+      className="fixed bottom-0 left-0 right-0 z-40"
+      style={{
+        background: "var(--pwa-surface)",
+        borderTop: "1px solid var(--pwa-border)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
+      <div className="flex items-stretch">
+        {/* Tabs izquierda (2) */}
+        {tabs.slice(0, 2).map(tab => (
+          <TabButton key={tab.key} tab={tab} active={active} onChange={onChange} />
+        ))}
 
-      {/* FAB Registrar */}
-      <div className="flex items-center justify-center px-4">
-        <RegisterFABInline />
+        {/* Botón central Registrar */}
+        <div className="flex flex-col items-center justify-center px-2 py-2">
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => router.push("/pwa/registro")}
+            className="flex flex-col items-center justify-center gap-1 h-12 w-14"
+            style={{
+              background: "var(--pwa-accent)",
+              border: "none", cursor: "pointer",
+              color: "var(--pwa-accent-fg)",
+            }}
+          >
+            <Plus className="h-5 w-5" />
+            <span style={{
+              fontFamily: "var(--sg-font-mono)", fontSize: 7,
+              letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700,
+            }}>
+              Nuevo
+            </span>
+          </motion.button>
+        </div>
+
+        {/* Tabs derecha (2) */}
+        {tabs.slice(2).map(tab => (
+          <TabButton key={tab.key} tab={tab} active={active} onChange={onChange} />
+        ))}
       </div>
     </div>
   );
 }
 
-function RegisterFABInline() {
-  const router = useRouter();
+function TabButton({ tab, active, onChange }: {
+  tab: { key: Tab; icon: React.ReactNode; label: string; badge?: number };
+  active: Tab;
+  onChange: (t: Tab) => void;
+}) {
+  const isActive = active === tab.key;
   return (
-    <motion.button whileTap={{ scale: 0.92 }}
-      onClick={() => router.push("/pwa/registro")}
-      className="flex items-center gap-1.5 h-10 px-4"
-      style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
-        border: "none", cursor: "pointer",
-        fontFamily: "var(--sg-font-mono)", fontSize: 10,
-        letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
-      <Plus className="h-4 w-4" /> Registrar
-    </motion.button>
+    <button
+      onClick={() => onChange(tab.key)}
+      className="flex flex-col items-center justify-center gap-1 flex-1 py-3 relative"
+      style={{
+        background: "none", border: "none", cursor: "pointer",
+        color: isActive ? "var(--pwa-accent)" : "var(--pwa-muted)",
+      }}
+    >
+      <div className="relative">
+        {tab.icon}
+        {tab.badge !== undefined && (
+          <span
+            className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
+            style={{ background: "#d35c4f", color: "#fff",
+              fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}
+          >
+            {tab.badge}
+          </span>
+        )}
+      </div>
+      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
+        letterSpacing: "0.12em", textTransform: "uppercase" }}>
+        {tab.label}
+      </span>
+      {isActive && (
+        <motion.div layoutId="tab-indicator"
+          className="absolute top-0 left-0 right-0 h-0.5"
+          style={{ background: "var(--pwa-accent)" }} />
+      )}
+    </button>
   );
 }
 
@@ -750,104 +784,181 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
   );
 }
 
-// ── Tab: Mi Turno ─────────────────────────────────────────────────────────────
+// ── Tab: Perfil ───────────────────────────────────────────────────────────────
 
-function TabTurno({ guardName, plant, records, onLogout }: {
+function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
   guardName: string;
   plant: string;
   records: RecentRegistration[];
+  eventos: GuardiaEvento[];
   onLogout: () => void;
 }) {
+  const { theme, setTheme, themes } = usePWATheme();
   const initials = guardName.split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase();
-  const misRegistros = records.filter(r => r.agente === guardName);
-  const misPendientes = misRegistros.filter(r => !r.attended && !r.docsDelivered).length;
-  const misCompletados = misRegistros.filter(r => r.docsDelivered).length;
-  const misAtendidos = misRegistros.filter(r => r.attended && !r.docsDelivered).length;
 
-  const avgEspera = misRegistros.length > 0
-    ? Math.round(misRegistros.filter(r => r.espera_min).reduce((s, r) => s + (r.espera_min ?? 0), 0)
-        / misRegistros.filter(r => r.espera_min).length) || 0
+  const misRegistros   = records.filter(r => r.agente === guardName);
+  const misPendientes  = misRegistros.filter(r => !r.attended && !r.docsDelivered).length;
+  const misCompletados = misRegistros.filter(r => r.docsDelivered).length;
+  const misAtendidos   = misRegistros.filter(r => r.attended && !r.docsDelivered).length;
+  const misEventos     = eventos.length;
+
+  const avgEspera = misRegistros.filter(r => r.espera_min).length > 0
+    ? Math.round(
+        misRegistros.filter(r => r.espera_min).reduce((s, r) => s + (r.espera_min ?? 0), 0) /
+        misRegistros.filter(r => r.espera_min).length
+      )
+    : 0;
+
+  // Mejor desempeño: % completados sobre total
+  const pctOk = misRegistros.length > 0
+    ? Math.round((misCompletados / misRegistros.length) * 100)
     : 0;
 
   return (
-    <div className="flex flex-col gap-5 mx-4 mt-4 pb-4">
-
-      {/* Perfil del guardia */}
-      <div className="flex items-center gap-4 p-5"
+    <div className="flex flex-col pb-6">
+      {/* Card de perfil */}
+      <div className="mx-4 mt-4 p-5 relative overflow-hidden"
         style={{ background: "var(--pwa-surface)", borderTop: "3px solid var(--pwa-accent)" }}>
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center"
-          style={{ background: "color-mix(in srgb, var(--pwa-accent) 12%, transparent)",
-            border: "2px solid var(--pwa-accent)", color: "var(--pwa-accent)",
-            fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800 }}>
-          {initials}
-        </div>
-        <div className="min-w-0">
-          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800,
-            textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }} className="truncate">
-            {guardName}
-          </p>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
-            textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
-            {formatGateLabelFromPlant(plant)} · Guardia
-          </p>
+        {/* Glow */}
+        <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140,
+          background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)",
+          pointerEvents: "none" }} />
+
+        <div className="flex items-center gap-4">
+          {/* Avatar grande */}
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center"
+            style={{ background: "color-mix(in srgb, var(--pwa-accent) 14%, transparent)",
+              border: "2px solid var(--pwa-accent)", color: "var(--pwa-accent)",
+              fontFamily: "var(--sg-font-display)", fontSize: 24, fontWeight: 800 }}>
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800,
+              textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}
+              className="truncate">{guardName}</p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: "var(--pwa-accent)", margin: "4px 0 0" }}>
+              {formatGateLabelFromPlant(plant)}
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", margin: "2px 0 0" }}>
+              Guardia · Turno activo
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Mis stats de hoy */}
-      <div>
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
-          textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 10 }}>
-          Mi actividad de hoy
+      {/* Stats de hoy */}
+      <div className="mx-4 mt-4">
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.22em",
+          textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
+          Mi actividad hoy
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-4 gap-px" style={{ background: "var(--pwa-border)" }}>
           {[
-            { label: "Registré", value: misRegistros.length, color: "var(--pwa-accent)" },
-            { label: "Pendientes", value: misPendientes, color: misPendientes > 0 ? "#d4864a" : "var(--pwa-muted)" },
-            { label: "Atendidos", value: misAtendidos,  color: "#6ba7ff" },
-            { label: "Completados", value: misCompletados, color: "#6bbd8a" },
+            { label: "Registré",   value: misRegistros.length,  color: "var(--pwa-accent)"  },
+            { label: "Atendidos",  value: misAtendidos,          color: "#6ba7ff"             },
+            { label: "Completos",  value: misCompletados,        color: "#6bbd8a"             },
+            { label: "Reportes",   value: misEventos,            color: "#d4864a"             },
           ].map(s => (
-            <div key={s.label} className="flex flex-col gap-1 p-4"
-              style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 28,
-                fontWeight: 800, color: s.color, lineHeight: 1 }}>
-                {s.value}
-              </span>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-                {s.label}
-              </span>
+            <div key={s.label} className="flex flex-col items-center py-4 gap-1"
+              style={{ background: "var(--pwa-surface)" }}>
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22,
+                fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
+                letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
+                textAlign: "center" }}>{s.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Tiempo promedio */}
+      {/* Métricas de rendimiento */}
       {misRegistros.length > 0 && (
-        <div className="flex items-center gap-4 p-4"
-          style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-          <Clock className="h-5 w-5 shrink-0" style={{ color: "var(--pwa-accent)" }} />
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em",
-              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-              Promedio de espera de tus registros
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 20, fontWeight: 800,
-              color: "var(--pwa-ink)", margin: "4px 0 0" }}>
-              {avgEspera > 0 ? `${avgEspera} min` : "—"}
-            </p>
+        <div className="mx-4 mt-4 flex gap-3">
+          <div className="flex-1 flex flex-col gap-1 p-4"
+            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Espera promedio
+            </span>
+            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800,
+              color: avgEspera > 45 ? "#d35c4f" : avgEspera > 25 ? "#d4864a" : "#6bbd8a",
+              lineHeight: 1 }}>
+              {avgEspera > 0 ? `${avgEspera}m` : "—"}
+            </span>
+          </div>
+          <div className="flex-1 flex flex-col gap-1 p-4"
+            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Completados
+            </span>
+            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800,
+              color: pctOk >= 80 ? "#6bbd8a" : pctOk >= 50 ? "#d4864a" : "#d35c4f",
+              lineHeight: 1 }}>
+              {pctOk}%
+            </span>
           </div>
         </div>
       )}
 
-      {/* Botón cerrar sesión */}
-      <motion.button whileTap={{ scale: 0.97 }} onClick={onLogout}
-        className="flex items-center justify-center gap-2 w-full py-3"
-        style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
-          cursor: "pointer", color: "var(--pwa-muted)",
-          fontFamily: "var(--sg-font-mono)", fontSize: 10,
-          letterSpacing: "0.16em", textTransform: "uppercase" }}>
-        <LogOut className="h-4 w-4" /> Cerrar sesión
-      </motion.button>
+      {/* Pendientes de atención */}
+      {misPendientes > 0 && (
+        <div className="mx-4 mt-4 flex items-center gap-3 px-4 py-3"
+          style={{ background: "color-mix(in srgb, #d4864a 8%, transparent)",
+            border: "1px solid rgba(212,134,74,0.35)" }}>
+          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: "#d4864a" }} />
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em",
+            textTransform: "uppercase", color: "#d4864a", margin: 0 }}>
+            Tienes {misPendientes} vehículo{misPendientes !== 1 ? "s" : ""} pendiente{misPendientes !== 1 ? "s" : ""}
+          </p>
+        </div>
+      )}
+
+      {/* Apariencia */}
+      <div className="mx-4 mt-4 p-4"
+        style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+          textTransform: "uppercase", color: "var(--pwa-muted)", margin: "0 0 12px" }}>
+          Apariencia
+        </p>
+        <div className="flex gap-3">
+          {themes.map(t => (
+            <button key={t.key} onClick={() => setTheme(t.key)}
+              className="flex flex-col items-center gap-2 flex-1 py-3 transition-all"
+              style={{
+                background: theme === t.key
+                  ? "color-mix(in srgb, var(--pwa-accent) 10%, transparent)" : "var(--pwa-surface-2)",
+                border: `1px solid ${theme === t.key ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
+                cursor: "pointer",
+              }}>
+              <div className="h-5 w-5 rounded-full border-2"
+                style={{
+                  background: t.key === "dark" ? "#0d0f0e" : t.key === "light" ? "#f2f0eb" : "#000",
+                  borderColor: theme === t.key ? "var(--pwa-accent)" : "var(--pwa-border)",
+                }} />
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: theme === t.key ? "var(--pwa-accent)" : "var(--pwa-muted)" }}>
+                {t.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Cerrar sesión */}
+      <div className="mx-4 mt-4">
+        <motion.button whileTap={{ scale: 0.97 }} onClick={onLogout}
+          className="flex items-center justify-center gap-2 w-full py-3.5"
+          style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+            cursor: "pointer", color: "var(--pwa-muted)",
+            fontFamily: "var(--sg-font-mono)", fontSize: 10,
+            letterSpacing: "0.16em", textTransform: "uppercase" }}>
+          <LogOut className="h-4 w-4" /> Cerrar sesión
+        </motion.button>
+      </div>
     </div>
   );
 }
@@ -1053,14 +1164,15 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               />
             </motion.div>
           )}
-          {tab === "turno" && (
-            <motion.div key="turno"
+          {tab === "perfil" && (
+            <motion.div key="perfil"
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <TabTurno
+              <TabPerfil
                 guardName={guardName}
                 plant={plant}
                 records={records}
+                eventos={eventos}
                 onLogout={handleLogout}
               />
             </motion.div>
@@ -1076,9 +1188,6 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
         onMarkAttended={() => { if (selectedReg) handleClose(selectedReg); }}
         onMarkDocs={() => { if (selectedReg) handleDocs(selectedReg); }}
       />
-
-      {/* Botón de emergencia flotante */}
-      <EmergencyButton onPress={handleEmergencia} />
 
       {/* Bottom Tab Bar */}
       <TabBar
