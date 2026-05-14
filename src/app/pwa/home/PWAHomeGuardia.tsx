@@ -7,14 +7,14 @@ import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
   AlertOctagon, AlertTriangle, BookOpen, Calendar, Camera,
-  CheckCircle2, Clock, FileCheck2, Home, LogOut,
-  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, Zap,
+  CheckCircle2, ChevronDown, Clock, FileCheck2, Home, LogOut,
+  Palette, Plus, RefreshCw, Send, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   getRecentRegistrations, getCitasDelDia,
-  closeAtencion, closeAtencionDocs, activateCita,
-  crearGuardiaEvento, getGuardiaEventosHoy,
+  closeAtencion, closeAtencionDocs, activateCita, cancelarCita,
+  preRegisterCita, crearGuardiaEvento, getGuardiaEventosHoy,
   type GuardiaEvento,
 } from "@/app/actions";
 import { formatGateLabelFromPlant } from "@/lib/gates";
@@ -413,13 +413,206 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
   );
 }
 
+// ── Nueva cita — bottom sheet ─────────────────────────────────────────────────
+
+function NuevaCitaSheet({ plant, agente, responsables, onSave, onClose }: {
+  plant: string;
+  agente: string;
+  responsables: string[];
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const [hora,        setHora]        = useState("");
+  const [razonSocial, setRazonSocial] = useState("");
+  const [responsable, setResponsable] = useState(responsables[0] ?? "");
+  const [tipoOp,      setTipoOp]      = useState("Descarga");
+  const [fecha,       setFecha]       = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+
+  const handleSave = async () => {
+    if (!hora || !razonSocial.trim()) { setError("Hora y razón social son obligatorios"); return; }
+    setSaving(true);
+    const result = await preRegisterCita({
+      horaCita: hora,
+      fecha: fecha || undefined,
+      plant,
+      razonSocial: razonSocial.trim(),
+      empresa: razonSocial.trim(),
+      responsable,
+      type: "Proveedor",
+      tipoOperacion: tipoOp,
+      agente,
+      note: "",
+    });
+    setSaving(false);
+    if (result.success) { onSave(); onClose(); }
+    else setError(result.error ?? "Error al guardar");
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
+        onClick={onClose} />
+      <motion.div
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-50 flex flex-col"
+        style={{ background: "var(--pwa-surface)", borderTop: "2px solid var(--pwa-accent)", maxHeight: "90vh" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full" style={{ background: "var(--pwa-border)" }} />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3"
+          style={{ borderBottom: "1px solid var(--pwa-border)" }}>
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
+              textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+              Nueva cita
+            </p>
+            <h3 style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800,
+              textTransform: "uppercase", color: "var(--pwa-ink)", margin: "4px 0 0" }}>
+              Programar vehículo
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none",
+            cursor: "pointer", color: "var(--pwa-muted)" }}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Formulario */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+
+          {/* Hora + Fecha en una fila */}
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+                textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                Hora de llegada *
+              </label>
+              <input type="time" value={hora} onChange={e => setHora(e.target.value)}
+                className="w-full h-12 px-3 outline-none text-[16px] font-bold"
+                style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+                  color: "var(--pwa-ink)", fontFamily: "var(--sg-font-mono)" }}
+                onFocus={e => e.target.style.borderColor = "var(--pwa-accent)"}
+                onBlur={e => e.target.style.borderColor = "var(--pwa-border)"} />
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+                textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                Fecha (hoy si vacío)
+              </label>
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+                className="w-full h-12 px-3 outline-none text-[13px]"
+                style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+                  color: "var(--pwa-ink)", fontFamily: "var(--sg-font-mono)" }}
+                onFocus={e => e.target.style.borderColor = "var(--pwa-accent)"}
+                onBlur={e => e.target.style.borderColor = "var(--pwa-border)"} />
+            </div>
+          </div>
+
+          {/* Razón social */}
+          <div className="flex flex-col gap-1.5">
+            <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Vehículo / Razón social *
+            </label>
+            <input type="text" value={razonSocial}
+              onChange={e => setRazonSocial(e.target.value.toUpperCase())}
+              placeholder="TRANSPORTES ABC SAC..."
+              className="w-full h-12 px-3 outline-none text-[14px] font-bold uppercase"
+              style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+                color: "var(--pwa-ink)", fontFamily: "var(--sg-font-display)" }}
+              onFocus={e => e.target.style.borderColor = "var(--pwa-accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--pwa-border)"} />
+          </div>
+
+          {/* Responsable */}
+          <div className="flex flex-col gap-1.5">
+            <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Responsable de almacén
+            </label>
+            <div className="relative">
+              <select value={responsable} onChange={e => setResponsable(e.target.value)}
+                className="w-full h-12 px-3 outline-none appearance-none text-[14px]"
+                style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)",
+                  color: "var(--pwa-ink)", fontFamily: "var(--sg-font-display)",
+                  fontWeight: 700, textTransform: "uppercase" }}>
+                {responsables.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                style={{ color: "var(--pwa-muted)" }} />
+            </div>
+          </div>
+
+          {/* Tipo operación */}
+          <div className="flex flex-col gap-1.5">
+            <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Tipo de operación
+            </label>
+            <div className="flex gap-2">
+              {["Carga", "Descarga", "Servicio", "Otro"].map(t => (
+                <button key={t} onClick={() => setTipoOp(t)}
+                  className="flex-1 py-2.5 transition-all"
+                  style={{
+                    background: tipoOp === t
+                      ? "color-mix(in srgb, var(--pwa-accent) 12%, transparent)"
+                      : "var(--pwa-surface-2)",
+                    border: `1px solid ${tipoOp === t ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
+                    color: tipoOp === t ? "var(--pwa-accent)" : "var(--pwa-muted)",
+                    cursor: "pointer",
+                    fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                    letterSpacing: "0.12em", textTransform: "uppercase",
+                    fontWeight: tipoOp === t ? 700 : 400,
+                  }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11, letterSpacing: "0.1em",
+              textTransform: "uppercase", color: "var(--pwa-danger)" }}>{error}</p>
+          )}
+
+          {/* Submit */}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave}
+            disabled={saving || !hora || !razonSocial.trim()}
+            className="w-full h-13 flex items-center justify-center gap-2 mt-1 transition-opacity disabled:opacity-40"
+            style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
+              fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.2em",
+              textTransform: "uppercase", fontWeight: 700, border: "none", cursor: "pointer",
+              height: 52 }}>
+            {saving ? "Guardando..." : <><Calendar className="h-4 w-4" /> Programar cita</>}
+          </motion.button>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 // ── Tab: Citas ────────────────────────────────────────────────────────────────
 
-function TabCitas({ citas, onActivate, onRefresh }: {
+function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, onRefresh }: {
   citas: CitaRow[];
+  plant: string;
+  agente: string;
+  responsables: string[];
   onActivate: (id: number) => void;
+  onCancel: (id: number) => void;
   onRefresh: () => void;
 }) {
+  const [showForm, setShowForm] = useState(false);
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
@@ -437,22 +630,51 @@ function TabCitas({ citas, onActivate, onRefresh }: {
     { key: "proximas",   label: "Próximas",   color: "#6bbd8a", items: proximas  },
   ].filter(g => g.items.length > 0);
 
-  if (citas.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20 mx-4">
-        <Calendar className="h-10 w-10 opacity-10" style={{ color: "var(--pwa-muted)" }} />
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.18em",
-          textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-          Sin citas programadas hoy
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-4 mx-4 mt-4">
+    <div className="flex flex-col mt-4">
+      {/* Header con botón nueva cita */}
+      <div className="flex items-center justify-between mx-4 mb-4">
+        <div>
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 800,
+            textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+            Citas del día
+          </p>
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em",
+            textTransform: "uppercase", color: "var(--pwa-muted)", margin: "3px 0 0" }}>
+            {citas.length} programada{citas.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5"
+          style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
+            border: "none", cursor: "pointer",
+            fontFamily: "var(--sg-font-mono)", fontSize: 10,
+            letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
+          <Plus className="h-4 w-4" /> Nueva cita
+        </motion.button>
+      </div>
+
+      {/* Lista vacía */}
+      {citas.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-3 py-14 mx-4"
+          style={{ border: "1px dashed var(--pwa-border)" }}>
+          <Calendar className="h-10 w-10 opacity-10" style={{ color: "var(--pwa-muted)" }} />
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+            Sin citas programadas hoy
+          </p>
+          <button onClick={() => setShowForm(true)}
+            style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em",
+              textTransform: "uppercase", color: "var(--pwa-accent)",
+              background: "none", border: "none", cursor: "pointer" }}>
+            + Programar la primera
+          </button>
+        </div>
+      )}
+
+      {/* Grupos de citas */}
       {groups.map(group => (
-        <div key={group.key}>
+        <div key={group.key} className="mx-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="h-3 w-0.5" style={{ background: group.color }} />
             <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
@@ -465,13 +687,13 @@ function TabCitas({ citas, onActivate, onRefresh }: {
               const name = cita.razonSocial !== "—" ? cita.razonSocial
                 : cita.empresa !== "—" ? cita.empresa : "Cita programada";
               return (
-                <div key={cita.id} className="flex items-center gap-4 px-4 py-3.5"
+                <div key={cita.id} className="flex items-center gap-3 px-4 py-3.5"
                   style={{ borderBottom: "1px solid var(--pwa-border)", background: "var(--pwa-surface)" }}>
                   {/* Hora */}
-                  <div className="flex items-center justify-center h-10 w-14 shrink-0"
+                  <div className="flex items-center justify-center h-11 w-14 shrink-0"
                     style={{ background: `${group.color}15`, border: `1px solid ${group.color}40` }}>
                     <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 13,
-                      fontWeight: 700, color: group.color }}>
+                      fontWeight: 700, color: group.color, lineHeight: 1 }}>
                       {cita.horaCita.slice(0, 5)}
                     </span>
                   </div>
@@ -481,41 +703,69 @@ function TabCitas({ citas, onActivate, onRefresh }: {
                     <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14,
                       fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)",
                       margin: 0 }} className="truncate">{name}</p>
-                    {cita.responsable && (
-                      <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                        letterSpacing: "0.1em", textTransform: "uppercase",
-                        color: "var(--pwa-muted)", margin: "3px 0 0" }}>
-                        {cita.responsable}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {cita.responsable && (
+                        <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                          letterSpacing: "0.1em", textTransform: "uppercase",
+                          color: "var(--pwa-muted)" }}>
+                          {cita.responsable.split(" ")[0]}
+                        </span>
+                      )}
+                      {cita.tipoOperacion && (
+                        <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                          letterSpacing: "0.1em", textTransform: "uppercase",
+                          color: group.color, opacity: 0.7 }}>
+                          {cita.tipoOperacion}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Acción */}
-                  {cita.estado === "esperado" && (
-                    <motion.button whileTap={{ scale: 0.93 }}
-                      onClick={() => onActivate(cita.id)}
-                      className="flex items-center gap-1.5 px-3 py-2 shrink-0"
-                      style={{ background: `${group.color}15`,
-                        border: `1px solid ${group.color}60`,
-                        color: group.color, cursor: "pointer",
-                        fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                        letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                      <CheckCircle2 className="h-3 w-3" /> Llegó
-                    </motion.button>
-                  )}
-                  {(cita.estado === "activo" || cita.estado === "atendido") && (
-                    <span className="flex items-center gap-1 px-2 py-1.5 shrink-0"
-                      style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                        letterSpacing: "0.1em", textTransform: "uppercase", color: "#6ba7ff" }}>
-                      <Zap className="h-3 w-3" /> Activo
-                    </span>
-                  )}
+                  {/* Acciones */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {cita.estado === "esperado" && (
+                      <>
+                        <motion.button whileTap={{ scale: 0.9 }}
+                          onClick={() => onActivate(cita.id)}
+                          className="flex items-center gap-1 px-2.5 py-2"
+                          style={{ background: `${group.color}15`, border: `1px solid ${group.color}50`,
+                            color: group.color, cursor: "pointer",
+                            fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                            letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                          <CheckCircle2 className="h-3 w-3" /> Llegó
+                        </motion.button>
+                        <button onClick={() => onCancel(cita.id)}
+                          style={{ background: "none", border: "none", cursor: "pointer",
+                            color: "var(--pwa-muted)", padding: "4px" }}>
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                    {(cita.estado === "activo" || cita.estado === "atendido") && (
+                      <span className="flex items-center gap-1"
+                        style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
+                          letterSpacing: "0.1em", textTransform: "uppercase", color: "#6ba7ff" }}>
+                        <Zap className="h-3 w-3" /> Activo
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       ))}
+
+      {/* Bottom sheet nueva cita */}
+      {showForm && (
+        <NuevaCitaSheet
+          plant={plant}
+          agente={agente}
+          responsables={responsables}
+          onSave={onRefresh}
+          onClose={() => setShowForm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -971,9 +1221,10 @@ interface Props {
   initialRecords: RecentRegistration[];
   initialCitas: CitaRow[];
   initialEventos: GuardiaEvento[];
+  responsables: string[];
 }
 
-export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas, initialEventos }: Props) {
+export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas, initialEventos, responsables }: Props) {
   const router = useRouter();
   const [tab, setTab]               = useState<Tab>("inicio");
   const [records, setRecords]       = useState(initialRecords);
@@ -1068,6 +1319,11 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
     await refresh(true);
   };
 
+  const handleCancelCita = async (id: number) => {
+    await cancelarCita({ id });
+    await refresh(true);
+  };
+
   const handleLogout = () => {
     clearGuardSession();
     router.replace("/pwa");
@@ -1147,7 +1403,11 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabCitas
                 citas={citas}
+                plant={plant}
+                agente={guardName}
+                responsables={responsables}
                 onActivate={handleActivateCita}
+                onCancel={handleCancelCita}
                 onRefresh={() => refresh(false)}
               />
             </motion.div>

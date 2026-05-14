@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { getRecentRegistrations, getCitasDelDia, getGuardiaEventosHoy } from "@/app/actions";
+import { getRecentRegistrations, getCitasDelDia, getGuardiaEventosHoy, getResponsables } from "@/app/actions";
 import PWAHomeGuardia from "./PWAHomeGuardia";
 
 export default async function PWAHomePage() {
@@ -15,10 +15,11 @@ export default async function PWAHomePage() {
   const plant     = user.user_metadata?.plant  as string ?? "";
   const guardName = user.user_metadata?.nombre as string ?? user.email ?? "Guardia";
 
-  const [{ records }, citas, eventos] = await Promise.all([
+  const [{ records }, citas, eventos, responsables] = await Promise.all([
     getRecentRegistrations(plant, 100),
     getCitasDelDia(plant),
     getGuardiaEventosHoy(plant),
+    getResponsables(),
   ]);
 
   return (
@@ -28,6 +29,7 @@ export default async function PWAHomePage() {
       initialRecords={records}
       initialCitas={citas}
       initialEventos={eventos}
+      responsables={responsables}
     />
   );
 }
