@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const inter = localFont({
   src: [
@@ -51,7 +50,6 @@ export default function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning className={inter.variable}>
       <body suppressHydrationWarning>
-        <ServiceWorkerRegister />
         {children}
       </body>
     </html>

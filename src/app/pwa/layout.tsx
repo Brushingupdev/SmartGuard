@@ -1,6 +1,7 @@
 "use client";
 
 import { PWAThemeProvider } from "@/contexts/PWAThemeContext";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { useEffect } from "react";
 
 export default function PWALayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function PWALayout({ children }: { children: React.ReactNode }) {
         className="min-h-screen min-h-[100dvh] flex flex-col"
         style={{ background: "var(--pwa-bg)", color: "var(--pwa-ink)" }}
       >
+        <ServiceWorkerRegister />
         {children}
       </div>
     </PWAThemeProvider>

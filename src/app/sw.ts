@@ -1,5 +1,5 @@
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, CacheFirst, NetworkFirst } from "serwist";
+import { Serwist, CacheFirst } from "serwist";
 
 declare global {
   interface ServiceWorkerGlobalScope extends SerwistGlobalConfig {
@@ -9,26 +9,35 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+function isCacheableAsset(request: Request, url: URL, sameOrigin: boolean): boolean {
+  if (!sameOrigin || request.method !== "GET") return false;
+
+  if (url.pathname.startsWith("/api/")) return false;
+
+  return (
+    request.destination === "image" ||
+    request.destination === "font" ||
+    /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)$/i.test(url.pathname)
+  );
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
+  precacheOptions: {
+    navigateFallback: "/pwa/offline",
+    navigateFallbackAllowlist: [/^\/pwa(?:\/.*)?$/],
+  },
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // Cache-first para assets estáticos (imágenes, fuentes)
+    // Cachear solo assets no sensibles del mismo origen.
+    // Evitamos HTML, RSC y APIs para no mezclar contenido autenticado entre sesiones.
     {
-      matcher: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?)$/i,
+      matcher: ({ request, url, sameOrigin }) =>
+        isCacheableAsset(request, url, sameOrigin),
       handler: new CacheFirst({
         cacheName: "static-assets",
-        plugins: [],
-      }),
-    },
-    // Network-first para todo lo demás — siempre datos frescos
-    {
-      matcher: /^https:\/\//,
-      handler: new NetworkFirst({
-        cacheName: "pages-cache",
-        networkTimeoutSeconds: 10,
         plugins: [],
       }),
     },
@@ -52,8 +61,8 @@ sw.addEventListener("push", (event: { data: { json: () => unknown } | null; wait
   const options = {
     body:  data.body  ?? "Nuevo vehículo en portería",
     tag:   data.tag   ?? "sg-vehicle",
-    icon:  data.icon  ?? "/icons/icon-192x192.png",
-    badge: "/icons/icon-96x96.png",
+    icon:  data.icon  ?? "/icon-192.png",
+    badge: "/apple-touch-icon.png",
     data:  { url: data.url ?? "/pwa/home" },
   };
 
