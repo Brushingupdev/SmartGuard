@@ -2,6 +2,9 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
+import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
   AlertOctagon, AlertTriangle, BookOpen, Calendar, Camera,
   CheckCircle2, Clock, FileCheck2, Home, LogOut,
@@ -155,34 +158,47 @@ function RegisterFABInline() {
 
 // ── Vehicle Card ──────────────────────────────────────────────────────────────
 
-function VehicleCard({ reg, level, waitMin, onAction }: {
+function VehicleCard({ reg, level, now, onAction, onTap }: {
   reg: RecentRegistration;
   level: Level;
-  waitMin: number;
-  onAction: () => void;
+  now: Date;
+  onAction: (e: React.MouseEvent) => void;
+  onTap: () => void;
 }) {
   const cfg = LEVEL_CFG[level];
+  const waitSecs = getWaitSeconds(reg.time, now);
 
   return (
-    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}
-      className="flex gap-0 overflow-hidden"
-      style={{ background: cfg.bg, borderBottom: "1px solid var(--pwa-border)" }}>
-
-      {/* Acento lateral */}
-      <div className="w-1 shrink-0" style={{ background: cfg.color }} />
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.2 }}
+      onClick={onTap}
+      className="flex gap-0 overflow-hidden cursor-pointer active:opacity-80"
+      style={{ background: cfg.bg, borderBottom: "1px solid var(--pwa-border)" }}
+    >
+      {/* Acento lateral — pulsa si es urgente */}
+      <motion.div
+        className="w-1 shrink-0"
+        style={{ background: cfg.color }}
+        animate={level === "urgente"
+          ? { opacity: [1, 0.3, 1] }
+          : { opacity: 1 }}
+        transition={level === "urgente"
+          ? { repeat: Infinity, duration: 1.2 }
+          : {}}
+      />
 
       {/* Contenido */}
       <div className="flex flex-1 items-start gap-3 px-4 py-3.5">
         <div className="flex-1 min-w-0">
-          {/* Empresa */}
           <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: "0.01em",
             color: "var(--pwa-ink)", margin: 0 }} className="truncate">
             {reg.razonSocial}
           </p>
-
-          {/* Meta info */}
           <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
             {reg.empresa && reg.empresa !== reg.razonSocial && (
               <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10,
@@ -209,35 +225,50 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
           </div>
         </div>
 
-        {/* Derecha: tiempo + acción */}
+        {/* Derecha: timer en vivo + acción */}
         <div className="flex flex-col items-end gap-2 shrink-0">
-          {/* Tiempo */}
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3 w-3" style={{ color: cfg.color }} />
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 12,
-              fontWeight: 700, color: cfg.color }}>
-              {level === "completo" ? fmtTime(reg.time) : fmtWait(waitMin)}
+          {/* Timer en vivo */}
+          {!reg.docsDelivered ? (
+            <div className="flex items-center gap-1.5">
+              <motion.div
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: cfg.color }}
+                animate={{ opacity: [1, 0.2, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              />
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 13,
+                fontWeight: 800, color: cfg.color, letterSpacing: "-0.01em" }}>
+                {fmtLiveWait(waitSecs)}
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11,
+              color: "var(--pwa-muted)" }}>
+              {fmtTime(reg.time)}
             </span>
-          </div>
+          )}
 
-          {/* Estado/Acción */}
+          {/* Acción */}
           {level === "completo" ? (
             <span className="flex items-center gap-1"
               style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8,
                 letterSpacing: "0.12em", textTransform: "uppercase", color: "#6bbd8a" }}>
-              <CheckCircle2 className="h-3 w-3" /> Completo
+              <CheckCircle2 className="h-3 w-3" /> OK
             </span>
           ) : level === "atendido" ? (
-            <motion.button whileTap={{ scale: 0.93 }} onClick={onAction}
+            <motion.button whileTap={{ scale: 0.9 }}
+              onClick={onAction}
               className="flex items-center gap-1 px-2.5 py-1.5"
-              style={{ background: "rgba(107,167,255,0.15)", border: "1px solid rgba(107,167,255,0.4)",
+              style={{ background: "rgba(107,167,255,0.15)",
+                border: "1px solid rgba(107,167,255,0.4)",
                 color: "#6ba7ff", cursor: "pointer",
                 fontFamily: "var(--sg-font-mono)", fontSize: 9,
                 letterSpacing: "0.12em", textTransform: "uppercase" }}>
               <FileCheck2 className="h-3 w-3" /> Docs
             </motion.button>
           ) : (
-            <motion.button whileTap={{ scale: 0.93 }} onClick={onAction}
+            <motion.button whileTap={{ scale: 0.9 }}
+              onClick={onAction}
               className="flex items-center gap-1 px-2.5 py-1.5"
               style={{
                 background: level === "urgente"
@@ -259,14 +290,15 @@ function VehicleCard({ reg, level, waitMin, onAction }: {
 
 // ── Tab: Inicio ───────────────────────────────────────────────────────────────
 
-function TabInicio({ records, onRefresh, refreshing, onClose, onDocs }: {
+function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
   records: RecentRegistration[];
   onRefresh: () => void;
   refreshing: boolean;
   onClose: (reg: RecentRegistration) => void;
   onDocs: (reg: RecentRegistration) => void;
+  onTap: (reg: RecentRegistration) => void;
 }) {
-  const now = new Date();
+  const now = useLiveNow();
   const rows = records
     .map(reg => ({ reg, level: getLevel(reg, now), waitMin: getWaitMin(reg) }))
     .sort((a, b) => LEVEL_CFG[a.level].order - LEVEL_CFG[b.level].order || b.waitMin - a.waitMin);
@@ -330,13 +362,14 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs }: {
           </div>
         ) : (
           <AnimatePresence mode="popLayout">
-            {rows.map(({ reg, level, waitMin }) => (
+            {rows.map(({ reg, level }) => (
               <VehicleCard
                 key={reg.id}
                 reg={reg}
                 level={level}
-                waitMin={waitMin}
-                onAction={() => level === "atendido" ? onDocs(reg) : onClose(reg)}
+                now={now}
+                onTap={() => onTap(reg)}
+                onAction={(e) => { e.stopPropagation(); level === "atendido" ? onDocs(reg) : onClose(reg); }}
               />
             ))}
           </AnimatePresence>
@@ -831,13 +864,15 @@ interface Props {
 
 export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas, initialEventos }: Props) {
   const router = useRouter();
-  const [tab, setTab]             = useState<Tab>("inicio");
-  const [records, setRecords]     = useState(initialRecords);
-  const [citas, setCitas]         = useState(initialCitas);
-  const [eventos, setEventos]     = useState(initialEventos);
+  const [tab, setTab]               = useState<Tab>("inicio");
+  const [records, setRecords]       = useState(initialRecords);
+  const [citas, setCitas]           = useState(initialCitas);
+  const [eventos, setEventos]       = useState(initialEventos);
   const [refreshing, setRefreshing] = useState(false);
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
+  const [selectedReg, setSelectedReg] = useState<RecentRegistration | null>(null);
   const inactivityRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveNow = useLiveNow();
 
   // Auto-logout por inactividad
   const resetInactivity = useCallback(() => {
@@ -882,10 +917,26 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
     await refresh(true);
   };
 
+  // Auto-refresh cada 30s (fallback)
   useEffect(() => {
     const id = setInterval(() => refresh(true), 30_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // Supabase Realtime — actualización instantánea
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`pwa-guard-${plant}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "atenciones", filter: `planta=eq.${plant}` },
+        () => { void refresh(true); }
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [plant, refresh]);
 
   const handleClose = async (reg: RecentRegistration) => {
     setClosingIds(p => new Set(p).add(reg.id));
@@ -975,6 +1026,7 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
                 refreshing={refreshing}
                 onClose={handleClose}
                 onDocs={handleDocs}
+                onTap={setSelectedReg}
               />
             </motion.div>
           )}
@@ -1015,6 +1067,15 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
           )}
         </AnimatePresence>
       </div>
+
+      {/* Vehicle detail drawer */}
+      <VehicleDetailDrawer
+        reg={selectedReg}
+        waitSeconds={selectedReg ? getWaitSeconds(selectedReg.time, liveNow) : 0}
+        onClose={() => setSelectedReg(null)}
+        onMarkAttended={() => { if (selectedReg) handleClose(selectedReg); }}
+        onMarkDocs={() => { if (selectedReg) handleDocs(selectedReg); }}
+      />
 
       {/* Botón de emergencia flotante */}
       <EmergencyButton onPress={handleEmergencia} />
