@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCircle2, Clock, FileCheck2,
   LogOut, Palette, Plus, RefreshCw, Truck,
@@ -12,7 +12,10 @@ import { formatGateLabelFromPlant } from "@/lib/gates";
 import { isAbandonedRecord, isDelayedRecord } from "@/app/registro/status";
 import { usePWATheme } from "@/contexts/PWAThemeContext";
 import { logout } from "@/app/login/actions";
+import { clearGuardSession } from "@/app/pwa/storage";
 import type { RecentRegistration } from "@/app/registro/types";
+
+const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutos
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -268,6 +271,26 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords }: Pro
   const [records, setRecords] = useState(initialRecords);
   const [refreshing, setRefreshing] = useState(false);
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
+  const inactivityRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-logout por inactividad
+  const resetInactivity = useCallback(() => {
+    if (inactivityRef.current) clearTimeout(inactivityRef.current);
+    inactivityRef.current = setTimeout(() => {
+      clearGuardSession();
+      router.replace("/pwa");
+    }, INACTIVITY_MS);
+  }, [router]);
+
+  useEffect(() => {
+    resetInactivity();
+    const events = ["touchstart", "click", "keydown", "mousemove"];
+    events.forEach(e => window.addEventListener(e, resetInactivity, { passive: true }));
+    return () => {
+      if (inactivityRef.current) clearTimeout(inactivityRef.current);
+      events.forEach(e => window.removeEventListener(e, resetInactivity));
+    };
+  }, [resetInactivity]);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
@@ -368,15 +391,14 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords }: Pro
               <RefreshCw className="h-4 w-4" />
             </motion.div>
           </button>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="transition-opacity active:opacity-60"
-              style={{ color: "var(--pwa-muted)", background: "none", border: "none" }}
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </form>
+          <button
+            onClick={() => { clearGuardSession(); router.replace("/pwa"); }}
+            className="transition-opacity active:opacity-60"
+            style={{ color: "var(--pwa-muted)", background: "none", border: "none" }}
+            title="Cambiar guardia"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
