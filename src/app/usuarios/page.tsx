@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
+import GuardiasManager from "@/components/GuardiasManager";
 
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -309,6 +310,7 @@ export default function UsuariosPage() {
   const [pendingDelete,   setPendingDelete]  = useState<{ id: string; email: string } | null>(null);
   const [editingUser,     setEditingUser]    = useState<UserRow | null>(null);
   const [impersonatingId, setImpersonatingId]= useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"cuentas" | "guardias">("cuentas");
 
 
   const showToast = (msg: string, ok = true) => {
@@ -621,7 +623,37 @@ export default function UsuariosPage() {
         )}
       </AnimatePresence>
 
-      {/* Tabla de usuarios */}
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-[var(--sg-line)]">
+        {[
+          { key: "cuentas",  label: "Cuentas de usuario", icon: Users   },
+          { key: "guardias", label: "Perfiles de guardia", icon: ShieldCheck },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key as "cuentas" | "guardias")}
+            className={`flex items-center gap-2 px-5 py-3 sg-font-mono text-[10px] uppercase tracking-widest border-b-2 transition-colors -mb-px ${
+              activeTab === key
+                ? "border-[var(--sg-accent)] text-[var(--sg-accent)]"
+                : "border-transparent text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: Guardias */}
+      {activeTab === "guardias" && (
+        <GuardiasManager
+          plantas={companyPlants}
+          onToast={(msg, ok = true) => showToast(msg, ok)}
+        />
+      )}
+
+      {/* Tab: Cuentas — Tabla de usuarios */}
+      {activeTab === "cuentas" && (
       <section className="sg-panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-[var(--sg-line)] px-5 py-4">
           <Users className="h-4 w-4 text-[var(--sg-accent)]" />
@@ -736,6 +768,7 @@ export default function UsuariosPage() {
           </div>
         )}
       </section>
+      )}
 
       {/* Toast */}
       <AnimatePresence>

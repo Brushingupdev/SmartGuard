@@ -100,6 +100,135 @@ export async function getAgentes(): Promise<string[]> {
   return [];
 }
 
+// ─── AGENTES — gestión de perfiles de guardia ────────────────────────────────
+
+export type AgentePerfilRow = {
+  id: number;
+  nombre: string;
+  planta: string | null;
+  turno: string;
+  activo: boolean;
+  pin_configurado: boolean;
+  ultimo_acceso: string | null;
+  avatar_color: string;
+};
+
+export async function getAgentesPerfiles(): Promise<AgentePerfilRow[]> {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+
+  let query = supabase
+    .from("agentes")
+    .select("id, nombre, planta, turno, activo, pin_hash, ultimo_acceso, avatar_color")
+    .order("nombre", { ascending: true });
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    query = query.eq("company_id", ctx.companyId);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((r) => ({
+    id: r.id,
+    nombre: r.nombre,
+    planta: r.planta ?? null,
+    turno: r.turno ?? "Día",
+    activo: r.activo,
+    pin_configurado: !!r.pin_hash,
+    ultimo_acceso: r.ultimo_acceso ?? null,
+    avatar_color: r.avatar_color ?? "#c8a84b",
+  }));
+}
+
+export async function updateAgentePerfil(
+  id: number,
+  data: { planta?: string | null; turno?: string; activo?: boolean }
+) {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx) return { success: false, error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("agentes")
+    .update(data)
+    .eq("id", id)
+    .eq("company_id", ctx.companyId ?? "");
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function setAgentePIN(id: number, pin: string) {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx) return { success: false, error: "No autorizado" };
+
+  if (!/^\d{4}$/.test(pin)) return { success: false, error: "El PIN debe tener exactamente 4 dígitos" };
+
+  // Hash SHA-256 del PIN en el servidor
+  const { createHash } = await import("crypto");
+  const pin_hash = createHash("sha256").update(pin).digest("hex");
+
+  const { error } = await supabase
+    .from("agentes")
+    .update({ pin_hash })
+    .eq("id", id)
+    .eq("company_id", ctx.companyId ?? "");
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function removeAgentePIN(id: number) {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx) return { success: false, error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("agentes")
+    .update({ pin_hash: null })
+    .eq("id", id)
+    .eq("company_id", ctx.companyId ?? "");
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function addAgente(nombre: string, planta: string | null, turno: string) {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx?.companyId) return { success: false, error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("agentes")
+    .insert({
+      nombre: nombre.trim().toUpperCase(),
+      activo: true,
+      company_id: ctx.companyId,
+      planta: planta || null,
+      turno,
+    });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function removeAgente(id: number) {
+  const supabase = await createClient();
+  const ctx = await getUserContext();
+  if (!ctx?.companyId) return { success: false, error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("agentes")
+    .delete()
+    .eq("id", id)
+    .eq("company_id", ctx.companyId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
 export async function upsertAgentes(nombres: string[], companyId: string) {
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
