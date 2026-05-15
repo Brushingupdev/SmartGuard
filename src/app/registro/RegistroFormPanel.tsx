@@ -400,6 +400,9 @@ export default function RegistroFormPanel({
                     disabled
                     className="sg-input h-10 cursor-not-allowed bg-[var(--sg-panel-3)] text-[13px] opacity-60"
                   />
+                  <p className="mt-1 text-[10px] text-[var(--sg-muted)]">
+                    Registro directo en {formatGateLabelFromPlant(plant, gateOptions)}
+                  </p>
                 </div>
               ) : (
                 <SelectField

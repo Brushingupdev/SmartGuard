@@ -120,9 +120,13 @@ export function useRegistroData({
       client = createClient();
       channel = client
         .channel("atenciones-registro-live")
-        .on("postgres_changes", { event: "*", schema: "public", table: "atenciones" }, () => {
+        .on("postgres_changes", { event: "*", schema: "public", table: "atenciones" }, (payload) => {
           const plant = plantRef.current;
-          if (plant) {
+          if (!plant) return;
+          const payloadPlant =
+            (payload.new && typeof payload.new === "object" && "planta" in payload.new ? String(payload.new.planta ?? "") : "") ||
+            (payload.old && typeof payload.old === "object" && "planta" in payload.old ? String(payload.old.planta ?? "") : "");
+          if (!payloadPlant || payloadPlant === plant) {
             void refreshRecentRef.current?.(plant);
           }
         })

@@ -14,12 +14,14 @@ import {
   isAnticipatedRecord,
   isDelayedRecord,
 } from "@/app/registro/status";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 interface Registro {
   id: number;
   time: string;
   razonSocial: string;
   empresa: string;
+  planta?: string | null;
   attended: boolean;
   docsDelivered: boolean;
   espera_min: number | null;
@@ -189,6 +191,7 @@ export default function TarjetaRegistro({
     reg.responsable ? `Resp. ${reg.responsable}` : null,
     reg.agente ? `Agente ${reg.agente}` : null,
   ].filter(Boolean);
+  const gateLabel = reg.planta ? formatGateLabelFromPlant(reg.planta) : null;
   const typeSummary = [reg.type, reg.tipoOperacion || "Carga"].filter(Boolean).join(" • ");
   const showPrimaryActionInHeader = isPending && !isScheduledOnly && !isDemora && !reg.hora_cita;
   const showPrimaryActionInMetrics = !showPrimaryActionInHeader;
@@ -351,6 +354,11 @@ export default function TarjetaRegistro({
               <div className="text-[10px] uppercase tracking-wide text-[var(--sg-muted)] truncate">
                 {reg.empresa || "Sin empresa"}
               </div>
+              {gateLabel ? (
+                <div className="mt-1 inline-flex border border-[var(--sg-line)] px-1.5 py-0.5 sg-font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--sg-accent)]">
+                  {gateLabel}
+                </div>
+              ) : null}
               <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-[var(--sg-muted)]">
                 <span>{reg.type}</span>
                 {reg.tipoOperacion && <><span className="opacity-40">•</span><span>{reg.tipoOperacion}</span></>}
@@ -414,6 +422,11 @@ export default function TarjetaRegistro({
             <div className="mt-1 text-[12px] font-medium uppercase tracking-[0.03em] text-[var(--sg-copy)]">
               {reg.empresa || "Sin empresa"}
             </div>
+            {gateLabel ? (
+              <div className="mt-3 inline-flex border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] px-3 py-1 sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-accent)]">
+                {gateLabel}
+              </div>
+            ) : null}
             <div className="mt-3 inline-flex border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-[11px] text-[var(--sg-muted)]">
               {typeSummary}
             </div>

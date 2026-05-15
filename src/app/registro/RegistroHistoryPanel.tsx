@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { RecentRegistration } from "./types";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 import { isAbandonedRecord, isDelayedRecord } from "./status";
 
 const PAGE_SIZE = 10;
@@ -67,9 +68,22 @@ export default function RegistroHistoryPanel({
     const isDelayed = (record: RecentRegistration) => isDelayedRecord(record, now);
     const term = searchTerm.trim().toUpperCase();
     const matchesSearch = recentRegistrations.filter(
-      (record) =>
-        record.razonSocial.toUpperCase().includes(term) ||
-        record.empresa.toUpperCase().includes(term),
+      (record) => {
+        if (!term) return true;
+        const searchable = [
+          record.razonSocial,
+          record.empresa,
+          record.planta,
+          formatGateLabelFromPlant(record.planta ?? ""),
+          record.responsable,
+          record.agente,
+          record.time,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toUpperCase();
+        return searchable.includes(term);
+      },
     );
     const baseRecords = term ? matchesSearch : recentRegistrations;
     const byFilter = baseRecords.filter((record) => {
@@ -112,6 +126,19 @@ export default function RegistroHistoryPanel({
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
   const currentPageSafe = Math.min(currentPage, totalPages);
   const paginatedRecords = filteredRecords.slice((currentPageSafe - 1) * PAGE_SIZE, currentPageSafe * PAGE_SIZE);
+  const hasActiveSearch = searchTerm.trim().length > 0;
+  const hasActiveFilters = hasActiveSearch || activeFilter !== "todos";
+  const emptyState = recentRegistrations.length === 0
+    ? {
+        icon: <Truck className="h-7 w-7 opacity-20" />,
+        title: "Sin registros hoy",
+        detail: "Los vehículos registrados aparecerán aquí",
+      }
+    : {
+        icon: <Search className="h-7 w-7 opacity-20" />,
+        title: "Sin resultados",
+        detail: hasActiveSearch ? `para "${searchTerm}"` : "con los filtros aplicados",
+      };
 
   return (
     <div className="flex flex-col h-full">
@@ -160,7 +187,7 @@ export default function RegistroHistoryPanel({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setCurrentPage(1); }}
-                placeholder="Buscar por placa o empresa..."
+                placeholder="Buscar empresa, puerta, responsable..."
                 className="sg-input h-8 w-full pl-8 text-[11px]"
               />
               {searchTerm && (
@@ -218,7 +245,7 @@ export default function RegistroHistoryPanel({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setCurrentPage(1); }}
-                placeholder="Buscar por placa o empresa..."
+                placeholder="Buscar empresa, puerta, responsable..."
                 className="sg-input h-10 w-full pl-9 text-[11px]"
               />
               {searchTerm && (
@@ -268,10 +295,34 @@ export default function RegistroHistoryPanel({
         )}
 
         <div className="flex-1 overflow-auto p-3">
+          {filteredRecords.length === 0 && (view === "semaforo" || view === "lista") ? (
+            <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 text-[var(--sg-muted)]">
+              <div className="flex h-16 w-16 items-center justify-center border border-dashed border-[var(--sg-line)]">
+                {emptyState.icon}
+              </div>
+              <div className="flex flex-col items-center gap-1 text-center">
+                <p className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-ink)] opacity-30">{emptyState.title}</p>
+                <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">{emptyState.detail}</p>
+                {hasActiveFilters ? (
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setActiveFilter("todos");
+                      setCurrentPage(1);
+                    }}
+                    className="mt-2 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] transition-opacity hover:opacity-70"
+                  >
+                    Limpiar filtros
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           {/* ── Vista semáforo ── */}
-          {view === "semaforo" && (
+          {view === "semaforo" && filteredRecords.length > 0 && (
             <SemaforoVehiculos
-              registrations={recentRegistrations}
+              registrations={filteredRecords}
               onClose={onClose}
               onDocs={onDocs}
             />
@@ -279,27 +330,7 @@ export default function RegistroHistoryPanel({
 
           {/* ── Vista lista ── */}
           <AnimatePresence mode="popLayout">
-            {view === "lista" && recentRegistrations.length === 0 ? (
-              <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 text-[var(--sg-muted)]">
-                <div className="flex h-16 w-16 items-center justify-center border border-dashed border-[var(--sg-line)]">
-                  <Truck className="h-7 w-7 opacity-20" />
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <p className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-ink)] opacity-30">Sin registros hoy</p>
-                  <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">Los vehículos registrados aparecerán aquí</p>
-                </div>
-              </div>
-            ) : view === "lista" && filteredRecords.length === 0 ? (
-              <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-4 text-[var(--sg-muted)]">
-                <div className="flex h-16 w-16 items-center justify-center border border-dashed border-[var(--sg-line)]">
-                  <Search className="h-7 w-7 opacity-20" />
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <p className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-ink)] opacity-30">Sin resultados</p>
-                  <p className="sg-font-mono text-[9px] uppercase tracking-widest opacity-20">para "{searchTerm}"</p>
-                </div>
-              </div>
-            ) : view === "lista" ? (
+            {view === "lista" && filteredRecords.length > 0 ? (
               <div className="grid gap-3">
                 {paginatedRecords.map((record) => (
                   <TarjetaRegistro

@@ -9,7 +9,7 @@ import {
   AlertTriangle, Building2, Calendar, CheckCircle2,
   ChevronDown, Copy, FileCheck2, Link2,
   LogOut, Plus, QrCode, RefreshCw, Shield, Truck,
-  User, UserCheck, X, Zap,
+  Search, User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
@@ -349,10 +349,33 @@ function TabVehiculos({ records, plantas, filterPlant, onFilterChange, onTap, on
   onDocs: (r: RecentRegistration) => void;
 }) {
   const now = useLiveNow();
+  const [searchTerm, setSearchTerm] = useState("");
   const allPlantas = [...new Set(records.map(r => r.planta).filter(Boolean))].sort();
-  const filtered = filterPlant === "Todos"
-    ? records
-    : records.filter(r => r.planta === filterPlant);
+  const term = searchTerm.trim().toUpperCase();
+  const filtered = records.filter((r) => {
+    const matchesPlant = filterPlant === "Todos" || r.planta === filterPlant;
+    if (!matchesPlant) return false;
+    if (!term) return true;
+    const searchable = [
+      r.razonSocial,
+      r.empresa,
+      r.planta,
+      formatGateLabelFromPlant(r.planta ?? ""),
+      r.responsable,
+      r.agente,
+      r.time,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toUpperCase();
+    return searchable.includes(term);
+  });
+  const emptyTitle = term || filterPlant !== "Todos" ? "Sin coincidencias" : "Sin vehículos";
+  const emptyDetail = term
+    ? `Ajusta la búsqueda o cambia de puerta`
+    : filterPlant !== "Todos"
+      ? `No hay registros activos en ${formatGateLabelFromPlant(filterPlant)}`
+      : "Los registros del día aparecerán aquí";
 
   const sorted = filtered
     .map(r => ({ r, level: getLevel(r, now), wm: getWaitMin(r) }))
@@ -381,6 +404,37 @@ function TabVehiculos({ records, plantas, filterPlant, onFilterChange, onTap, on
         </div>
       )}
 
+      <div className="px-4">
+        <div
+          className="flex items-center gap-2 px-3"
+          style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", minHeight: 44 }}
+        >
+          <Search className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-muted)" }} />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar empresa, puerta o responsable"
+            className="h-11 flex-1 bg-transparent outline-none"
+            style={{
+              color: "var(--pwa-ink)",
+              fontFamily: "var(--sg-font-mono)",
+              fontSize: 11,
+              letterSpacing: "0.04em",
+            }}
+          />
+          {searchTerm ? (
+            <button
+              onClick={() => setSearchTerm("")}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       {/* Lista */}
       <div className="mx-4" style={{ border: "1px solid var(--pwa-border)" }}>
         {sorted.length === 0 ? (
@@ -389,7 +443,11 @@ function TabVehiculos({ records, plantas, filterPlant, onFilterChange, onTap, on
             <Truck className="h-8 w-8 opacity-10" style={{ color: "var(--pwa-muted)" }} />
             <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.18em",
               textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-              Sin vehículos
+              {emptyTitle}
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.1em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0, opacity: 0.7, textAlign: "center" }}>
+              {emptyDetail}
             </p>
           </div>
         ) : (
