@@ -6,9 +6,9 @@ import { createClient } from "@/utils/supabase/client";
 import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
-  AlertTriangle, BookOpen, Calendar, Camera,
+  AlertTriangle, ArrowRight, BarChart3, BookOpen, Calendar, Camera,
   CheckCircle2, ChevronDown, FileCheck2, LogOut,
-  Palette, Plus, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
+  MapPin, Palette, Plus, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
@@ -71,7 +71,7 @@ const LEVEL_CFG: Record<Level, { color: string; bg: string; label: string; order
   completo:  { color: "#6bbd8a", bg: "transparent",            label: "Completo",   order: 5 },
 };
 
-type Tab = "inicio" | "citas" | "eventos" | "perfil";
+type Tab = "inicio" | "citas" | "eventos" | "rendimiento" | "perfil";
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 
@@ -353,13 +353,60 @@ function VehicleCard({ reg, level, now, onAction, onTap }: {
 
 // ── Tab: Inicio ───────────────────────────────────────────────────────────────
 
-function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
+function QuickActionCard({
+  icon: Icon,
+  label,
+  meta,
+  onClick,
+  tone = "accent",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  meta: string;
+  onClick: () => void;
+  tone?: "accent" | "success" | "info" | "muted";
+}) {
+  const tones = {
+    accent: { border: "var(--pwa-accent)", bg: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)", fg: "var(--pwa-accent)" },
+    success: { border: "#6bbd8a", bg: "rgba(107,189,138,0.1)", fg: "#6bbd8a" },
+    info: { border: "#6ba7ff", bg: "rgba(107,167,255,0.1)", fg: "#6ba7ff" },
+    muted: { border: "var(--pwa-border)", bg: "var(--pwa-surface-2)", fg: "var(--pwa-ink)" },
+  } as const;
+
+  const current = tones[tone];
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col gap-2 p-4 text-left transition-opacity active:opacity-80"
+      style={{ background: "var(--pwa-surface)", borderTop: `3px solid ${current.border}` }}
+    >
+      <div className="flex h-10 w-10 items-center justify-center" style={{ background: current.bg, color: current.fg }}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+          {label}
+        </p>
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
+          {meta}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function TabInicio({ plant, records, onRefresh, refreshing, onClose, onDocs, onTap, onOpenCitas, onOpenEventos, onOpenRendimiento }: {
+  plant: string;
   records: RecentRegistration[];
   onRefresh: () => void;
   refreshing: boolean;
   onClose: (reg: RecentRegistration) => void;
   onDocs: (reg: RecentRegistration) => void;
   onTap: (reg: RecentRegistration) => void;
+  onOpenCitas: () => void;
+  onOpenEventos: () => void;
+  onOpenRendimiento: () => void;
 }) {
   const now = useLiveNow();
   const rows = records
@@ -368,11 +415,29 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
 
   const urgentes   = rows.filter(r => r.level === "urgente").length;
   const pendientes = rows.filter(r => ["urgente","demorado","esperando","fresco"].includes(r.level)).length;
-  const atendidos  = rows.filter(r => r.level === "atendido").length;
   const completos  = rows.filter(r => r.level === "completo").length;
 
   return (
     <div className="flex flex-col">
+      <div className="mx-4 mt-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+              Turno activo
+            </p>
+            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "4px 0 0" }}>
+              {formatGateLabelFromPlant(plant)}
+            </h2>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center" style={{ background: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)", color: "var(--pwa-accent)" }}>
+            <MapPin className="h-4 w-4" />
+          </div>
+        </div>
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "10px 0 0" }}>
+          Revisa pendientes, registra y sigue tu avance del turno
+        </p>
+      </div>
+
       {/* KPI chips */}
       <div className="flex gap-2 px-4 mt-4 mb-3">
         {[
@@ -392,6 +457,13 @@ function TabInicio({ records, onRefresh, refreshing, onClose, onDocs, onTap }: {
             </span>
           </div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 px-4 mb-4">
+        <QuickActionCard icon={Calendar} label="Citas" meta="Ver llegadas del día" onClick={onOpenCitas} tone="success" />
+        <QuickActionCard icon={BookOpen} label="Bitácora" meta="Reportar novedades" onClick={onOpenEventos} tone="info" />
+        <QuickActionCard icon={BarChart3} label="Mi rendimiento" meta="Ver tu avance" onClick={onOpenRendimiento} tone="accent" />
+        <QuickActionCard icon={RefreshCw} label="Actualizar" meta={refreshing ? "Sincronizando" : "Traer cambios"} onClick={onRefresh} tone="muted" />
       </div>
 
       {/* Alerta urgentes */}
@@ -1063,6 +1135,176 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
   );
 }
 
+// ── Tab: Mi rendimiento ───────────────────────────────────────────────────────
+
+function TabRendimiento({ guardName, plant, records, eventos, onOpenPerfil }: {
+  guardName: string;
+  plant: string;
+  records: RecentRegistration[];
+  eventos: GuardiaEvento[];
+  onOpenPerfil: () => void;
+}) {
+  const misRegistros = records.filter((r) => r.agente === guardName);
+  const misPendientes = misRegistros.filter((r) => !r.attended && !r.docsDelivered).length;
+  const misCompletados = misRegistros.filter((r) => r.docsDelivered).length;
+  const misDemoras = misRegistros.filter((r) => isDelayedRecord(r)).length;
+  const misEventos = eventos.length;
+
+  const avgEspera = misRegistros.filter((r) => r.espera_min != null).length > 0
+    ? Math.round(
+        misRegistros
+          .filter((r) => r.espera_min != null)
+          .reduce((sum, r) => sum + (r.espera_min ?? 0), 0) /
+        misRegistros.filter((r) => r.espera_min != null).length,
+      )
+    : 0;
+
+  const pctOk = misRegistros.length > 0
+    ? Math.round((misCompletados / misRegistros.length) * 100)
+    : 0;
+
+  const hourlyBuckets = Array.from({ length: 4 }, (_, index) => {
+    const bucketStart = index * 6;
+    const bucketEnd = bucketStart + 5;
+    const count = misRegistros.filter((record) => {
+      const hour = Number(record.time.split(":")[0] ?? 0);
+      return hour >= bucketStart && hour <= bucketEnd;
+    }).length;
+    return { label: `${String(bucketStart).padStart(2, "0")}-${String(bucketEnd).padStart(2, "0")}`, count };
+  });
+
+  const recentOwn = misRegistros.slice(0, 5);
+
+  return (
+    <div className="flex flex-col pb-6">
+      <div className="mx-4 mt-4 p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", borderTop: "3px solid var(--pwa-accent)" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140, background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)", pointerEvents: "none" }} />
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+          Mi rendimiento
+        </p>
+        <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
+          {guardName}
+        </h2>
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
+          {formatGateLabelFromPlant(plant)} · turno actual
+        </p>
+      </div>
+
+      <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
+        {[
+          { label: "Registré", value: misRegistros.length, color: "var(--pwa-accent)" },
+          { label: "Pendientes", value: misPendientes, color: misPendientes > 0 ? "#d4864a" : "var(--pwa-muted)" },
+          { label: "Completos", value: misCompletados, color: "#6bbd8a" },
+          { label: "Demoras", value: misDemoras, color: misDemoras > 0 ? "#d35c4f" : "var(--pwa-muted)" },
+        ].map((metric) => (
+          <div key={metric.label} className="flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 24, fontWeight: 800, color: metric.color, lineHeight: 1 }}>
+              {metric.value}
+            </span>
+            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              {metric.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mx-4 mt-4 flex gap-3">
+        <div className="flex-1 flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+            Espera promedio
+          </span>
+          <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, color: avgEspera > 45 ? "#d35c4f" : avgEspera > 25 ? "#d4864a" : "#6bbd8a", lineHeight: 1 }}>
+            {avgEspera > 0 ? `${avgEspera}m` : "—"}
+          </span>
+        </div>
+        <div className="flex-1 flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+            Cierre del flujo
+          </span>
+          <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, color: pctOk >= 80 ? "#6bbd8a" : pctOk >= 50 ? "#d4864a" : "#d35c4f", lineHeight: 1 }}>
+            {pctOk}%
+          </span>
+        </div>
+      </div>
+
+      <div className="mx-4 mt-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              Actividad por tramo
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
+              Registros del turno por bloque horario
+            </p>
+          </div>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-accent)" }}>
+            {misEventos} reportes
+          </span>
+        </div>
+        <div className="mt-4 flex items-end gap-2">
+          {hourlyBuckets.map((bucket) => {
+            const height = bucket.count > 0 ? Math.max(18, bucket.count * 12) : 10;
+            return (
+              <div key={bucket.label} className="flex flex-1 flex-col items-center gap-2">
+                <div className="flex h-[88px] w-full items-end">
+                  <div className="w-full" style={{ height, background: bucket.count > 0 ? "var(--pwa-accent)" : "var(--pwa-surface-2)", border: `1px solid ${bucket.count > 0 ? "var(--pwa-accent)" : "var(--pwa-border)"}` }} />
+                </div>
+                <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                  {bucket.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mx-4 mt-4" style={{ border: "1px solid var(--pwa-border)" }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--pwa-surface)" }}>
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+              Mis registros recientes
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
+              Última actividad del turno
+            </p>
+          </div>
+          <button onClick={onOpenPerfil} className="flex items-center gap-1" style={{ background: "none", border: "none", color: "var(--pwa-accent)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            Perfil <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+        {recentOwn.length === 0 ? (
+          <div className="px-4 py-8" style={{ background: "var(--pwa-surface)" }}>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              Aún no tienes registros asignados hoy
+            </p>
+          </div>
+        ) : (
+          recentOwn.map((record) => (
+            <div key={record.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: "var(--pwa-surface)", borderTop: "1px solid var(--pwa-border)" }}>
+              <div className="min-w-0">
+                <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 13, fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }} className="truncate">
+                  {record.razonSocial}
+                </p>
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
+                  {record.empresa || "Sin empresa"} · {record.tipoOperacion || "Operación"}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 11, color: "var(--pwa-accent)", margin: 0 }}>
+                  {record.time}
+                </p>
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: record.docsDelivered ? "#6bbd8a" : record.attended ? "#6ba7ff" : "var(--pwa-muted)", margin: "4px 0 0" }}>
+                  {record.docsDelivered ? "Completo" : record.attended ? "Atendido" : "Pendiente"}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab: Perfil ───────────────────────────────────────────────────────────────
 
 function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
@@ -1075,23 +1317,8 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
   const { theme, setTheme, themes } = usePWATheme();
   const initials = guardName.split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase();
 
-  const misRegistros   = records.filter(r => r.agente === guardName);
-  const misPendientes  = misRegistros.filter(r => !r.attended && !r.docsDelivered).length;
-  const misCompletados = misRegistros.filter(r => r.docsDelivered).length;
-  const misAtendidos   = misRegistros.filter(r => r.attended && !r.docsDelivered).length;
-  const misEventos     = eventos.length;
-
-  const avgEspera = misRegistros.filter(r => r.espera_min).length > 0
-    ? Math.round(
-        misRegistros.filter(r => r.espera_min).reduce((s, r) => s + (r.espera_min ?? 0), 0) /
-        misRegistros.filter(r => r.espera_min).length
-      )
-    : 0;
-
-  // Mejor desempeño: % completados sobre total
-  const pctOk = misRegistros.length > 0
-    ? Math.round((misCompletados / misRegistros.length) * 100)
-    : 0;
+  const misRegistros = records.filter(r => r.agente === guardName);
+  const misEventos = eventos.length;
 
   return (
     <div className="flex flex-col pb-6">
@@ -1127,22 +1354,21 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
         </div>
       </div>
 
-      {/* Stats de hoy */}
+      {/* Stats del turno */}
       <div className="mx-4 mt-4">
         <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.22em",
           textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
-          Mi actividad hoy
+          Resumen del turno
         </p>
-        <div className="grid grid-cols-4 gap-px" style={{ background: "var(--pwa-border)" }}>
+        <div className="grid grid-cols-3 gap-px" style={{ background: "var(--pwa-border)" }}>
           {[
-            { label: "Registré",   value: misRegistros.length,  color: "var(--pwa-accent)"  },
-            { label: "Atendidos",  value: misAtendidos,          color: "#6ba7ff"             },
-            { label: "Completos",  value: misCompletados,        color: "#6bbd8a"             },
-            { label: "Reportes",   value: misEventos,            color: "#d4864a"             },
+            { label: "Registros", value: misRegistros.length, color: "var(--pwa-accent)" },
+            { label: "Reportes", value: misEventos, color: "#d4864a" },
+            { label: "Puerta", value: formatGateLabelFromPlant(plant), color: "var(--pwa-ink)" },
           ].map(s => (
             <div key={s.label} className="flex flex-col items-center py-4 gap-1"
               style={{ background: "var(--pwa-surface)" }}>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22,
+              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: typeof s.value === "string" ? 10 : 22,
                 fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
               <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
                 letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
@@ -1151,49 +1377,6 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout }: {
           ))}
         </div>
       </div>
-
-      {/* Métricas de rendimiento */}
-      {misRegistros.length > 0 && (
-        <div className="mx-4 mt-4 flex gap-3">
-          <div className="flex-1 flex flex-col gap-1 p-4"
-            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
-              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-              Espera promedio
-            </span>
-            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800,
-              color: avgEspera > 45 ? "#d35c4f" : avgEspera > 25 ? "#d4864a" : "#6bbd8a",
-              lineHeight: 1 }}>
-              {avgEspera > 0 ? `${avgEspera}m` : "—"}
-            </span>
-          </div>
-          <div className="flex-1 flex flex-col gap-1 p-4"
-            style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
-              textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-              Completados
-            </span>
-            <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800,
-              color: pctOk >= 80 ? "#6bbd8a" : pctOk >= 50 ? "#d4864a" : "#d35c4f",
-              lineHeight: 1 }}>
-              {pctOk}%
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Pendientes de atención */}
-      {misPendientes > 0 && (
-        <div className="mx-4 mt-4 flex items-center gap-3 px-4 py-3"
-          style={{ background: "color-mix(in srgb, #d4864a 8%, transparent)",
-            border: "1px solid rgba(212,134,74,0.35)" }}>
-          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: "#d4864a" }} />
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em",
-            textTransform: "uppercase", color: "#d4864a", margin: 0 }}>
-            Tienes {misPendientes} vehículo{misPendientes !== 1 ? "s" : ""} pendiente{misPendientes !== 1 ? "s" : ""}
-          </p>
-        </div>
-      )}
 
       {/* Push notifications */}
       <div className="mx-4 mt-4">
@@ -1429,12 +1612,16 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabInicio
+                plant={plant}
                 records={records}
                 onRefresh={() => refresh(false)}
                 refreshing={refreshing}
                 onClose={handleClose}
                 onDocs={handleDocs}
                 onTap={setSelectedReg}
+                onOpenCitas={() => setTab("citas")}
+                onOpenEventos={() => setTab("eventos")}
+                onOpenRendimiento={() => setTab("rendimiento")}
               />
             </motion.div>
           )}
@@ -1462,6 +1649,19 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
                 agente={guardName}
                 planta={plant}
                 onRefresh={() => refresh(true)}
+              />
+            </motion.div>
+          )}
+          {tab === "rendimiento" && (
+            <motion.div key="rendimiento"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <TabRendimiento
+                guardName={guardName}
+                plant={plant}
+                records={records}
+                eventos={eventos}
+                onOpenPerfil={() => setTab("perfil")}
               />
             </motion.div>
           )}
