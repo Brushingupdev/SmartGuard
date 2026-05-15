@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { getResponsables, getAgentes, getUserGateOptions } from "@/app/actions";
+import { getRecentRegistrations, getResponsables, getAgentes, getUserGateOptions } from "@/app/actions";
 import PWARegistroWizard from "./PWARegistroWizard";
 
 export default async function PWARegistroPage() {
@@ -8,14 +8,15 @@ export default async function PWARegistroPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/pwa/login");
 
-  const [responsables, agentes, gateOptions] = await Promise.all([
+  const plant = user.user_metadata?.plant as string ?? "";
+  const agenteName = user.user_metadata?.nombre as string ?? user.email ?? "";
+
+  const [responsables, agentes, gateOptions, recentData] = await Promise.all([
     getResponsables(),
     getAgentes(),
     getUserGateOptions(),
+    getRecentRegistrations(plant, 8),
   ]);
-
-  const plant = user.user_metadata?.plant as string ?? "";
-  const agenteName = user.user_metadata?.nombre as string ?? user.email ?? "";
 
   return (
     <PWARegistroWizard
@@ -24,6 +25,7 @@ export default async function PWARegistroPage() {
       responsables={responsables}
       agentes={agentes}
       gateOptions={gateOptions}
+      initialRecentRecords={recentData.records}
     />
   );
 }

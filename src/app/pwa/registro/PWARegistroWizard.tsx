@@ -1,30 +1,30 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import { useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Camera, Check,
-  CheckCircle2, ChevronDown, Truck, User, Building2,
-  Home, Package, UserCheck, Palette, Plus,
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Home,
+  MapPin,
+  Plus,
+  Shield,
+  Truck,
+  User,
+  UserCheck,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createAtencion } from "@/app/actions";
 import type { GateAssignment } from "@/lib/gates";
-import { formatGateLabelFromPlant } from "@/lib/gates";
+import { formatGateLabelFromPlant, gateFromPlant } from "@/lib/gates";
 import { usePWATheme } from "@/contexts/PWAThemeContext";
-import { useRef } from "react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface WizardData {
-  razonSocial: string;
-  empresa: string;
-  tipoOperacion: string;
-  responsable: string;
-  agente: string;
-  plant: string;
-  photoPreview: string | null;
-}
+import type { RecentRegistration } from "@/app/registro/types";
 
 interface Props {
   defaultPlant: string;
@@ -32,323 +32,326 @@ interface Props {
   responsables: string[];
   agentes: string[];
   gateOptions: GateAssignment[];
+  initialRecentRecords: RecentRegistration[];
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+interface FormState {
+  razonSocial: string;
+  empresa: string;
+  tipoOperacion: string;
+  responsable: string;
+  agente: string;
+  plant: string;
+  note: string;
+  photoPreview: string | null;
+}
 
-const TIPO_OPERACIONES = [
-  { key: "Carga",       icon: Package,   label: "Carga"       },
-  { key: "Descarga",    icon: Truck,     label: "Descarga"    },
-  { key: "Servicio",    icon: UserCheck, label: "Servicio"    },
-  { key: "Otro",        icon: Building2, label: "Otro"        },
-];
+const TIPO_OPERACIONES = ["Carga", "Descarga", "Servicio", "Otro"] as const;
 
-const ease: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function StepProgress({ current, total }: { current: number; total: number }) {
+function ThemeSwitcher() {
+  const { theme, setTheme, themes } = usePWATheme();
   return (
-    <div className="flex items-center gap-1.5 px-6 pt-6">
-      {Array.from({ length: total }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="h-1 rounded-full flex-1"
-          animate={{
-            background: i < current
-              ? "var(--pwa-accent)"
-              : i === current
-              ? "var(--pwa-accent)"
-              : "var(--pwa-border)",
-            opacity: i <= current ? 1 : 0.4,
+    <div className="flex items-center gap-1.5">
+      {themes.map((item) => (
+        <button
+          key={item.key}
+          onClick={() => setTheme(item.key)}
+          title={item.label}
+          className="h-6 w-6 rounded-full border-2 transition-all"
+          style={{
+            background: item.key === "dark" ? "#0d0f0e" : item.key === "light" ? "#f2f0eb" : "#000000",
+            borderColor: theme === item.key ? "var(--pwa-accent)" : "var(--pwa-border)",
+            cursor: "pointer",
           }}
-          transition={{ duration: 0.3 }}
         />
       ))}
     </div>
   );
 }
 
-function StepHeader({
-  step,
-  total,
-  label,
-  sublabel,
-  onBack,
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontFamily: "var(--sg-font-mono)",
+        fontSize: 8,
+        letterSpacing: "0.18em",
+        textTransform: "uppercase",
+        color: "var(--pwa-muted)",
+        margin: 0,
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function SurfaceCard({
+  children,
+  accent = false,
+  className = "",
 }: {
-  step: number;
-  total: number;
-  label: string;
-  sublabel?: string;
-  onBack?: () => void;
+  children: React.ReactNode;
+  accent?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="px-6 pt-5 pb-2">
-      <div className="flex items-center justify-between mb-4">
-        {onBack ? (
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 transition-opacity active:opacity-60"
-            style={{
-              color: "var(--pwa-muted)",
-              fontFamily: "var(--sg-font-mono)",
-              fontSize: 10,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Atrás
-          </button>
-        ) : <div />}
-        <span
+    <div
+      className={`relative overflow-hidden ${className}`}
+      style={{
+        background: "var(--pwa-surface)",
+        border: `1px solid ${accent ? "color-mix(in srgb, var(--pwa-accent) 30%, var(--pwa-border))" : "var(--pwa-border)"}`,
+      }}
+    >
+      {accent && (
+        <div
           style={{
-            fontFamily: "var(--sg-font-mono)",
-            fontSize: 10,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: "var(--pwa-muted)",
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 120,
+            height: 120,
+            background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 10%, transparent), transparent)",
+            pointerEvents: "none",
           }}
-        >
-          {step + 1} / {total}
-        </span>
-      </div>
-
-      <motion.div
-        key={label}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease }}
-      >
-        <h2
-          style={{
-            fontFamily: "var(--sg-font-display)",
-            fontSize: 26,
-            fontWeight: 800,
-            letterSpacing: "-0.02em",
-            textTransform: "uppercase",
-            color: "var(--pwa-ink)",
-            lineHeight: 1.15,
-            margin: 0,
-          }}
-        >
-          {label}
-        </h2>
-        {sublabel && (
-          <p
-            style={{
-              fontFamily: "var(--sg-font-mono)",
-              fontSize: 10,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--pwa-muted)",
-              marginTop: 6,
-            }}
-          >
-            {sublabel}
-          </p>
-        )}
-      </motion.div>
+        />
+      )}
+      {children}
     </div>
   );
 }
 
-function NextButton({
-  onClick,
-  disabled,
-  label = "Siguiente",
-  loading = false,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  label?: string;
-  loading?: boolean;
-}) {
-  return (
-    <motion.button
-      onClick={onClick}
-      disabled={disabled || loading}
-      whileTap={{ scale: 0.97 }}
-      className="w-full h-14 flex items-center justify-center gap-2 transition-opacity disabled:opacity-30"
-      style={{
-        background: "var(--pwa-accent)",
-        color: "var(--pwa-accent-fg)",
-        fontFamily: "var(--sg-font-mono)",
-        fontSize: 12,
-        letterSpacing: "0.2em",
-        textTransform: "uppercase",
-        fontWeight: 700,
-        border: "none",
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
-    >
-      {loading ? (
-        <motion.div
-          className="h-5 w-5 rounded-full border-2"
-          style={{ borderColor: "rgba(0,0,0,0.2)", borderTopColor: "var(--pwa-accent-fg)" }}
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
-        />
-      ) : (
-        <>
-          {label}
-          {label === "Siguiente" && <ArrowRight className="h-4 w-4" />}
-          {label === "Registrar" && <Check className="h-4 w-4" />}
-        </>
-      )}
-    </motion.button>
-  );
-}
-
-function BigTextInput({
+function TextField({
+  label,
   value,
   onChange,
   placeholder,
+  icon: Icon,
   autoFocus,
 }: {
+  label: string;
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
   placeholder: string;
+  icon: LucideIcon;
   autoFocus?: boolean;
 }) {
   return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value.toUpperCase())}
-      placeholder={placeholder}
-      autoFocus={autoFocus}
-      rows={2}
-      className="w-full resize-none outline-none p-4 text-[18px] font-bold uppercase tracking-wide transition-all"
-      style={{
-        background: "var(--pwa-surface)",
-        border: "1px solid var(--pwa-border)",
-        color: "var(--pwa-ink)",
-        fontFamily: "var(--sg-font-display)",
-        lineHeight: 1.4,
-      }}
-      onFocus={(e) => {
-        e.target.style.borderColor = "var(--pwa-accent)";
-        e.target.style.boxShadow = "0 0 0 3px color-mix(in srgb, var(--pwa-accent) 15%, transparent)";
-      }}
-      onBlur={(e) => {
-        e.target.style.borderColor = "var(--pwa-border)";
-        e.target.style.boxShadow = "none";
-      }}
-    />
+    <div className="flex flex-col gap-1.5">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--pwa-muted)" }} />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value.toUpperCase())}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          className="h-12 w-full pl-10 pr-3 outline-none"
+          style={{
+            background: "var(--pwa-surface-2)",
+            border: "1px solid var(--pwa-border)",
+            color: "var(--pwa-ink)",
+            fontFamily: "var(--sg-font-display)",
+            fontSize: 14,
+            fontWeight: 700,
+            textTransform: "uppercase",
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
-function DropdownPicker({
+function TextAreaField({
+  label,
   value,
   onChange,
-  options,
   placeholder,
 }: {
+  label: string;
   value: string;
-  onChange: (v: string) => void;
-  options: string[];
+  onChange: (value: string) => void;
   placeholder: string;
 }) {
   return (
-    <div className="relative">
-      <select
+    <div className="flex flex-col gap-1.5">
+      <SectionLabel>{label}</SectionLabel>
+      <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full h-14 pl-4 pr-10 outline-none appearance-none text-[15px] transition-all"
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full resize-none px-3 py-3 outline-none"
         style={{
-          background: "var(--pwa-surface)",
+          background: "var(--pwa-surface-2)",
           border: "1px solid var(--pwa-border)",
-          color: value ? "var(--pwa-ink)" : "var(--pwa-muted)",
-          fontFamily: "var(--sg-font-display)",
-          fontWeight: value ? 700 : 400,
-          textTransform: value ? "uppercase" : "none",
+          color: "var(--pwa-ink)",
+          fontFamily: "var(--sg-font-body)",
+          fontSize: 13,
         }}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2"
-        style={{ color: "var(--pwa-muted)" }}
       />
     </div>
   );
 }
 
-function TipoGrid({
+function SelectField({
+  label,
   value,
   onChange,
+  options,
+  icon: Icon,
 }: {
+  label: string;
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  icon: LucideIcon;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {TIPO_OPERACIONES.map(({ key, icon: Icon, label }) => {
-        const active = value === key;
-        return (
-          <motion.button
-            key={key}
-            onClick={() => onChange(key)}
-            whileTap={{ scale: 0.96 }}
-            className="flex flex-col items-center justify-center gap-3 h-24 transition-all"
-            style={{
-              background: active ? "var(--pwa-accent)" : "var(--pwa-surface)",
-              border: `1px solid ${active ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
-              color: active ? "var(--pwa-accent-fg)" : "var(--pwa-ink-soft)",
-              cursor: "pointer",
-            }}
-          >
-            <Icon className="h-6 w-6" style={{ opacity: active ? 1 : 0.6 }} />
-            <span
-              style={{
-                fontFamily: "var(--sg-font-mono)",
-                fontSize: 10,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                fontWeight: active ? 700 : 400,
-              }}
-            >
-              {label}
-            </span>
-          </motion.button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ThemeSwitcher() {
-  const { theme, setTheme, themes } = usePWATheme();
-  return (
-    <div className="flex items-center gap-2">
-      <Palette className="h-3.5 w-3.5" style={{ color: "var(--pwa-muted)" }} />
-      <div className="flex gap-1.5">
-        {themes.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTheme(t.key)}
-            title={t.label}
-            className="h-5 w-5 rounded-full border-2 transition-all"
-            style={{
-              background: t.key === "dark" ? "#0d0f0e" : t.key === "light" ? "#f2f0eb" : "#000",
-              borderColor: theme === t.key ? "var(--pwa-accent)" : "var(--pwa-border)",
-            }}
-          />
-        ))}
+    <div className="flex flex-col gap-1.5">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--pwa-muted)" }} />
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-12 w-full appearance-none pl-10 pr-10 outline-none"
+          style={{
+            background: "var(--pwa-surface-2)",
+            border: "1px solid var(--pwa-border)",
+            color: "var(--pwa-ink)",
+            fontFamily: "var(--sg-font-display)",
+            fontSize: 14,
+            fontWeight: 700,
+            textTransform: "uppercase",
+          }}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--pwa-muted)" }} />
       </div>
     </div>
   );
 }
 
-// ── Main Wizard ───────────────────────────────────────────────────────────────
+function TipoOperacionRow({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SectionLabel>Tipo de operacion</SectionLabel>
+      <div className="grid grid-cols-2 gap-2">
+        {TIPO_OPERACIONES.map((item) => {
+          const active = item === value;
+          return (
+            <button
+              key={item}
+              onClick={() => onChange(item)}
+              className="h-11 transition-all"
+              style={{
+                background: active ? "var(--pwa-accent)" : "var(--pwa-surface-2)",
+                border: `1px solid ${active ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
+                color: active ? "var(--pwa-accent-fg)" : "var(--pwa-muted)",
+                cursor: "pointer",
+                fontFamily: "var(--sg-font-mono)",
+                fontSize: 9,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                fontWeight: active ? 700 : 500,
+              }}
+            >
+              {item}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-const TOTAL_STEPS = 5;
+function MetricChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "accent";
+}) {
+  return (
+    <div
+      className="px-3 py-3"
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        border: `1px solid ${tone === "accent" ? "color-mix(in srgb, var(--pwa-accent) 35%, var(--pwa-border))" : "var(--pwa-border)"}`,
+      }}
+    >
+      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 20, fontWeight: 800, color: tone === "accent" ? "var(--pwa-accent)" : "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+        {value}
+      </p>
+      <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "7px 0 0" }}>
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function RecentRecordRow({ record, gateOptions }: { record: RecentRegistration; gateOptions: GateAssignment[] }) {
+  const isClosed = record.docsDelivered;
+  const isAttended = record.attended;
+  const statusColor = isClosed ? "#6bbd8a" : isAttended ? "#6ba7ff" : "var(--pwa-accent)";
+  const statusLabel = isClosed ? "Completo" : isAttended ? "En atencion" : "Registrado";
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: "1px solid var(--pwa-border)" }}>
+      <div className="h-10 w-1 shrink-0" style={{ background: statusColor }} />
+      <div className="min-w-0 flex-1">
+        <p
+          className="truncate"
+          style={{
+            fontFamily: "var(--sg-font-display)",
+            fontSize: 14,
+            fontWeight: 800,
+            textTransform: "uppercase",
+            color: "var(--pwa-ink)",
+            margin: 0,
+          }}
+        >
+          {record.razonSocial || record.empresa || "Ingreso"}
+        </p>
+        <p
+          className="truncate"
+          style={{
+            fontFamily: "var(--sg-font-mono)",
+            fontSize: 8,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--pwa-muted)",
+            margin: "6px 0 0",
+          }}
+        >
+          {formatGateLabelFromPlant(record.planta, gateOptions)} · {record.time}
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: statusColor, margin: 0 }}>
+          {statusLabel}
+        </p>
+        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
+          {record.reason}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function PWARegistroWizard({
   defaultPlant,
@@ -356,427 +359,390 @@ export default function PWARegistroWizard({
   responsables,
   agentes,
   gateOptions,
+  initialRecentRecords,
 }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
+  const [timeLabel, setTimeLabel] = useState<string>("");
+  const [recentRecords, setRecentRecords] = useState<RecentRegistration[]>(initialRecentRecords);
 
-  const [data, setData] = useState<WizardData>({
+  const [data, setData] = useState<FormState>({
     razonSocial: "",
     empresa: "",
     tipoOperacion: "Descarga",
     responsable: responsables[0] ?? "",
     agente: defaultAgente,
     plant: defaultPlant || gateOptions[0]?.plant || "",
+    note: "",
     photoPreview: null,
   });
 
-  const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
-    setData((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  const plantOptions = useMemo(
+    () => gateOptions.map((gate) => ({ value: gate.plant, label: formatGateLabelFromPlant(gate.plant, gateOptions) })),
+    [gateOptions],
+  );
 
-  const plantLabel = gateOptions.find((g) => g.plant === data.plant)
-    ? formatGateLabelFromPlant(data.plant)
-    : data.plant;
+  const activeGate = gateOptions.find((item) => item.plant === data.plant) ?? gateFromPlant(data.plant);
+  const plantLabel = formatGateLabelFromPlant(data.plant, gateOptions);
+  const filledFields = [data.razonSocial, data.empresa, data.responsable, data.agente].filter((value) => value.trim()).length;
+
+  const handleChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setData((current) => ({ ...current, [key]: value }));
+  };
 
   const handleSubmit = async () => {
+    if (!data.razonSocial.trim()) return;
     setSubmitting(true);
     setError(null);
+
     try {
       const result = await createAtencion({
-        razonSocial: data.razonSocial,
-        empresa: data.empresa || data.razonSocial,
+        razonSocial: data.razonSocial.trim(),
+        empresa: data.empresa.trim() || data.razonSocial.trim(),
         type: "Proveedor",
         tipoOperacion: data.tipoOperacion,
         responsable: data.responsable,
         agente: data.agente,
-        note: "",
+        note: data.note.trim(),
         plant: data.plant,
         horaCita: null,
-        forceCreate: false,
+        forceDuplicate: false,
       });
+
       if (result.success) {
+        const createdTime = result.time ?? "";
+        const newRecord: RecentRegistration = {
+          id: Date.now(),
+          razonSocial: data.razonSocial.trim(),
+          empresa: data.empresa.trim() || data.razonSocial.trim(),
+          planta: data.plant,
+          type: "Proveedor",
+          time: createdTime || "--:--",
+          reason: data.tipoOperacion,
+          tipoOperacion: data.tipoOperacion,
+          responsable: data.responsable,
+          agente: data.agente,
+          observacion: data.note.trim(),
+          attended: false,
+          h_atencion: null,
+          espera_min: 0,
+          demora_cita_min: null,
+          docsDelivered: false,
+          h_dev_docs: null,
+          tiempo_total_min: null,
+          hora_cita: null,
+          estado: "activo",
+          hasArrived: true,
+          scheduledOnly: false,
+        };
+        setTimeLabel(createdTime);
+        setRecentRecords((current) => [newRecord, ...current].slice(0, 8));
         setDone(true);
       } else {
         setError(result.error ?? "Error al registrar");
-        setSubmitting(false);
       }
     } catch {
       setError("Error inesperado");
+    } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Pantalla de éxito ──────────────────────────────────────────────────────
-
   if (done) {
     return (
-      <div className="flex flex-col min-h-screen min-h-[100dvh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-6 pb-2">
-          <button onClick={() => router.replace("/pwa/home")}
-            style={{ background: "none", border: "none", cursor: "pointer",
-              fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.16em",
-              textTransform: "uppercase", color: "var(--pwa-muted)",
-              display: "flex", alignItems: "center", gap: 6 }}>
+      <div className="flex min-h-screen min-h-[100dvh] flex-col" style={{ background: "var(--pwa-bg)" }}>
+        <div className="flex items-center justify-between px-5 pt-5">
+          <button
+            onClick={() => router.replace("/pwa/home")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "var(--sg-font-mono)",
+              fontSize: 10,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--pwa-muted)",
+            }}
+          >
             <Home className="h-4 w-4" /> Inicio
           </button>
+          <ThemeSwitcher />
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-6 gap-6">
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 16 }}
-            className="flex h-24 w-24 items-center justify-center"
-            style={{ background: "color-mix(in srgb, var(--pwa-success) 12%, transparent)",
-              border: "2px solid var(--pwa-success)" }}
-          >
-            <CheckCircle2 className="h-12 w-12" style={{ color: "var(--pwa-success)" }} />
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }} className="text-center">
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
-              textTransform: "uppercase", color: "var(--pwa-success)", margin: "0 0 8px" }}>
-              ✓ Ingreso registrado
+        <div className="flex flex-1 flex-col items-center justify-center px-5 py-6">
+          <SurfaceCard accent className="w-full max-w-[380px] p-6">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full" style={{ background: "rgba(107,189,138,0.12)", border: "2px solid rgba(107,189,138,0.35)" }}>
+              <CheckCircle2 className="h-10 w-10" style={{ color: "#6bbd8a" }} />
+            </div>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "#6bbd8a", textAlign: "center", margin: "18px 0 0" }}>
+              Ingreso registrado
             </p>
-            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 26, fontWeight: 800,
-              textTransform: "uppercase", letterSpacing: "-0.02em", color: "var(--pwa-ink)",
-              margin: 0 }}>
+            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 26, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", textAlign: "center", margin: "8px 0 0" }}>
               {data.razonSocial}
             </h2>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em",
-              textTransform: "uppercase", color: "var(--pwa-muted)", marginTop: 6 }}>
-              {plantLabel} · {new Date().toLocaleTimeString("es-PE",
-                { hour: "2-digit", minute: "2-digit" })}
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", textAlign: "center", margin: "8px 0 0" }}>
+              {plantLabel} {timeLabel ? `· ${timeLabel}` : ""}
             </p>
-          </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }} className="flex flex-col gap-3 w-full max-w-[320px]">
-            {/* Nuevo registro */}
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                setDone(false);
-                setStep(0);
-                setData((d) => ({ ...d, razonSocial: "", empresa: "",
-                  tipoOperacion: "Descarga", photoPreview: null }));
-              }}
-              className="w-full h-14 flex items-center justify-center gap-2"
-              style={{
-            background: "var(--pwa-accent)",
-              color: "var(--pwa-accent-fg)",
-              fontFamily: "var(--sg-font-mono)", fontSize: 12,
-              letterSpacing: "0.2em", textTransform: "uppercase",
-              fontWeight: 700, border: "none", cursor: "pointer",
-            }}>
-              <Plus className="h-4 w-4" /> Nuevo registro
-            </motion.button>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <MetricChip label="Operacion" value={data.tipoOperacion.slice(0, 3).toUpperCase()} tone="accent" />
+              <MetricChip label="Responsable" value={data.responsable ? data.responsable.split(" ")[0].toUpperCase() : "--"} />
+            </div>
 
-            {/* Ir al inicio */}
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => router.replace("/pwa/home")}
-              className="w-full h-12 flex items-center justify-center gap-2"
-              style={{ background: "var(--pwa-surface)",
-                border: "1px solid var(--pwa-border)", cursor: "pointer",
-                color: "var(--pwa-muted)",
-                fontFamily: "var(--sg-font-mono)", fontSize: 11,
-                letterSpacing: "0.16em", textTransform: "uppercase" }}>
-              <Home className="h-4 w-4" /> Volver al inicio
-            </motion.button>
-          </motion.div>
+            <div className="mt-6 flex flex-col gap-3">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setDone(false);
+                  setData((current) => ({
+                    ...current,
+                    razonSocial: "",
+                    empresa: "",
+                    tipoOperacion: "Descarga",
+                    note: "",
+                    photoPreview: null,
+                  }));
+                }}
+                className="flex h-[54px] items-center justify-center gap-2"
+                style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}
+              >
+                <Plus className="h-4 w-4" /> Nuevo registro
+              </motion.button>
+              <button
+                onClick={() => router.replace("/pwa/home")}
+                className="flex h-[48px] items-center justify-center gap-2"
+                style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", color: "var(--pwa-muted)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase" }}
+              >
+                <ArrowLeft className="h-4 w-4" /> Volver al inicio
+              </button>
+            </div>
+          </SurfaceCard>
         </div>
       </div>
     );
   }
 
-  // ── Steps ──────────────────────────────────────────────────────────────────
-
-  const stepVariants = {
-    enter:  { opacity: 0, x: 40  },
-    center: { opacity: 1, x: 0   },
-    exit:   { opacity: 0, x: -40 },
-  };
-
   return (
-    <div className="flex flex-col min-h-screen min-h-[100dvh]">
-      {/* Top header con botón de inicio */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-0">
-        <button onClick={() => router.replace("/pwa/home")}
-          style={{ background: "none", border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 6,
-            fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em",
-            textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-          <Home className="h-3.5 w-3.5" /> Inicio
-        </button>
-        <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
-          textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-          Nuevo registro
-        </span>
-        <div style={{ width: 60 }} />
-      </div>
-
-      <StepProgress current={step} total={TOTAL_STEPS} />
-
-      <div className="flex-1 flex flex-col">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            variants={stepVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.25, ease }}
-            className="flex flex-col flex-1"
+    <div className="flex min-h-screen min-h-[100dvh] flex-col" style={{ background: "var(--pwa-bg)" }}>
+      <div className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: "var(--pwa-bg)" }}>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => router.replace("/pwa/home")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "var(--sg-font-mono)",
+              fontSize: 10,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--pwa-muted)",
+            }}
           >
-
-            {/* ── Step 0: Vehículo ── */}
-            {step === 0 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={0}
-                  total={TOTAL_STEPS}
-                  label="¿Quién llega?"
-                  sublabel="Razón social o nombre del vehículo"
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <BigTextInput
-                    value={data.razonSocial}
-                    onChange={(v) => update("razonSocial", v)}
-                    placeholder="TRANSP. EMPRESA ABC..."
-                    autoFocus
-                  />
-                  {/* Foto */}
-                  <button
-                    type="button"
-                    onClick={() => cameraRef.current?.click()}
-                    className="flex items-center gap-3 h-12 px-4 transition-colors"
-                    style={{
-                      background: "var(--pwa-surface)",
-                      border: "1px dashed var(--pwa-border)",
-                      color: "var(--pwa-muted)",
-                      fontFamily: "var(--sg-font-mono)",
-                      fontSize: 10,
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Camera className="h-4 w-4" />
-                    {data.photoPreview ? "Foto capturada ✓" : "Tomar foto de placa (opcional)"}
-                  </button>
-                  <input
-                    ref={cameraRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) update("photoPreview", URL.createObjectURL(file));
-                      e.target.value = "";
-                    }}
-                  />
-                  {data.photoPreview && (
-                    <div className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={data.photoPreview} alt="placa" className="w-full h-32 object-cover" style={{ border: "1px solid var(--pwa-accent)" }} />
-                      <button
-                        onClick={() => update("photoPreview", null)}
-                        className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center text-white text-xs"
-                        style={{ background: "var(--pwa-danger)" }}
-                      >✕</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 1: Empresa ── */}
-            {step === 1 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={1}
-                  total={TOTAL_STEPS}
-                  label="¿A qué empresa?"
-                  sublabel="Empresa destino dentro de la planta"
-                  onBack={() => setStep(0)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <BigTextInput
-                    value={data.empresa}
-                    onChange={(v) => update("empresa", v)}
-                    placeholder="EMPRESA DESTINO..."
-                    autoFocus
-                  />
-                  <p
-                    style={{
-                      fontFamily: "var(--sg-font-mono)",
-                      fontSize: 9,
-                      color: "var(--pwa-muted)",
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Déjalo vacío si no aplica
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 2: Tipo operación ── */}
-            {step === 2 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={2}
-                  total={TOTAL_STEPS}
-                  label="¿Qué tipo?"
-                  sublabel="Tipo de operación"
-                  onBack={() => setStep(1)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <TipoGrid
-                    value={data.tipoOperacion}
-                    onChange={(v) => update("tipoOperacion", v)}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 3: Responsable ── */}
-            {step === 3 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={3}
-                  total={TOTAL_STEPS}
-                  label="¿Quién lo atiende?"
-                  sublabel="Responsable de almacén"
-                  onBack={() => setStep(2)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  <DropdownPicker
-                    value={data.responsable}
-                    onChange={(v) => update("responsable", v)}
-                    options={responsables}
-                    placeholder="Selecciona responsable..."
-                  />
-                  {/* Agente */}
-                  <div
-                    style={{
-                      borderTop: "1px solid var(--pwa-border)",
-                      paddingTop: 16,
-                      marginTop: 4,
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontFamily: "var(--sg-font-mono)",
-                        fontSize: 9,
-                        color: "var(--pwa-muted)",
-                        letterSpacing: "0.14em",
-                        textTransform: "uppercase",
-                        marginBottom: 8,
-                      }}
-                    >
-                      Guardia que registra
-                    </p>
-                    <DropdownPicker
-                      value={data.agente}
-                      onChange={(v) => update("agente", v)}
-                      options={agentes}
-                      placeholder="Agente..."
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 4: Confirmar ── */}
-            {step === 4 && (
-              <div className="flex flex-col flex-1">
-                <StepHeader
-                  step={4}
-                  total={TOTAL_STEPS}
-                  label="Confirmar"
-                  sublabel="Revisa y registra el ingreso"
-                  onBack={() => setStep(3)}
-                />
-                <div className="px-6 flex flex-col gap-3 flex-1 pt-4">
-                  {/* Summary */}
-                  <div
-                    className="flex flex-col divide-y"
-                    style={{
-                      background: "var(--pwa-surface)",
-                      border: "1px solid var(--pwa-border)",
-                    }}
-                  >
-                    {[
-                      { icon: Truck,     label: "Vehículo",      value: data.razonSocial },
-                      { icon: Building2, label: "Empresa",        value: data.empresa || "—" },
-                      { icon: Package,   label: "Tipo",           value: data.tipoOperacion },
-                      { icon: UserCheck, label: "Responsable",    value: data.responsable || "—" },
-                      { icon: User,      label: "Guardia",        value: data.agente },
-                    ].map(({ icon: Icon, label, value }) => (
-                      <div key={label} className="flex items-center gap-3 px-4 py-3">
-                        <Icon className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-accent)" }} />
-                        <div className="min-w-0 flex-1">
-                          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 2 }}>{label}</p>
-                          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Error */}
-                  {error && (
-                    <div
-                      className="px-4 py-3 text-[13px]"
-                      style={{
-                        borderLeft: "3px solid var(--pwa-danger)",
-                        color: "var(--pwa-danger)",
-                        background: "color-mix(in srgb, var(--pwa-danger) 8%, transparent)",
-                        fontFamily: "var(--sg-font-mono)",
-                        fontSize: 11,
-                      }}
-                    >
-                      {error}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-          </motion.div>
-        </AnimatePresence>
+            <ArrowLeft className="h-4 w-4" /> Inicio
+          </button>
+          <ThemeSwitcher />
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-6 pb-8 pt-4 flex flex-col gap-3">
-        {step < 4 ? (
-          <NextButton
-            onClick={() => setStep((s) => s + 1)}
-            disabled={
-              (step === 0 && !data.razonSocial.trim()) ||
-              (step === 3 && !data.responsable)
-            }
-          />
-        ) : (
-          <NextButton
-            label="Registrar"
-            onClick={handleSubmit}
-            loading={submitting}
-            disabled={!data.razonSocial.trim()}
-          />
-        )}
+      <div className="flex-1 overflow-y-auto px-4 pb-24">
+        <SurfaceCard accent className="p-5">
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+            Registrar
+          </p>
+          <h1 style={{ fontFamily: "var(--sg-font-display)", fontSize: 26, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
+            Nuevo vehiculo
+          </h1>
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
+            Registro rapido desde porteria
+          </p>
 
-        {/* Theme switcher */}
-        <div className="flex items-center justify-center">
-          <ThemeSwitcher />
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <MetricChip label="Puerta" value={activeGate.gate.slice(0, 3).toUpperCase()} tone="accent" />
+            <MetricChip label="Hoy" value={String(recentRecords.length)} />
+            <MetricChip label="Campos" value={`${filledFields}/4`} />
+          </div>
+        </SurfaceCard>
+
+        <div className="mt-4 grid gap-4">
+          <SurfaceCard className="p-4">
+            <SectionLabel>Ubicacion activa</SectionLabel>
+            <div className="mt-3 flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(214,180,92,0.12)", border: "1px solid color-mix(in srgb, var(--pwa-accent) 35%, transparent)" }}>
+                <MapPin className="h-4 w-4" style={{ color: "var(--pwa-accent)" }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+                  {plantLabel}
+                </p>
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "7px 0 0" }}>
+                  {activeGate.site} · puerta {activeGate.gate}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <SelectField
+                label="Cambiar planta / puerta"
+                value={data.plant}
+                onChange={(value) => handleChange("plant", value)}
+                options={plantOptions}
+                icon={MapPin}
+              />
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-4">
+            <SectionLabel>Datos del ingreso</SectionLabel>
+            <div className="mt-3 grid gap-3">
+              <TextField
+                label="Vehiculo / razon social"
+                value={data.razonSocial}
+                onChange={(value) => handleChange("razonSocial", value)}
+                placeholder="ABC-1234 O TRANSPORTES ABC"
+                icon={Truck}
+                autoFocus
+              />
+              <TextField
+                label="Empresa / transportista"
+                value={data.empresa}
+                onChange={(value) => handleChange("empresa", value)}
+                placeholder="EMPRESA DESTINO"
+                icon={Building2}
+              />
+              <TipoOperacionRow value={data.tipoOperacion} onChange={(value) => handleChange("tipoOperacion", value)} />
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-4">
+            <SectionLabel>Responsables del turno</SectionLabel>
+            <div className="mt-3 grid gap-3">
+              <SelectField
+                label="Responsable de almacen"
+                value={data.responsable}
+                onChange={(value) => handleChange("responsable", value)}
+                options={responsables.map((item) => ({ value: item, label: item }))}
+                icon={UserCheck}
+              />
+              <SelectField
+                label="Guardia que registra"
+                value={data.agente}
+                onChange={(value) => handleChange("agente", value)}
+                options={agentes.map((item) => ({ value: item, label: item }))}
+                icon={User}
+              />
+            </div>
+          </SurfaceCard>
+
+          <SurfaceCard className="p-4">
+            <SectionLabel>Observacion y evidencia</SectionLabel>
+            <div className="mt-3 grid gap-3">
+              <TextAreaField
+                label="Observacion"
+                value={data.note}
+                onChange={(value) => handleChange("note", value)}
+                placeholder="Detalle adicional del ingreso si aplica..."
+              />
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <button
+                  onClick={() => cameraRef.current?.click()}
+                  className="flex h-11 items-center justify-center gap-2 px-4"
+                  style={{ background: "var(--pwa-surface-2)", border: "1px dashed var(--pwa-border)", color: "var(--pwa-muted)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" }}
+                >
+                  <Camera className="h-4 w-4" />
+                  {data.photoPreview ? "Foto adjunta" : "Tomar foto"}
+                </button>
+                {data.photoPreview ? (
+                  <div className="overflow-hidden" style={{ border: "1px solid var(--pwa-border)" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={data.photoPreview} alt="Foto de evidencia" className="h-20 w-full object-cover sm:w-24" />
+                  </div>
+                ) : null}
+              </div>
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => handleChange("photoPreview", String(reader.result));
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </div>
+          </SurfaceCard>
+
+          <div className="grid gap-3">
+            {error ? (
+              <div className="px-4 py-3" style={{ background: "rgba(211,92,79,0.08)", borderLeft: "3px solid #d35c4f" }}>
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d35c4f", margin: 0 }}>
+                  {error}
+                </p>
+              </div>
+            ) : null}
+
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              disabled={submitting || !data.razonSocial.trim()}
+              onClick={handleSubmit}
+              className="flex h-[56px] w-full items-center justify-center gap-2 disabled:opacity-50"
+              style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}
+            >
+              {submitting ? (
+                <>
+                  <Shield className="h-4 w-4 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  Registrar vehiculo
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </motion.button>
+          </div>
+
+          <SurfaceCard className="overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-4">
+              <div>
+                <SectionLabel>Historial rapido</SectionLabel>
+                <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
+                  Registros de hoy
+                </p>
+              </div>
+              <div className="flex items-center gap-2" style={{ color: "var(--pwa-muted)" }}>
+                <Clock3 className="h-4 w-4" />
+                <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                  {recentRecords.length} recientes
+                </span>
+              </div>
+            </div>
+
+            {recentRecords.length === 0 ? (
+              <div className="px-4 py-10" style={{ borderTop: "1px solid var(--pwa-border)" }}>
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0, textAlign: "center" }}>
+                  Sin registros todavia en esta puerta
+                </p>
+              </div>
+            ) : (
+              recentRecords.map((record) => (
+                <RecentRecordRow key={record.id} record={record} gateOptions={gateOptions} />
+              ))
+            )}
+          </SurfaceCard>
         </div>
       </div>
     </div>
