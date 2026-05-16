@@ -539,7 +539,9 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
           icon={Truck}
           title="Vehículos pendientes"
           primary={String(pendientes)}
-          secondary={pendientes === 1 ? "por atender" : "por atender"}
+          secondary="Por ingresar"
+          secondaryValue={String(Math.max(urgentes, citasRetrasadas))}
+          secondaryLabel="En espera"
           accent="var(--pwa-success)"
           onClick={() => onRefresh()}
         />
