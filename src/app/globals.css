@@ -66,6 +66,10 @@ body::before {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 85%);
 }
 
+body.pwa-mode::before {
+  display: none;
+}
+
 a {
   color: inherit;
   text-decoration: none;

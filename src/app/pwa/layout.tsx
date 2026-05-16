@@ -9,6 +9,10 @@ export default function PWALayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem("sg-pwa-theme") ?? "dark";
     document.documentElement.setAttribute("data-pwa-theme", stored);
+    document.body.classList.add("pwa-mode");
+    return () => {
+      document.body.classList.remove("pwa-mode");
+    };
   }, []);
 
   return (

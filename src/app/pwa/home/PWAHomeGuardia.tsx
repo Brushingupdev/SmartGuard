@@ -6,7 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
-  AlertTriangle, ArrowRight, BarChart3, BookOpen, Calendar, Camera,
+  AlertTriangle, ArrowRight, BarChart3, Bell, BookOpen, Calendar, Camera,
   CheckCircle2, ChevronDown, FileCheck2, LogOut,
   MapPin, Palette, Plus, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
@@ -119,9 +119,11 @@ function TabBar({ active, onChange }: {
       <div
         className="grid w-full grid-cols-[1fr_1fr_auto_1fr_1fr] items-end gap-1 px-3 pt-3"
         style={{
-          background: "var(--pwa-surface)",
-          border: "1px solid var(--pwa-border)",
-          borderRadius: 20,
+          background: "rgba(19,23,20,0.96)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 24,
+          boxShadow: "0 -8px 28px rgba(0,0,0,0.32)",
+          backdropFilter: "blur(10px)",
         }}
       >
 
@@ -151,7 +153,7 @@ function TabBar({ active, onChange }: {
           className="flex flex-col items-center justify-center gap-0.5 shrink-0"
           style={{ width: 54, height: 54, borderRadius: 27, marginBottom: 10,
             background: "var(--pwa-accent)", border: "none", cursor: "pointer",
-            color: "var(--pwa-accent-fg)" }}>
+            color: "var(--pwa-accent-fg)", boxShadow: "0 8px 24px rgba(200,168,75,0.28)" }}>
           <Plus className="h-5 w-5" />
           <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
             letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>
@@ -195,7 +197,7 @@ function ScreenHeader({
   trailing?: React.ReactNode;
 }) {
   return (
-    <div className="mx-4 mt-4 mb-4 flex items-center justify-between gap-3">
+    <div className="mx-4 mt-4 mb-5 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <div
           className="flex h-7 w-7 items-center justify-center rounded-full"
@@ -436,6 +438,8 @@ function HomeOverviewCard({
   title,
   primary,
   secondary,
+  secondaryValue,
+  secondaryLabel,
   accent,
   onClick,
 }: {
@@ -443,28 +447,49 @@ function HomeOverviewCard({
   title: string;
   primary: string;
   secondary: string;
+  secondaryValue?: string;
+  secondaryLabel?: string;
   accent: string;
   onClick?: () => void;
 }) {
   const content = (
-    <div className="flex items-center gap-3 px-4 py-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center" style={{ background: `${accent}15`, border: `1px solid ${accent}35`, color: accent }}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-          {title}
-        </p>
-        <div className="mt-1 flex items-end justify-between gap-3">
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 24, fontWeight: 800, color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
-              {primary}
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, margin: "6px 0 0" }}>
-              {secondary}
-            </p>
+    <div className="px-4 py-4" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.005))", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, boxShadow: "0 10px 24px rgba(0,0,0,0.16)" }}>
+      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
+        {title}
+      </p>
+      <div className="mt-4 flex items-center gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}15`, border: `1px solid ${accent}35`, color: accent }}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 30, fontWeight: 800, color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+                {primary}
+              </p>
+              <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: accent, margin: "6px 0 0" }}>
+                {secondary}
+              </p>
+            </div>
+            {secondaryValue ? (
+              <>
+                <div className="h-10 w-px shrink-0" style={{ background: "rgba(255,255,255,0.12)" }} />
+                <div className="min-w-0">
+                  <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 30, fontWeight: 800, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+                    {secondaryValue}
+                  </p>
+                  <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink-soft)", margin: "6px 0 0" }}>
+                    {secondaryLabel}
+                  </p>
+                </div>
+              </>
+            ) : null}
+            {!secondaryValue ? (
+              <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
+            ) : (
+              <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
+            )}
           </div>
-          <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-muted)" }} />
         </div>
       </div>
     </div>
@@ -476,6 +501,46 @@ function HomeOverviewCard({
     <button onClick={onClick} className="text-left transition-opacity active:opacity-80">
       {content}
     </button>
+  );
+}
+
+function HeroPendingCard({
+  leftValue,
+  rightValue,
+}: {
+  leftValue: number;
+  rightValue: number;
+}) {
+  return (
+    <div className="mx-4 p-5" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005))", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}>
+      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
+        Vehículos pendientes
+      </p>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "rgba(107,189,138,0.12)", border: "1px solid rgba(107,189,138,0.18)", color: "#6bbd8a" }}>
+          <Truck className="h-6 w-6" />
+        </div>
+        <div className="flex flex-1 items-start justify-between gap-4">
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 52, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>
+              {leftValue}
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", margin: "8px 0 0" }}>
+              Por ingresar
+            </p>
+          </div>
+          <div className="h-14 w-px shrink-0" style={{ background: "rgba(255,255,255,0.12)" }} />
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 52, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>
+              {rightValue}
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", margin: "8px 0 0" }}>
+              En espera
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -509,57 +574,35 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
       <ScreenHeader
         tab="inicio"
         title="Inicio"
-        trailing={<button onClick={() => onRefresh()} style={{ background: "none", border: "none", color: "var(--pwa-ink-soft)", cursor: "pointer" }}><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></button>}
+        trailing={<button style={{ background: "none", border: "none", color: "var(--pwa-ink-soft)", cursor: "pointer" }}><Bell className="h-4 w-4" /></button>}
       />
-      <div className="mx-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-              Vehículos pendientes
-            </p>
-            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
-              {pendientes} por ingresar
-            </h2>
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "rgba(107,189,138,0.1)", color: "#6bbd8a", border: "1px solid rgba(107,189,138,0.2)" }}>
-            <Truck className="h-4 w-4" />
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-6">
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 34, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>{rows.length}</p>
-            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: "6px 0 0", color: "var(--pwa-ink-soft)" }}>Por ingresar</p>
-          </div>
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 34, fontWeight: 800, margin: 0, lineHeight: 1, color: citasRetrasadas > 0 ? "#d35c4f" : "var(--pwa-ink)" }}>{Math.max(urgentes, citasRetrasadas)}</p>
-            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: "6px 0 0", color: citasRetrasadas > 0 ? "#d35c4f" : "var(--pwa-ink-soft)" }}>En espera</p>
-          </div>
-        </div>
-      </div>
+      <HeroPendingCard leftValue={rows.length} rightValue={Math.max(urgentes, citasRetrasadas)} />
 
-      <div className="mx-4 flex flex-col gap-3">
+      <div className="mx-4 mt-3 flex flex-col gap-3">
         <HomeOverviewCard
           icon={Truck}
           title="Vehículos pendientes"
           primary={String(pendientes)}
           secondary={pendientes === 1 ? "por atender" : "por atender"}
-        accent="var(--pwa-success)"
+          accent="var(--pwa-success)"
           onClick={() => onRefresh()}
         />
         <HomeOverviewCard
           icon={Calendar}
-          title="Próximas citas"
+          title="Próximas citas (hoy)"
           primary={String(citasPendientes)}
-          secondary={citasRetrasadas > 0 ? `${citasRetrasadas} retrasada${citasRetrasadas !== 1 ? "s" : ""}` : "sin retrasos"}
-          accent={citasRetrasadas > 0 ? "var(--pwa-danger)" : "var(--pwa-accent)"}
+          secondary="Programadas"
+          secondaryValue={String(citasRetrasadas)}
+          secondaryLabel="Retrasadas"
+          accent="var(--pwa-accent)"
           onClick={onOpenCitas}
         />
         <HomeOverviewCard
           icon={AlertTriangle}
-          title="Retrasos del día"
-          primary={String(urgentes)}
-          secondary={urgentes > 0 ? "atención inmediata" : "sin críticos"}
-          accent={urgentes > 0 ? "var(--pwa-danger)" : "var(--pwa-muted)"}
+          title="Retrasos (hoy)"
+          primary={String(citasRetrasadas)}
+          secondary="Citas retrasadas"
+          accent="#d35c4f"
           onClick={onOpenEventos}
         />
       </div>
@@ -578,7 +621,7 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
 
       <div className="mx-4 mt-4">
         <button onClick={onOpenRendimiento} className="w-full text-left transition-opacity active:opacity-80">
-          <div className="flex items-center gap-3 px-4 py-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+          <div className="flex items-center gap-3 px-4 py-4" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.005))", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, boxShadow: "0 10px 24px rgba(0,0,0,0.16)" }}>
             <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ border: "2px solid rgba(107,189,138,0.35)" }}>
               <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, fontWeight: 700, color: "#6bbd8a" }}>{rendimiento}%</span>
             </div>
@@ -626,7 +669,7 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
 
       {/* Lista de vehículos */}
       <div className="mx-4 overflow-hidden"
-        style={{ border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
+        style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, boxShadow: "0 10px 24px rgba(0,0,0,0.16)" }}>
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-14"
             style={{ background: "var(--pwa-surface)" }}>
