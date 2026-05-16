@@ -603,11 +603,6 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 px-4 mt-4">
-        <QuickActionCard icon={BookOpen} label="Bitácora" meta="Reportar novedades" onClick={onOpenEventos} tone="info" />
-        <QuickActionCard icon={RefreshCw} label="Actualizar" meta={refreshing ? "Sincronizando" : "Traer cambios"} onClick={onRefresh} tone="muted" />
-      </div>
-
       {/* Alerta urgentes */}
       <AnimatePresence>
         {urgentes > 0 && (
