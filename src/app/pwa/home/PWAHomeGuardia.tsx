@@ -452,43 +452,40 @@ function HomeOverviewCard({
   accent: string;
   onClick?: () => void;
 }) {
+  const isDualMetric = Boolean(secondaryValue && secondaryLabel);
   const content = (
-    <div className="px-4 py-4" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.005))", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, boxShadow: "0 10px 24px rgba(0,0,0,0.16)" }}>
-      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
+    <div className="px-4 py-4" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.006))", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, boxShadow: "0 10px 24px rgba(0,0,0,0.14)" }}>
+      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 13, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
         {title}
       </p>
       <div className="mt-4 flex items-center gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}15`, border: `1px solid ${accent}35`, color: accent }}>
-          <Icon className="h-4 w-4" />
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: `${accent}12`, border: `1px solid ${accent}24`, color: accent }}>
+          <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 30, fontWeight: 800, color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+            <div className="min-w-0 flex-1">
+              <p style={{ fontFamily: "var(--sg-font-display)", fontSize: isDualMetric ? 24 : 28, fontWeight: 800, color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
                 {primary}
               </p>
-              <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: accent, margin: "6px 0 0" }}>
+              <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: isDualMetric ? "var(--pwa-ink-soft)" : accent, margin: "6px 0 0" }}>
                 {secondary}
               </p>
             </div>
-            {secondaryValue ? (
+            {isDualMetric ? (
               <>
                 <div className="h-10 w-px shrink-0" style={{ background: "rgba(255,255,255,0.12)" }} />
-                <div className="min-w-0">
-                  <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 30, fontWeight: 800, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
+                <div className="min-w-0 flex-1">
+                  <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 24, fontWeight: 800, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
                     {secondaryValue}
                   </p>
-                  <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink-soft)", margin: "6px 0 0" }}>
+                  <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: secondaryLabel?.includes("Retras") ? "#d35c4f" : "var(--pwa-ink-soft)", margin: "6px 0 0" }}>
                     {secondaryLabel}
                   </p>
                 </div>
               </>
             ) : null}
-            {!secondaryValue ? (
-              <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
-            ) : (
-              <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
-            )}
+            <ArrowRight className="h-4 w-4 shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
           </div>
         </div>
       </div>
