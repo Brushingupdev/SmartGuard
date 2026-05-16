@@ -73,6 +73,14 @@ const LEVEL_CFG: Record<Level, { color: string; bg: string; label: string; order
 
 type Tab = "inicio" | "citas" | "eventos" | "rendimiento" | "perfil";
 
+const SCREEN_INDEX: Record<Tab, string> = {
+  inicio: "1",
+  citas: "3",
+  eventos: "4",
+  rendimiento: "5",
+  perfil: "6",
+};
+
 // ── Theme toggle ──────────────────────────────────────────────────────────────
 
 function ThemeToggle() {
@@ -88,19 +96,15 @@ function ThemeToggle() {
 
 // ── Bottom Tab Bar (pill style) ───────────────────────────────────────────────
 
-function TabBar({ active, onChange, urgentes, citasPendientes }: {
+function TabBar({ active, onChange }: {
   active: Tab;
   onChange: (t: Tab) => void;
-  urgentes: number;
-  citasPendientes: number;
 }) {
   const router = useRouter();
 
-  const leftTabs: { key: Tab; icon: React.ReactNode; label: string; badge?: number }[] = [
-    { key: "inicio",  icon: <Shield className="h-[18px] w-[18px]" />, label: "Inicio",
-      badge: urgentes > 0 ? urgentes : undefined },
-    { key: "citas",   icon: <Calendar className="h-[18px] w-[18px]" />, label: "Citas",
-      badge: citasPendientes > 0 ? citasPendientes : undefined },
+  const leftTabs: { key: Tab; icon: React.ReactNode; label: string }[] = [
+    { key: "inicio",  icon: <Shield className="h-[18px] w-[18px]" />, label: "Inicio" },
+    { key: "citas",   icon: <Calendar className="h-[18px] w-[18px]" />, label: "Citas" },
   ];
   const rightTabs: { key: Tab; icon: React.ReactNode; label: string }[] = [
     { key: "eventos", icon: <BookOpen className="h-[18px] w-[18px]" />, label: "Bitácora" },
@@ -109,45 +113,43 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 flex items-end px-4"
-      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)", paddingTop: 8 }}
+      className="fixed bottom-0 left-0 right-0 z-40 px-4"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 14px)", paddingTop: 8 }}
     >
-      <div className="flex items-center w-full gap-1"
-        style={{ height: 58, background: "var(--pwa-surface)", borderRadius: 34,
-          border: "1px solid var(--pwa-border)", padding: "4px" }}>
+      <div
+        className="grid w-full grid-cols-[1fr_1fr_auto_1fr_1fr] items-end gap-1 px-3 pt-3"
+        style={{
+          background: "var(--pwa-surface)",
+          border: "1px solid var(--pwa-border)",
+          borderRadius: 20,
+        }}
+      >
 
-        {/* Tabs izquierda */}
         {leftTabs.map(tab => {
           const isActive = active === tab.key;
           return (
             <button key={tab.key} onClick={() => onChange(tab.key)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full relative"
-              style={{ borderRadius: 28, background: isActive ? "var(--pwa-accent)" : "transparent",
+              className="flex flex-col items-center justify-center gap-1 h-full relative pb-3"
+              style={{ borderRadius: 0, background: "transparent",
                 border: "none", cursor: "pointer",
-                color: isActive ? "var(--pwa-accent-fg)" : "var(--pwa-muted)" }}>
-              <div className="relative">
-                {tab.icon}
-                {tab.badge !== undefined && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1"
-                    style={{ background: "#d35c4f", color: "#fff",
-                      fontFamily: "var(--sg-font-mono)", fontSize: 9, fontWeight: 700 }}>
-                    {tab.badge}
-                  </span>
-                )}
-              </div>
+                color: isActive ? "var(--pwa-accent)" : "var(--pwa-ink-soft)" }}>
+              {tab.icon}
               <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 500 }}>
                 {tab.label}
               </span>
+              <div
+                className="absolute bottom-0 left-1/2 h-[2px] w-8 -translate-x-1/2"
+                style={{ background: isActive ? "var(--pwa-accent)" : "transparent" }}
+              />
             </button>
           );
         })}
 
-        {/* Botón central Registrar */}
         <motion.button whileTap={{ scale: 0.88 }}
           onClick={() => router.push("/pwa/registro")}
           className="flex flex-col items-center justify-center gap-0.5 shrink-0"
-          style={{ width: 50, height: 50, borderRadius: 25,
+          style={{ width: 54, height: 54, borderRadius: 27, marginBottom: 10,
             background: "var(--pwa-accent)", border: "none", cursor: "pointer",
             color: "var(--pwa-accent-fg)" }}>
           <Plus className="h-5 w-5" />
@@ -162,19 +164,52 @@ function TabBar({ active, onChange, urgentes, citasPendientes }: {
           const isActive = active === tab.key;
           return (
             <button key={tab.key} onClick={() => onChange(tab.key)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
-              style={{ borderRadius: 28, background: isActive ? "var(--pwa-accent)" : "transparent",
+              className="flex flex-col items-center justify-center gap-1 h-full relative pb-3"
+              style={{ borderRadius: 0, background: "transparent",
                 border: "none", cursor: "pointer",
-                color: isActive ? "var(--pwa-accent-fg)" : "var(--pwa-muted)" }}>
+                color: isActive ? "var(--pwa-accent)" : "var(--pwa-ink-soft)" }}>
               {tab.icon}
               <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
-                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 600 }}>
+                letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 500 }}>
                 {tab.label}
               </span>
+              <div
+                className="absolute bottom-0 left-1/2 h-[2px] w-8 -translate-x-1/2"
+                style={{ background: isActive ? "var(--pwa-accent)" : "transparent" }}
+              />
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function ScreenHeader({
+  tab,
+  title,
+  trailing,
+}: {
+  tab: Tab;
+  title: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div className="mx-4 mt-4 mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-full"
+          style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)" }}
+        >
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, fontWeight: 700 }}>
+            {SCREEN_INDEX[tab]}
+          </span>
+        </div>
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 17, fontWeight: 800, color: "var(--pwa-ink)", margin: 0 }}>
+          {title}
+        </p>
+      </div>
+      {trailing}
     </div>
   );
 }
@@ -471,44 +506,35 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
 
   return (
     <div className="flex flex-col">
-      <div className="mx-4 mt-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+      <ScreenHeader
+        tab="inicio"
+        title="Inicio"
+        trailing={<button onClick={() => onRefresh()} style={{ background: "none", border: "none", color: "var(--pwa-ink-soft)", cursor: "pointer" }}><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></button>}
+      />
+      <div className="mx-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
-              Turno activo
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              Vehículos pendientes
             </p>
-            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "4px 0 0" }}>
-              {formatGateLabelFromPlant(plant)}
+            <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
+              {pendientes} por ingresar
             </h2>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center" style={{ background: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)", color: "var(--pwa-accent)" }}>
-            <MapPin className="h-4 w-4" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "rgba(107,189,138,0.1)", color: "#6bbd8a", border: "1px solid rgba(107,189,138,0.2)" }}>
+            <Truck className="h-4 w-4" />
           </div>
         </div>
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "10px 0 0" }}>
-          Revisa pendientes, registra y sigue tu avance del turno
-        </p>
-      </div>
-
-      {/* KPI chips */}
-      <div className="flex gap-2 px-4 mt-4 mb-3">
-        {[
-          { label: "HOY",        value: rows.length, color: "var(--pwa-ink)" },
-          { label: "PENDIENTES", value: pendientes,  color: pendientes > 0 ? "var(--pwa-accent)" : "var(--pwa-muted)" },
-          { label: "URGENTES",   value: urgentes,    color: urgentes > 0 ? "#d35c4f" : "var(--pwa-muted)" },
-          { label: "COMPLETOS",  value: completos,   color: "#6bbd8a" },
-        ].map(s => (
-          <div key={s.label} className="flex flex-col flex-1 px-3 py-2.5"
-            style={{ background: "var(--pwa-surface)" }}>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 22,
-              fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
-              letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
-              marginTop: 2 }}>
-              {s.label}
-            </span>
+        <div className="mt-4 grid grid-cols-2 gap-6">
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 34, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>{rows.length}</p>
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: "6px 0 0", color: "var(--pwa-ink-soft)" }}>Por ingresar</p>
           </div>
-        ))}
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 34, fontWeight: 800, margin: 0, lineHeight: 1, color: citasRetrasadas > 0 ? "#d35c4f" : "var(--pwa-ink)" }}>{Math.max(urgentes, citasRetrasadas)}</p>
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: "6px 0 0", color: citasRetrasadas > 0 ? "#d35c4f" : "var(--pwa-ink-soft)" }}>En espera</p>
+          </div>
+        </div>
       </div>
 
       <div className="mx-4 flex flex-col gap-3">
@@ -543,7 +569,7 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
           whileTap={{ scale: 0.98 }}
           onClick={() => router.push("/pwa/registro")}
           className="flex h-[54px] w-full items-center justify-center gap-2"
-          style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}
+          style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, borderRadius: 10 }}
         >
           <Plus className="h-4 w-4" />
           Registrar vehículo
@@ -600,7 +626,7 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
 
       {/* Lista de vehículos */}
       <div className="mx-4 overflow-hidden"
-        style={{ border: "1px solid var(--pwa-border)" }}>
+        style={{ border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-14"
             style={{ background: "var(--pwa-surface)" }}>
@@ -850,7 +876,8 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
 
   return (
     <div className="flex flex-col mt-4">
-      <div className="mx-4 p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", borderTop: "3px solid var(--pwa-accent)" }}>
+      <ScreenHeader tab="citas" title="Citas" />
+      <div className="mx-4 p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
         <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140, background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)", pointerEvents: "none" }} />
         <div>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
@@ -1150,27 +1177,16 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
   }
 
   return (
-    <div className="flex flex-col gap-4 mx-4 mt-4">
-      <div className="p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", borderTop: "3px solid #6ba7ff" }}>
-        <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140, background: "radial-gradient(circle at top right, rgba(107,167,255,0.12), transparent)", pointerEvents: "none" }} />
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "#6ba7ff", margin: 0 }}>
-          Bitácora
-        </p>
-        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "6px 0 0" }}>
-          Reporte del turno
-        </p>
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
-          {formatGateLabelFromPlant(planta)} · {eventos.length} reporte{eventos.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+    <div className="flex flex-col gap-4 mx-4">
+      <ScreenHeader tab="eventos" title="Bitácora" />
 
       {/* Formulario */}
       <div className="flex flex-col gap-3 p-4"
-        style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+        style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
 
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
-          textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-          Nuevo reporte
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700,
+          color: "var(--pwa-ink)", margin: 0 }}>
+          Nuevo incidente
         </p>
 
         {/* Tipo */}
@@ -1249,6 +1265,24 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
           </div>
         )}
 
+        <div className="flex items-center justify-between">
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, margin: 0, color: "var(--pwa-ink)" }}>
+              ¿Urgente?
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, margin: "4px 0 0", color: "var(--pwa-ink-soft)" }}>
+              Marcar si requiere atención inmediata
+            </p>
+          </div>
+          <button
+            onClick={() => setTipo((current) => (current === "incidente" ? "novedad" : "incidente"))}
+            className="relative h-7 w-12 rounded-full"
+            style={{ background: tipo === "incidente" ? "#d35c4f" : "rgba(255,255,255,0.12)", border: "none", cursor: "pointer" }}
+          >
+            <span className="absolute top-[2px] h-6 w-6 rounded-full bg-white transition-all" style={{ left: tipo === "incidente" ? 22 : 2 }} />
+          </button>
+        </div>
+
         {/* Enviar */}
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -1275,7 +1309,7 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
         <div>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
             textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
-            Reportes de hoy · {eventos.length}
+            Historial reciente
           </p>
           <div className="flex flex-col" style={{ border: "1px solid var(--pwa-border)" }}>
             {eventos.map(ev => {
@@ -1365,92 +1399,41 @@ function TabRendimiento({ guardName, plant, records, eventos, onOpenPerfil }: {
 
   return (
     <div className="flex flex-col pb-6">
-      <div className="mx-4 mt-4 p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", borderTop: "3px solid var(--pwa-accent)" }}>
-        <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140, background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)", pointerEvents: "none" }} />
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
-          Mi rendimiento
-        </p>
-        <h2 style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
-          {guardName}
-        </h2>
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
-          {formatGateLabelFromPlant(plant)} · turno actual
-        </p>
-      </div>
+      <ScreenHeader
+        tab="rendimiento"
+        title="Mi rendimiento"
+        trailing={<div className="rounded-xl px-3 py-2" style={{ border: "1px solid var(--pwa-border)" }}><span style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: "var(--pwa-ink-soft)" }}>Hoy</span></div>}
+      />
 
-      <div className="mx-4 mt-4 grid grid-cols-2 gap-3">
+      <div className="mx-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
+          Resumen del día
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
         {[
-          { label: "Registré", value: misRegistros.length, color: "var(--pwa-accent)" },
-          { label: "Pendientes", value: misPendientes, color: misPendientes > 0 ? "#d4864a" : "var(--pwa-muted)" },
-          { label: "Completos", value: misCompletados, color: "#6bbd8a" },
-          { label: "Demoras", value: misDemoras, color: misDemoras > 0 ? "#d35c4f" : "var(--pwa-muted)" },
+          { label: "Registros", value: misRegistros.length, meta: "Total", color: "var(--pwa-ink)" },
+          { label: "Citas atendidas", value: misCompletados, meta: `De ${misRegistros.length || 0}`, color: "var(--pwa-ink)" },
+          { label: "Tiempo promedio", value: avgEspera > 0 ? `${String(Math.floor(avgEspera / 60)).padStart(2, "0")}:${String(avgEspera % 60).padStart(2, "0")}` : "00:00", meta: "min", color: "var(--pwa-ink)" },
+          { label: "Retrasos", value: misDemoras, meta: "Citas", color: misDemoras > 0 ? "#d35c4f" : "var(--pwa-ink)" },
         ].map((metric) => (
-          <div key={metric.label} className="flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
+          <div key={metric.label} className="flex flex-col gap-1 p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.01)", border: "1px solid var(--pwa-border)" }}>
+            <span style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: "var(--pwa-ink-soft)" }}>{metric.label}</span>
             <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 24, fontWeight: 800, color: metric.color, lineHeight: 1 }}>
               {metric.value}
             </span>
-            <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-              {metric.label}
+            <span style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: "var(--pwa-ink-soft)" }}>
+              {metric.meta}
             </span>
           </div>
         ))}
       </div>
-
-      <div className="mx-4 mt-4 flex gap-3">
-        <div className="flex-1 flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-            Espera promedio
-          </span>
-          <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, color: avgEspera > 45 ? "#d35c4f" : avgEspera > 25 ? "#d4864a" : "#6bbd8a", lineHeight: 1 }}>
-            {avgEspera > 0 ? `${avgEspera}m` : "—"}
-          </span>
-        </div>
-        <div className="flex-1 flex flex-col gap-1 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-            Cierre del flujo
-          </span>
-          <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, color: pctOk >= 80 ? "#6bbd8a" : pctOk >= 50 ? "#d4864a" : "#d35c4f", lineHeight: 1 }}>
-            {pctOk}%
-          </span>
-        </div>
       </div>
 
-      <div className="mx-4 mt-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)" }}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-              Actividad por tramo
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
-              Registros del turno por bloque horario
-            </p>
-          </div>
-          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-accent)" }}>
-            {misEventos} reportes
-          </span>
-        </div>
-        <div className="mt-4 flex items-end gap-2">
-          {hourlyBuckets.map((bucket) => {
-            const height = bucket.count > 0 ? Math.max(18, bucket.count * 12) : 10;
-            return (
-              <div key={bucket.label} className="flex flex-1 flex-col items-center gap-2">
-                <div className="flex h-[88px] w-full items-end">
-                  <div className="w-full" style={{ height, background: bucket.count > 0 ? "var(--pwa-accent)" : "var(--pwa-surface-2)", border: `1px solid ${bucket.count > 0 ? "var(--pwa-accent)" : "var(--pwa-border)"}` }} />
-                </div>
-                <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-                  {bucket.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mx-4 mt-4" style={{ border: "1px solid var(--pwa-border)" }}>
+      <div className="mx-4 mt-4" style={{ border: "1px solid var(--pwa-border)", borderRadius: 14, overflow: "hidden" }}>
         <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--pwa-surface)" }}>
           <div>
             <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
-              Mis registros recientes
+              Historial personal
             </p>
             <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
               Última actividad del turno
@@ -1539,9 +1522,10 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
 
   return (
     <div className="flex flex-col pb-6">
+      <ScreenHeader tab="perfil" title="Perfil" />
       {/* Card de perfil */}
-      <div className="mx-4 mt-4 p-5 relative overflow-hidden"
-        style={{ background: "var(--pwa-surface)", borderTop: "3px solid var(--pwa-accent)" }}>
+      <div className="mx-4 p-5 relative overflow-hidden"
+        style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
         {/* Glow */}
         <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140,
           background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)",
@@ -1571,25 +1555,19 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
         </div>
       </div>
 
-      {/* Stats del turno */}
-      <div className="mx-4 mt-4">
-        <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.22em",
-          textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
-          Resumen del turno
+      <div className="mx-4 mt-4 p-4" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
+          Información
         </p>
-        <div className="grid grid-cols-3 gap-px" style={{ background: "var(--pwa-border)" }}>
+        <div className="mt-4 grid gap-3">
           {[
-            { label: "Registros", value: misRegistros.length, color: "var(--pwa-accent)" },
-            { label: "Reportes", value: misEventos, color: "#d4864a" },
-            { label: "Puerta", value: formatGateLabelFromPlant(plant), color: "var(--pwa-ink)" },
-          ].map(s => (
-            <div key={s.label} className="flex flex-col items-center py-4 gap-1"
-              style={{ background: "var(--pwa-surface)" }}>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: typeof s.value === "string" ? 10 : 22,
-                fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</span>
-              <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7,
-                letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)",
-                textAlign: "center" }}>{s.label}</span>
+            ["Turno", "Matutino (06:00 - 14:00)"],
+            ["Planta asignada", plant.split(" ")[0] || plant],
+            ["Puerta asignada", formatGateLabelFromPlant(plant)],
+          ].map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0" style={{ borderColor: "var(--pwa-border)" }}>
+              <span style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)" }}>{label}</span>
+              <span style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink)" }}>{value}</span>
             </div>
           ))}
         </div>
@@ -1654,7 +1632,7 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
         <motion.button whileTap={{ scale: 0.97 }} onClick={onLogout}
           className="flex items-center justify-center gap-2 w-full py-3.5"
           style={{ background: "transparent", border: "1px solid rgba(211,92,79,0.65)",
-            cursor: "pointer", color: "var(--pwa-danger)",
+            cursor: "pointer", color: "#ff6a5f", borderRadius: 10,
             fontFamily: "var(--sg-font-mono)", fontSize: 10,
             letterSpacing: "0.16em", textTransform: "uppercase" }}>
           <LogOut className="h-4 w-4" /> Cerrar sesión
@@ -1790,57 +1768,9 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
     return (hour * 60 + minute) < nowMinutes - 10;
   }).length;
 
-  const plantLabel = formatGateLabelFromPlant(plant);
-  const initials = guardName.split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase();
-
   return (
     <div className="flex flex-col min-h-screen min-h-[100dvh]"
       style={{ background: "var(--pwa-bg)" }}>
-
-      {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3"
-        style={{ background: "var(--pwa-surface)", borderBottom: "1px solid var(--pwa-border)" }}>
-
-        {/* Logo + brand */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center"
-            style={{ background: "color-mix(in srgb, var(--pwa-accent) 10%, transparent)",
-              border: "1px solid var(--pwa-accent)" }}>
-            <Shield className="h-3.5 w-3.5" style={{ color: "var(--pwa-accent)" }} />
-          </div>
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 15, fontWeight: 800,
-              textTransform: "uppercase", letterSpacing: "-0.01em",
-              color: "var(--pwa-ink)", margin: 0, lineHeight: 1 }}>
-              Smart<span style={{ color: "var(--pwa-accent)" }}>Guard</span>
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em",
-              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
-              {plantLabel || "Guardia"}
-            </p>
-          </div>
-        </div>
-
-        {/* Acciones + avatar */}
-        <div className="flex items-center gap-2 shrink-0">
-          <ThemeToggle />
-          <button onClick={() => refresh(false)} disabled={refreshing}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}>
-            <motion.div
-              animate={refreshing ? { rotate: 360 } : { rotate: 0 }}
-              transition={refreshing ? { repeat: Infinity, duration: 0.8, ease: "linear" } : {}}>
-              <RefreshCw className="h-4 w-4" />
-            </motion.div>
-          </button>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-            style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)",
-              fontFamily: "var(--sg-font-display)", fontSize: 11, fontWeight: 800 }}>
-            {initials}
-          </div>
-        </div>
-      </div>
-
-      {/* Contenido scrollable */}
       <div className="flex-1 overflow-y-auto pb-24">
         <AnimatePresence mode="wait">
           {tab === "inicio" && (
@@ -1933,8 +1863,6 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
       <TabBar
         active={tab}
         onChange={setTab}
-        urgentes={urgentes}
-        citasPendientes={citasPendientes}
       />
     </div>
   );

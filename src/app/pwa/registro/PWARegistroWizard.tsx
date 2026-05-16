@@ -86,6 +86,30 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ScreenHeader({
+  index,
+  title,
+  trailing,
+}: {
+  index: string;
+  title: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div className="mx-4 mt-4 mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)" }}>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, fontWeight: 700 }}>{index}</span>
+        </div>
+        <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 17, fontWeight: 800, color: "var(--pwa-ink)", margin: 0 }}>
+          {title}
+        </p>
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
 function SurfaceCard({
   children,
   accent = false,
@@ -531,73 +555,43 @@ export default function PWARegistroWizard({
 
   return (
     <div className="flex min-h-screen min-h-[100dvh] flex-col" style={{ background: "var(--pwa-bg)" }}>
-      <div className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: "var(--pwa-bg)" }}>
-        <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => router.replace("/pwa/home")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontFamily: "var(--sg-font-mono)",
-              fontSize: 10,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--pwa-muted)",
-            }}
-          >
-            <ArrowLeft className="h-4 w-4" /> Inicio
-          </button>
-          <ThemeSwitcher />
-        </div>
-      </div>
+      <ScreenHeader
+        index="2"
+        title="Registrar"
+        trailing={<button onClick={() => router.replace("/pwa/home")} style={{ background: "none", border: "none", color: "var(--pwa-muted)", cursor: "pointer" }}><ArrowLeft className="h-4 w-4" /></button>}
+      />
 
       <div className="flex-1 overflow-y-auto px-4 pb-24">
-        <SurfaceCard accent className="p-5">
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
-            Registrar
+        <SurfaceCard accent className="p-5" >
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+            Ubicación
           </p>
-          <h1 style={{ fontFamily: "var(--sg-font-display)", fontSize: 26, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "8px 0 0" }}>
-            Nuevo vehiculo
-          </h1>
-          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
-            Registro rapido desde porteria
-          </p>
-
           <div className="mt-4 grid grid-cols-3 gap-3">
+            <MetricChip label="Planta" value={activeGate.site.slice(0, 3).toUpperCase()} />
             <MetricChip label="Puerta" value={activeGate.gate.slice(0, 3).toUpperCase()} tone="accent" />
             <MetricChip label="Hoy" value={String(recentRecords.length)} />
-            <MetricChip label="Campos" value={`${filledFields}/4`} />
           </div>
         </SurfaceCard>
 
         <div className="mt-4 grid gap-4">
           <SurfaceCard className="p-4">
-            <SectionLabel>Ubicacion activa</SectionLabel>
-            <div className="mt-3 flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(214,180,92,0.12)", border: "1px solid color-mix(in srgb, var(--pwa-accent) 35%, transparent)" }}>
-                <MapPin className="h-4 w-4" style={{ color: "var(--pwa-accent)" }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 16, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
-                  {plantLabel}
-                </p>
-                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "7px 0 0" }}>
-                  {activeGate.site} · puerta {activeGate.gate}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
+            <SectionLabel>Ubicación</SectionLabel>
+            <div className="mt-3 grid gap-3">
               <SelectField
-                label="Cambiar planta / puerta"
+                label="Planta"
                 value={data.plant}
                 onChange={(value) => handleChange("plant", value)}
                 options={plantOptions}
                 icon={MapPin}
               />
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Puerta</SectionLabel>
+                <div className="h-12 w-full px-4 flex items-center" style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)" }}>
+                  <span style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, textTransform: "uppercase", color: "var(--pwa-ink)" }}>
+                    {activeGate.gate}
+                  </span>
+                </div>
+              </div>
             </div>
           </SurfaceCard>
 
@@ -699,7 +693,7 @@ export default function PWARegistroWizard({
               disabled={submitting || !data.razonSocial.trim()}
               onClick={handleSubmit}
               className="flex h-[56px] w-full items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}
+              style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, borderRadius: 10 }}
             >
               {submitting ? (
                 <>
