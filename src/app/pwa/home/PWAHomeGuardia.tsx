@@ -504,46 +504,6 @@ function HomeOverviewCard({
   );
 }
 
-function HeroPendingCard({
-  leftValue,
-  rightValue,
-}: {
-  leftValue: number;
-  rightValue: number;
-}) {
-  return (
-    <div className="mx-4 p-5" style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005))", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}>
-      <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, color: "var(--pwa-ink)", margin: 0 }}>
-        Vehículos pendientes
-      </p>
-      <div className="mt-4 flex items-start justify-between gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "rgba(107,189,138,0.12)", border: "1px solid rgba(107,189,138,0.18)", color: "#6bbd8a" }}>
-          <Truck className="h-6 w-6" />
-        </div>
-        <div className="flex flex-1 items-start justify-between gap-4">
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 52, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>
-              {leftValue}
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", margin: "8px 0 0" }}>
-              Por ingresar
-            </p>
-          </div>
-          <div className="h-14 w-px shrink-0" style={{ background: "rgba(255,255,255,0.12)" }} />
-          <div>
-            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 52, fontWeight: 800, margin: 0, lineHeight: 1, color: "var(--pwa-ink)" }}>
-              {rightValue}
-            </p>
-            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", margin: "8px 0 0" }}>
-              En espera
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh, refreshing, onClose, onDocs, onTap, onOpenCitas, onOpenEventos, onOpenRendimiento }: {
   plant: string;
   records: RecentRegistration[];
@@ -576,9 +536,8 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
         title="Inicio"
         trailing={<button style={{ background: "none", border: "none", color: "var(--pwa-ink-soft)", cursor: "pointer" }}><Bell className="h-4 w-4" /></button>}
       />
-      <HeroPendingCard leftValue={rows.length} rightValue={Math.max(urgentes, citasRetrasadas)} />
 
-      <div className="mx-4 mt-3 flex flex-col gap-3">
+      <div className="mx-4 mt-1 flex flex-col gap-3">
         <HomeOverviewCard
           icon={Truck}
           title="Vehículos pendientes"
