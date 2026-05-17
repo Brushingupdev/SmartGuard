@@ -1,6 +1,7 @@
 "use client";
 
 import { PWAThemeProvider } from "@/contexts/PWAThemeContext";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { useEffect } from "react";
 
@@ -22,6 +23,7 @@ export default function PWALayout({ children }: { children: React.ReactNode }) {
         style={{ background: "var(--pwa-bg)", color: "var(--pwa-ink)" }}
       >
         <ServiceWorkerRegister />
+        <PWAInstallPrompt />
         {children}
       </div>
     </PWAThemeProvider>
