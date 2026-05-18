@@ -320,6 +320,8 @@ export async function getPlatformStats() {
     { data: logsRecent },
     { data: activityWeek },
     { data: activityMonth },
+    { data: pushSubscriptions },
+    { data: queueRows },
     users,
   ] = await Promise.all([
     admin.from("companies").select("id, name, logo_url, notification_emails, notification_phones, plantas").is("deleted_at", null),
@@ -327,6 +329,8 @@ export async function getPlatformStats() {
     admin.from("alert_logs").select("*").order("created_at", { ascending: false }).limit(80),
     admin.from("atenciones").select("company_id, fecha").gte("fecha", sevenAgo),
     admin.from("atenciones").select("company_id, fecha").gte("fecha", thirtyAgo),
+    admin.from("push_subscriptions").select("company_id, plant"),
+    admin.from("alert_queue").select("company_id, status"),
     fetchAllAuthUsers(),
   ]);
 
@@ -334,22 +338,29 @@ export async function getPlatformStats() {
   const sentToday    = (logsToday ?? []).length;
   const successToday = (logsToday ?? []).filter(l => l.success).length;
   const deliveryRate = sentToday > 0 ? Math.round((successToday / sentToday) * 100) : null;
+  const pushDevices = (pushSubscriptions ?? []).length;
+  const queuePending = (queueRows ?? []).filter((row) => row.status === "pending" || row.status === "processing").length;
 
   // Estado por empresa
   const companyStats = (companies ?? []).map(c => {
     const compUsers    = users.filter(u => u.user_metadata?.company_id === c.id);
     const weekActivity = (activityWeek ?? []).filter(r => r.company_id === c.id).length;
     const monthActivity= (activityMonth ?? []).filter(r => r.company_id === c.id).length;
+    const compPushSubs = (pushSubscriptions ?? []).filter((sub) => sub.company_id === c.id).length;
+    const compQueuePending = (queueRows ?? []).filter((row) => row.company_id === c.id && (row.status === "pending" || row.status === "processing")).length;
     const hasEmail     = ((c.notification_emails as string[] | null)?.length ?? 0) > 0;
     const hasPhone     = ((c.notification_phones as string[] | null)?.length ?? 0) > 0;
     const hasUsers     = compUsers.length > 0;
     const hasPlants    = ((c.plantas as string[] | null)?.length ?? 0) > 0;
+    const hasPush      = compPushSubs > 0;
 
     const issues: string[] = [];
     if (!hasEmail && !hasPhone) issues.push("Sin alertas configuradas");
     if (!hasUsers)               issues.push("Sin usuarios");
     if (weekActivity === 0)      issues.push("Sin actividad en 7 días");
     if (!hasPlants)              issues.push("Sin sedes configuradas");
+    if (!hasPush)                issues.push("Sin dispositivos push");
+    if (compQueuePending > 0)    issues.push("Alertas en cola");
 
     let status: "ok" | "warn" | "risk" = "ok";
     if (issues.length >= 2 || (!hasUsers && monthActivity === 0)) status = "risk";
@@ -359,8 +370,10 @@ export async function getPlatformStats() {
       id:            c.id as string,
       name:          c.name as string,
       logoUrl:       c.logo_url as string | null,
-      hasEmail, hasPhone, hasUsers, hasPlants,
+      hasEmail, hasPhone, hasUsers, hasPlants, hasPush,
       weekActivity, monthActivity,
+      pushDevices:   compPushSubs,
+      queuePending:  compQueuePending,
       users:         compUsers.length,
       issues, status,
     };
@@ -368,6 +381,20 @@ export async function getPlatformStats() {
 
   const activeThisWeek = companyStats.filter(c => c.weekActivity > 0).length;
   const incompleteConfig = companyStats.filter(c => c.status !== "ok").length;
+  const backend = {
+    pushConfigured: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_EMAIL),
+    resendConfigured: Boolean(process.env.RESEND_API_KEY),
+    whatsappConfigured: Boolean(process.env.GREEN_API_INSTANCE && process.env.GREEN_API_TOKEN),
+    siteUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
+  };
+  const infraIssues: string[] = [];
+  if (queuePending > 0) infraIssues.push(`Hay ${queuePending} alerta${queuePending === 1 ? "" : "s"} pendiente${queuePending === 1 ? "" : "s"} o procesándose.`);
+  if (pushDevices === 0) infraIssues.push("No hay dispositivos push suscritos en la plataforma.");
+  if ((logsToday ?? []).length === 0) infraIssues.push("Hoy no se registran envíos en alert_logs; revisa cron y canales configurados.");
+  if (!backend.pushConfigured) infraIssues.push("Faltan variables VAPID para notificaciones push.");
+  if (!backend.resendConfigured) infraIssues.push("Falta RESEND_API_KEY para alertas por correo.");
+  if (!backend.whatsappConfigured) infraIssues.push("Falta configuración GREEN_API para WhatsApp.");
+  if (!backend.siteUrlConfigured) infraIssues.push("Falta NEXT_PUBLIC_SITE_URL para enlaces consistentes en alertas.");
 
   // Logs recientes con company_id
   const compMap: Record<string, string> = {};
@@ -383,6 +410,10 @@ export async function getPlatformStats() {
     activeThisWeek,
     totalCompanies: (companies ?? []).length,
     incompleteConfig,
+    pushDevices,
+    queuePending,
+    backend,
+    infraIssues,
     companyStats,
     recentLogs,
   };

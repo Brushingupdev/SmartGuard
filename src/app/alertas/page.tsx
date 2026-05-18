@@ -1,7 +1,7 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
-import { getAlertsData, getIncidentsByDate, getAlertLogs, getUserProfile, getCompaniesMap } from "@/app/actions";
+import { getAlertsData, getIncidentsByDate, getAlertLogs, getGuardiaEventosAlertas, getUserProfile, getCompaniesMap } from "@/app/actions";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Bell, Building2, Clock, Mail, MessageSquare, RefreshCw, Timer, TrendingUp, X } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -23,6 +23,8 @@ type IncidentAlert = Awaited<ReturnType<typeof getIncidentsByDate>>[number] & {
 };
 type AlertDetail = AlertSummary | IncidentAlert;
 type AlertLogRow = Awaited<ReturnType<typeof getAlertLogs>>[number];
+type GuardiaEventosAlertData = Awaited<ReturnType<typeof getGuardiaEventosAlertas>>;
+type GuardiaEventoAlert = GuardiaEventosAlertData["events"][number];
 type AlertHistoryPoint = AlertsData["histChart"][number];
 type AlertKpis = AlertsData["kpis"];
 
@@ -333,6 +335,7 @@ export default function AlertasPage() {
   const [selectedAlert, setSelectedAlert] = useState<AlertDetail | null>(null);
   const [selectedDay,   setSelectedDay]   = useState<string | null>(null);
   const [alertLogs,     setAlertLogs]     = useState<AlertLogRow[]>([]);
+  const [guardiaEventos, setGuardiaEventos] = useState<GuardiaEventosAlertData | null>(null);
   const [logsPage,      setLogsPage]      = useState(1);
   const LOGS_PAGE_SIZE = 10;
   const totalLogPages = Math.max(1, Math.ceil(alertLogs.length / LOGS_PAGE_SIZE));
@@ -346,9 +349,14 @@ export default function AlertasPage() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const [result, logs] = await Promise.all([getAlertsData(userPlant), getAlertLogs(userPlant)]);
+      const [result, logs, eventos] = await Promise.all([
+        getAlertsData(userPlant),
+        getAlertLogs(userPlant),
+        getGuardiaEventosAlertas(userPlant),
+      ]);
       setData(result);
       setAlertLogs(logs);
+      setGuardiaEventos(eventos);
     } finally {
       if (isRefresh) setRefreshing(false); else setLoading(false);
     }
@@ -361,11 +369,16 @@ export default function AlertasPage() {
       try {
         const profile = await getUserProfile();
         const plant = profile?.plant ?? undefined;
-        const [result, logs] = await Promise.all([getAlertsData(plant), getAlertLogs(plant)]);
+        const [result, logs, eventos] = await Promise.all([
+          getAlertsData(plant),
+          getAlertLogs(plant),
+          getGuardiaEventosAlertas(plant),
+        ]);
         if (!active) return;
 
         setData(result);
         setAlertLogs(logs);
+        setGuardiaEventos(eventos);
         setUserPlant(plant);
         setIsAdmin(Boolean(profile?.isAdmin));
 
@@ -399,6 +412,8 @@ export default function AlertasPage() {
   const kpis = data?.kpis ?? EMPTY_KPIS;
   const alerts  = data?.alerts   ?? [];
   const histChart = data?.histChart ?? [];
+  const guardiaEventSummary = guardiaEventos?.summary ?? { total: 0, urgentes: 0, incidentes: 0, novedades: 0 };
+  const guardiaEventRows = guardiaEventos?.events ?? [];
 
   return (
     <AppLayout>
@@ -645,6 +660,78 @@ export default function AlertasPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="sg-panel-soft p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-[var(--sg-accent)]" />
+                <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
+                  Bitácora del día
+                </div>
+              </div>
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                {guardiaEventSummary.total} reporte{guardiaEventSummary.total === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[
+                { label: "Urgentes", value: guardiaEventSummary.urgentes, color: "var(--sg-danger)" },
+                { label: "Incidentes", value: guardiaEventSummary.incidentes, color: "#e07b3a" },
+                { label: "Novedades", value: guardiaEventSummary.novedades, color: "var(--sg-info)" },
+              ].map((item) => (
+                <div key={item.label} className="border border-[var(--sg-line)] bg-[var(--sg-panel)] px-3 py-3">
+                  <div className="sg-font-mono text-[18px] font-bold" style={{ color: item.color }}>{item.value}</div>
+                  <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mt-1">{item.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {guardiaEventRows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center border border-[var(--sg-line)] py-8 text-[var(--sg-muted)]">
+                <Bell className="h-8 w-8 opacity-10 mb-3" />
+                <p className="sg-font-mono text-[10px] uppercase tracking-widest">Sin reportes de bitácora hoy</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {guardiaEventRows.slice(0, 4).map((event: GuardiaEventoAlert) => {
+                  const color = event.urgente || event.tipo === "emergencia"
+                    ? "var(--sg-danger)"
+                    : event.tipo === "incidente"
+                      ? "#e07b3a"
+                      : "var(--sg-info)";
+                  return (
+                    <div key={event.id} className="border-l-2 border border-[var(--sg-line)] bg-[var(--sg-panel)] px-3 py-3" style={{ borderLeftColor: color }}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="sg-font-mono text-[9px] uppercase tracking-widest" style={{ color }}>
+                          {event.urgente && event.tipo !== "emergencia" ? `${event.tipo} · urgente` : event.tipo}
+                        </span>
+                        <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">
+                          {new Date(event.created_at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-[var(--sg-copy)] mt-2 leading-5">{event.descripcion}</p>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {isAdmin && event.company_id && companiesMap[event.company_id] ? (
+                          <span className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-accent)] border border-[rgba(200,168,75,0.3)] px-2 py-0.5">
+                            {companiesMap[event.company_id]}
+                          </span>
+                        ) : null}
+                        <span className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          {formatGateLabelFromPlant(event.planta ?? "")}
+                        </span>
+                        {event.foto_url ? (
+                          <span className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">
+                            Con evidencia
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </aside>
       </div>

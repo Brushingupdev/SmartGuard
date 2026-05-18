@@ -156,6 +156,69 @@ export async function getAlertLogs(plant?: string) {
   return data ?? [];
 }
 
+export async function getGuardiaEventosAlertas(plant?: string) {
+  const ctx = await getUserContext();
+  const db = ctx?.isAdmin
+    ? (await import("@/utils/supabase/admin")).createAdminClient()
+    : await createClient();
+  const { date: todayStr } = nowLima();
+
+  let query = db
+    .from("guardia_eventos")
+    .select("id, tipo, descripcion, foto_url, urgente, agente, planta, created_at, company_id")
+    .gte("created_at", `${todayStr}T00:00:00`)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (!ctx?.isAdmin && ctx?.companyId) {
+    query = query.eq("company_id", ctx.companyId);
+  }
+  if (plant && plant !== "Todas") {
+    query = query.eq("planta", plant);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logError("getGuardiaEventosAlertas", error);
+    return {
+      summary: { total: 0, urgentes: 0, incidentes: 0, novedades: 0 },
+      events: [] as Array<{
+        id: number;
+        tipo: "incidente" | "emergencia" | "novedad";
+        descripcion: string;
+        foto_url: string | null;
+        urgente: boolean;
+        agente: string;
+        planta: string;
+        created_at: string;
+        company_id?: string | null;
+      }>,
+    };
+  }
+
+  const events = (data ?? []) as Array<{
+    id: number;
+    tipo: "incidente" | "emergencia" | "novedad";
+    descripcion: string;
+    foto_url: string | null;
+    urgente: boolean;
+    agente: string;
+    planta: string;
+    created_at: string;
+    company_id?: string | null;
+  }>;
+
+  return {
+    summary: {
+      total: events.length,
+      urgentes: events.filter((event) => event.urgente || event.tipo === "emergencia").length,
+      incidentes: events.filter((event) => event.tipo === "incidente").length,
+      novedades: events.filter((event) => event.tipo === "novedad").length,
+    },
+    events,
+  };
+}
+
 // ─── Alertas proactivas (llamado por el cron /api/alertas/proactive) ──────────
 export async function checkProactiveAlerts(
   companyId: string

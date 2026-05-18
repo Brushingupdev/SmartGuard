@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -44,7 +44,6 @@ interface FormState {
   agente: string;
   plant: string;
   note: string;
-  photoPreview: string | null;
 }
 
 const TIPO_OPERACIONES = ["Carga", "Descarga", "Servicio", "Otro"] as const;
@@ -387,7 +386,6 @@ export default function PWARegistroWizard({
   initialRecentRecords,
 }: Props) {
   const router = useRouter();
-  const cameraRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -404,7 +402,6 @@ export default function PWARegistroWizard({
     agente: defaultAgente,
     plant: defaultPlant || gateOptions[0]?.plant || "",
     note: "",
-    photoPreview: null,
   });
 
   const plantOptions = useMemo(
@@ -572,7 +569,6 @@ export default function PWARegistroWizard({
                     empresa: "",
                     tipoOperacion: "Descarga",
                     note: "",
-                    photoPreview: null,
                   }));
                 }}
                 className="flex h-[54px] items-center justify-center gap-2"
@@ -612,6 +608,9 @@ export default function PWARegistroWizard({
             <MetricChip label="Puerta" value={activeGate.gate.slice(0, 3).toUpperCase()} tone="accent" />
             <MetricChip label="Hoy" value={String(recentRecords.length)} />
           </div>
+          <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, lineHeight: 1.5, color: "var(--pwa-ink-soft)", margin: "14px 0 0" }}>
+            Registrarás el ingreso en <strong style={{ color: "var(--pwa-ink)" }}>{plantLabel}</strong>. Si cambias de puerta en el turno, vuelve al inicio y selecciona la puerta activa antes de registrar.
+          </p>
         </SurfaceCard>
 
         <div className="mt-4 grid gap-4">
@@ -726,36 +725,20 @@ export default function PWARegistroWizard({
                 onChange={(value) => handleChange("note", value)}
                 placeholder="Detalle adicional del ingreso si aplica..."
               />
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                <button
-                  onClick={() => cameraRef.current?.click()}
-                  className="flex h-11 items-center justify-center gap-2 px-4"
-                  style={{ background: "var(--pwa-surface-2)", border: "1px dashed var(--pwa-border)", color: "var(--pwa-muted)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" }}
-                >
-                  <Camera className="h-4 w-4" />
-                  {data.photoPreview ? "Foto adjunta" : "Tomar foto"}
-                </button>
-                {data.photoPreview ? (
-                  <div className="overflow-hidden" style={{ border: "1px solid var(--pwa-border)" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={data.photoPreview} alt="Foto de evidencia" className="h-20 w-full object-cover sm:w-24" />
-                  </div>
-                ) : null}
+              <div
+                className="flex items-start gap-3 px-3 py-3"
+                style={{ background: "var(--pwa-surface-2)", border: "1px dashed var(--pwa-border)" }}
+              >
+                <Camera className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--pwa-muted)" }} />
+                <div>
+                  <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+                    Evidencia visual
+                  </p>
+                  <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, lineHeight: 1.5, color: "var(--pwa-ink-soft)", margin: "6px 0 0" }}>
+                    Si necesitas foto o sustento, repórtalo desde <strong style={{ color: "var(--pwa-ink)" }}>Bitácora</strong>. El registro de ingreso se deja liviano para no frenar la fila.
+                  </p>
+                </div>
               </div>
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = () => handleChange("photoPreview", String(reader.result));
-                  reader.readAsDataURL(file);
-                }}
-              />
             </div>
           </SurfaceCard>
 

@@ -207,9 +207,10 @@ function LinkSheet({ plantas, companyId, onClose }: {
 
 // ── Tab: Inicio — resumen por planta ──────────────────────────────────────────
 
-function TabInicio({ records, plantas, onSelectPlanta }: {
+function TabInicio({ records, plantas, eventos, onSelectPlanta }: {
   records: RecentRegistration[];
   plantas: string[];
+  eventos: GuardiaEvento[];
   onSelectPlanta: (p: string) => void;
 }) {
   const now = useLiveNow();
@@ -220,6 +221,8 @@ function TabInicio({ records, plantas, onSelectPlanta }: {
   const totalUrgentes   = records.filter(r => isAbandonedRecord(r, now)).length;
   const totalAtendidos  = records.filter(r => r.attended && !r.docsDelivered).length;
   const totalCompletos  = records.filter(r => r.docsDelivered).length;
+  const urgentEvents    = eventos.filter((event) => event.urgente || event.tipo === "emergencia").length;
+  const recentEvents    = eventos.slice(0, 4);
 
   return (
     <div className="flex flex-col mt-4 gap-4">
@@ -332,6 +335,69 @@ function TabInicio({ records, plantas, onSelectPlanta }: {
               </motion.button>
             );
           })
+        )}
+      </div>
+
+      <div className="mx-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+            Bitácora reciente
+          </p>
+          <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em",
+            textTransform: "uppercase", color: urgentEvents > 0 ? "#d35c4f" : "var(--pwa-muted)" }}>
+            {urgentEvents > 0 ? `${urgentEvents} urgente${urgentEvents !== 1 ? "s" : ""}` : "Sin urgentes"}
+          </span>
+        </div>
+
+        {recentEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-8"
+            style={{ background: "var(--pwa-surface)", border: "1px dashed var(--pwa-border)" }}>
+            <AlertTriangle className="h-8 w-8 opacity-10" style={{ color: "var(--pwa-muted)" }} />
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
+              textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0 }}>
+              Sin eventos reportados hoy
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col" style={{ border: "1px solid var(--pwa-border)" }}>
+            {recentEvents.map((event) => {
+              const color = event.urgente || event.tipo === "emergencia"
+                ? "#d35c4f"
+                : event.tipo === "incidente"
+                  ? "#d4864a"
+                  : "#6ba7ff";
+              return (
+                <div key={event.id} className="flex gap-3 px-4 py-3"
+                  style={{ borderBottom: "1px solid var(--pwa-border)", background: "var(--pwa-surface)" }}>
+                  <div className="w-0.5 shrink-0 rounded-full" style={{ background: color }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color, fontWeight: 600 }}>
+                        {event.urgente && event.tipo !== "emergencia" ? `${event.tipo} · urgente` : event.tipo}
+                      </span>
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, color: "var(--pwa-muted)" }}>
+                        {fmtTime(event.created_at.slice(11, 16))}
+                      </span>
+                    </div>
+                    <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink)", margin: 0 }}>
+                      {event.descripcion}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-accent)", opacity: 0.75 }}>
+                        {formatGateLabelFromPlant(event.planta)}
+                      </span>
+                      {event.foto_url ? (
+                        <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                          Con evidencia
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -1053,6 +1119,7 @@ export default function PWASupervisorHome({
   const [records, setRecords]       = useState(initialRecords);
   const [citas, setCitas]           = useState(initialCitas);
   const [plantas, setPlantas]       = useState(initialPlantas);
+  const [eventos, setEventos]       = useState(initialEventos);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReg, setSelectedReg] = useState<RecentRegistration | null>(null);
   const [filterPlant, setFilterPlant] = useState<string>("Todos");
@@ -1069,9 +1136,11 @@ export default function PWASupervisorHome({
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     const data = await getSupervisorHoyData();
+    const nuevosEventos = await getGuardiaEventosHoy(data.plantas);
     setRecords(data.records as RecentRegistration[]);
     setCitas(data.citas as (CitaRow & { planta: string })[]);
     setPlantas(data.plantas);
+    setEventos(nuevosEventos);
     if (!silent) setRefreshing(false);
   }, []);
 
@@ -1219,6 +1288,7 @@ export default function PWASupervisorHome({
               <TabInicio
                 records={records}
                 plantas={plantas}
+                eventos={eventos}
                 onSelectPlanta={p => { setFilterPlant(p); setTab("vehiculos"); }}
               />
             </motion.div>

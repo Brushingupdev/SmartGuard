@@ -50,6 +50,22 @@ export async function submitCitaPublica(
   const fechaStr = input.fecha || nowLimaDate();
   const [year, month] = fechaStr.split("-").map(Number);
 
+  const { data: existingCita } = await admin
+    .from("atenciones")
+    .select("id, hora_cita, estado")
+    .eq("company_id", input.companyId)
+    .eq("planta", input.plant)
+    .eq("fecha", fechaStr)
+    .eq("razon_social", input.razonSocial.trim().toUpperCase())
+    .not("hora_cita", "is", null)
+    .in("estado", ["esperado", "activo"])
+    .maybeSingle();
+
+  if (existingCita) {
+    const hora = (existingCita.hora_cita as string | null)?.slice(0, 5) ?? "—";
+    return { success: false, error: `Ya existe una cita registrada para este vehículo a las ${hora}.` };
+  }
+
   const { error } = await admin.from("atenciones").insert({
     fecha: fechaStr,
     hora_cita: input.horaCita + ":00",

@@ -8,7 +8,7 @@ import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
   AlertTriangle, ArrowRight, BarChart3, Bell, BookOpen, Calendar, Camera,
   CheckCircle2, ChevronDown, Copy, FileCheck2, Link2, LogOut,
-  MapPin, Palette, Plus, QrCode, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
+  MapPin, Palette, Plus, QrCode, RefreshCw, Search, Send, Shield, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
@@ -811,7 +811,7 @@ function TabInicio({ plants, activePlant, gateOptions, records, citas, onRefresh
       <div className="mx-4 mt-4">
         <motion.button
           whileTap={{ scale: 0.98 }}
-          onClick={() => router.push("/pwa/registro")}
+          onClick={() => router.push(`/pwa/registro?plant=${encodeURIComponent(activePlant)}`)}
           className="flex h-[54px] w-full items-center justify-center gap-2"
           style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700, borderRadius: 10 }}
         >
@@ -1214,6 +1214,7 @@ function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsable
   const [showForm, setShowForm] = useState(false);
   const [showLinkSheet, setShowLinkSheet] = useState(false);
   const [activeView, setActiveView] = useState<"proximas" | "retrasadas" | "llegaron">("proximas");
+  const [search, setSearch] = useState("");
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const scopedCitas = citas.filter((cita) => cita.planta === activePlant);
@@ -1231,7 +1232,43 @@ function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsable
     retrasadas: { label: "Retrasadas", color: "#d35c4f", items: retrasadas },
     llegaron: { label: "Llegaron", color: "#6ba7ff", items: llegaron },
   } as const;
-  const currentGroup = groups[activeView];
+  const searchTerm = search.trim().toLowerCase();
+  const currentGroup = {
+    ...groups[activeView],
+    items: groups[activeView].items.filter((cita) => {
+      if (!searchTerm) return true;
+      return [
+        cita.razonSocial,
+        cita.empresa,
+        cita.responsable ?? "",
+        cita.horaCita,
+      ].some((value) => value.toLowerCase().includes(searchTerm));
+    }),
+  };
+
+  const getCitaMeta = (cita: CitaRow) => {
+    const [hour, minute] = cita.horaCita.split(":").map(Number);
+    const citaMin = hour * 60 + minute;
+    const delta = citaMin - nowMin;
+    if (cita.estado === "activo" || cita.estado === "atendido") {
+      return { label: cita.hRegistro ? `Llegó ${cita.hRegistro}` : "Llegó", color: "#6ba7ff" };
+    }
+    if (delta >= 0) {
+      const hours = Math.floor(delta / 60);
+      const minutes = delta % 60;
+      return {
+        label: hours > 0 ? `En ${hours}h ${String(minutes).padStart(2, "0")}m` : `En ${minutes} min`,
+        color: "#6bbd8a",
+      };
+    }
+    const late = Math.abs(delta);
+    const hours = Math.floor(late / 60);
+    const minutes = late % 60;
+    return {
+      label: hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m tarde` : `${late} min tarde`,
+      color: "#d35c4f",
+    };
+  };
 
   return (
     <div className="flex flex-col mt-4">
@@ -1315,6 +1352,32 @@ function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsable
         })}
       </div>
 
+      <div className="mx-4 mt-3">
+        <div
+          className="flex items-center gap-2 px-3"
+          style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)" }}
+        >
+          <Calendar className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-muted)" }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por vehículo, responsable u hora"
+            className="h-11 w-full bg-transparent outline-none"
+            style={{ color: "var(--pwa-ink)", fontFamily: "var(--sg-font-body)", fontSize: 13 }}
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              style={{ background: "none", border: "none", color: "var(--pwa-muted)", cursor: "pointer" }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       {/* Lista vacía */}
       {scopedCitas.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 py-14 mx-4"
@@ -1345,12 +1408,13 @@ function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsable
             {currentGroup.items.length === 0 ? (
               <div className="px-4 py-10" style={{ background: "var(--pwa-surface)" }}>
                 <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: 0, textAlign: "center" }}>
-                  Sin citas en esta vista
+                  {searchTerm ? "Sin coincidencias en esta vista" : "Sin citas en esta vista"}
                 </p>
               </div>
             ) : currentGroup.items.map(cita => {
               const name = cita.razonSocial !== "—" ? cita.razonSocial
                 : cita.empresa !== "—" ? cita.empresa : "Cita programada";
+              const meta = getCitaMeta(cita);
               return (
                 <div key={cita.id} className="flex items-center gap-3 px-4 py-3.5"
                   style={{ borderBottom: "1px solid var(--pwa-border)", background: "var(--pwa-surface)" }}>
@@ -1384,6 +1448,18 @@ function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsable
                         </span>
                       )}
                     </div>
+                    <p
+                      style={{
+                        fontFamily: "var(--sg-font-mono)",
+                        fontSize: 8,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        color: meta.color,
+                        margin: "7px 0 0",
+                      }}
+                    >
+                      {meta.label}
+                    </p>
                   </div>
 
                   {/* Acciones */}
@@ -1535,6 +1611,8 @@ function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, o
   const [tipo, setTipo]       = useState<"incidente" | "novedad">("incidente");
   const [urgent, setUrgent]   = useState(false);
   const [desc, setDesc]       = useState("");
+  const [search, setSearch]   = useState("");
+  const [filter, setFilter]   = useState<"todos" | "incidente" | "novedad" | "urgentes">("todos");
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -1588,6 +1666,25 @@ function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, o
   function fmtEvento(ts: string): string {
     return new Date(ts).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
   }
+
+  const plantEvents = eventos.filter((event) => event.planta === planta);
+  const searchTerm = search.trim().toLowerCase();
+  const filteredEvents = plantEvents.filter((event) => {
+    if (filter === "urgentes" && !event.urgente && event.tipo !== "emergencia") return false;
+    if (filter !== "todos" && filter !== "urgentes" && event.tipo !== filter) return false;
+    if (!searchTerm) return true;
+    return [
+      event.descripcion,
+      event.agente,
+      event.tipo,
+      event.planta,
+    ].some((value) => value?.toLowerCase().includes(searchTerm));
+  });
+  const eventCounters = {
+    incidentes: plantEvents.filter((event) => event.tipo === "incidente").length,
+    novedades: plantEvents.filter((event) => event.tipo === "novedad").length,
+    urgentes: plantEvents.filter((event) => event.urgente || event.tipo === "emergencia").length,
+  };
 
   return (
     <div className="flex flex-col gap-4 mx-4">
@@ -1769,15 +1866,83 @@ function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, o
         </motion.button>
       </div>
 
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Incidentes", value: eventCounters.incidentes, color: "#d4864a" },
+          { label: "Novedades", value: eventCounters.novedades, color: "#6ba7ff" },
+          { label: "Urgentes", value: eventCounters.urgentes, color: "#d35c4f" },
+        ].map((item) => (
+          <div key={item.label} className="px-3 py-3" style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)" }}>
+            <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 22, fontWeight: 800, color: item.color, margin: 0, lineHeight: 1 }}>
+              {item.value}
+            </p>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 7, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
+              {item.label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {[
+          { key: "todos", label: "Todos" },
+          { key: "incidente", label: "Incidentes" },
+          { key: "novedad", label: "Novedades" },
+          { key: "urgentes", label: "Urgentes" },
+        ].map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setFilter(item.key as "todos" | "incidente" | "novedad" | "urgentes")}
+            className="shrink-0 px-3 py-1.5 transition-all"
+            style={{
+              background: filter === item.key ? "var(--pwa-accent)" : "var(--pwa-surface-2)",
+              border: `1px solid ${filter === item.key ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
+              color: filter === item.key ? "var(--pwa-accent-fg)" : "var(--pwa-muted)",
+              cursor: "pointer",
+              borderRadius: 999,
+              fontFamily: "var(--sg-font-mono)",
+              fontSize: 9,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              fontWeight: filter === item.key ? 700 : 400,
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        className="flex items-center gap-2 px-3"
+        style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", minHeight: 44 }}
+      >
+        <Search className="h-4 w-4 shrink-0" style={{ color: "var(--pwa-muted)" }} />
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar en bitácora"
+          className="h-11 flex-1 bg-transparent outline-none"
+          style={{ color: "var(--pwa-ink)", fontFamily: "var(--sg-font-body)", fontSize: 13 }}
+        />
+        {search ? (
+          <button type="button" onClick={() => setSearch("")}
+            style={{ background: "none", border: "none", color: "var(--pwa-muted)", cursor: "pointer" }}>
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+
       {/* Historial del día */}
-      {eventos.filter((event) => event.planta === planta).length > 0 && (
+      {filteredEvents.length > 0 && (
         <div>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
             textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
             Historial reciente
           </p>
           <div className="flex flex-col" style={{ border: "1px solid var(--pwa-border)" }}>
-            {eventos.filter((event) => event.planta === planta).map(ev => {
+            {filteredEvents.map(ev => {
               const color = ev.urgente || ev.tipo === "emergencia" ? "#d35c4f"
                 : ev.tipo === "incidente" ? "#d4864a" : "#6ba7ff";
               return (
@@ -1800,6 +1965,12 @@ function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, o
                       color: "var(--pwa-ink)", margin: 0 }}>
                       {ev.descripcion}
                     </p>
+                    {ev.foto_url ? (
+                      <div className="mt-3 overflow-hidden rounded-sm" style={{ border: "1px solid var(--pwa-border)" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ev.foto_url} alt="Evidencia del evento" className="h-28 w-full object-cover" />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -1808,13 +1979,13 @@ function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, o
         </div>
       )}
 
-      {eventos.filter((event) => event.planta === planta).length === 0 && (
+      {filteredEvents.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-10"
           style={{ opacity: 0.5 }}>
           <BookOpen className="h-8 w-8" style={{ color: "var(--pwa-muted)" }} />
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em",
             textTransform: "uppercase", color: "var(--pwa-muted)" }}>
-            Sin reportes hoy
+            {plantEvents.length === 0 ? "Sin reportes hoy" : "Sin coincidencias"}
           </p>
         </div>
       )}

@@ -149,6 +149,84 @@ export default function MonitorPage() {
         )}
       </div>
 
+      {!loading && s && (
+        <div className="mb-8 grid gap-4 md:grid-cols-2">
+          <div className="sg-panel p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Bell className="h-4 w-4 text-[var(--sg-accent)]" />
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                Cobertura push
+              </span>
+            </div>
+            <div className="sg-font-mono text-[28px] font-bold text-[var(--sg-ink)]">
+              {s.pushDevices ?? 0}
+            </div>
+            <p className="text-[11px] text-[var(--sg-muted)] mt-1">
+              dispositivos suscritos para recibir alertas push
+            </p>
+          </div>
+
+          <div className="sg-panel p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="h-4 w-4 text-[var(--sg-warn)]" />
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                Cola de alertas
+              </span>
+            </div>
+            <div className={`sg-font-mono text-[28px] font-bold ${(s.queuePending ?? 0) > 0 ? "text-[var(--sg-warn)]" : "text-[var(--sg-success)]"}`}>
+              {s.queuePending ?? 0}
+            </div>
+            <p className="text-[11px] text-[var(--sg-muted)] mt-1">
+              alertas pendientes o en proceso de envío
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!loading && s && (
+        <div className="mb-8 sg-panel p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="h-4 w-4 text-[var(--sg-accent)]" />
+            <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+              Backend de alertas
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "Push VAPID", ok: s.backend?.pushConfigured },
+              { label: "Correo Resend", ok: s.backend?.resendConfigured },
+              { label: "WhatsApp API", ok: s.backend?.whatsappConfigured },
+              { label: "Site URL", ok: s.backend?.siteUrlConfigured },
+            ].map((item) => (
+              <div key={item.label} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-3">
+                <div className={`sg-font-mono text-[11px] uppercase tracking-widest ${item.ok ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}>
+                  {item.ok ? "Configurado" : "Pendiente"}
+                </div>
+                <div className="text-[12px] text-[var(--sg-copy)] mt-1">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && s && s.infraIssues?.length > 0 && (
+        <div className="mb-8 sg-panel p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-[var(--sg-warn)]" />
+            <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+              Riesgos operativos detectados
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {s.infraIssues.map((issue) => (
+              <div key={issue} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-3 text-[12px] text-[var(--sg-copy)]">
+                {issue}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
 
         {/* ── Tabla salud por empresa ─────────────────────────────────── */}
@@ -163,7 +241,10 @@ export default function MonitorPage() {
                     <th title="Actividad últimos 7 días">Act. 7d</th>
                     <th title="Email configurado">✉</th>
                     <th title="WhatsApp configurado">💬</th>
+                    <th title="Push configurado">🔔</th>
                     <th title="Usuarios creados">Usuarios</th>
+                    <th title="Dispositivos push suscritos">Push</th>
+                    <th title="Alertas pendientes o procesando">Cola</th>
                     <th>Problemas</th>
                     <th>Estado</th>
                   </tr>
@@ -187,11 +268,18 @@ export default function MonitorPage() {
                       </td>
                       <td><ConfigIcon ok={c.hasEmail} icon={Mail} /></td>
                       <td><ConfigIcon ok={c.hasPhone} icon={MessageSquare} /></td>
+                      <td><ConfigIcon ok={c.hasPush} icon={Bell} /></td>
                       <td>
                         <div className="flex items-center gap-1.5">
                           <Users className="h-3 w-3 text-[var(--sg-muted)]" />
                           <span className="sg-font-mono text-[11px]">{c.users}</span>
                         </div>
+                      </td>
+                      <td>
+                        <span className="sg-font-mono text-[11px] text-[var(--sg-ink)]">{c.pushDevices}</span>
+                      </td>
+                      <td>
+                        <span className={`sg-font-mono text-[11px] ${c.queuePending > 0 ? "text-[var(--sg-warn)]" : "text-[var(--sg-muted)]"}`}>{c.queuePending}</span>
                       </td>
                       <td>
                         {c.issues.length === 0

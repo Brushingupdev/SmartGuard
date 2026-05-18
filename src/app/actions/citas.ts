@@ -31,6 +31,25 @@ export async function preRegisterCita(rawData: unknown) {
   const anio = parts[0] ?? todayYear;
   const mesNum = parts[1] ?? todayMonth;
 
+  const { data: existingCita } = await supabase
+    .from("atenciones")
+    .select("id, hora_cita, estado")
+    .eq("company_id", ctx.companyId)
+    .eq("planta", data.plant)
+    .eq("fecha", fechaStr)
+    .eq("razon_social", data.razonSocial)
+    .not("hora_cita", "is", null)
+    .in("estado", ["esperado", "activo"])
+    .maybeSingle();
+
+  if (existingCita) {
+    const hora = (existingCita.hora_cita as string | null)?.slice(0, 5) ?? "—";
+    return {
+      success: false,
+      error: `Ya existe una cita ${existingCita.estado === "activo" ? "activa" : "pendiente"} para este vehículo a las ${hora}.`,
+    };
+  }
+
   const payload = {
     fecha: fechaStr,
     h_registro: null,

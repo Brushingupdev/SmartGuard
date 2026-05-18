@@ -7,7 +7,7 @@ import RankingPlantas from "@/components/RankingPlantas";
 import TimelineDia from "@/components/TimelineDia";
 import HeatmapDemoras from "@/components/HeatmapDemoras";
 import ExportPDFButton from "@/components/ExportPDFButton";
-import { getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
+import { getActivePersonnel, getDashboardStats, getDashboardTrends, getDashboardHeatmap } from "@/app/actions";
 import { formatGateLabelFromPlant, groupGatesBySite, type GateAssignment } from "@/lib/gates";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -32,6 +32,7 @@ import type {
   DashboardAlert,
   DashboardTopProvider,
   HeatmapCell,
+  ActivePersonnelRow,
 } from "@/types/dashboard";
 import {
   Bar,
@@ -66,6 +67,8 @@ interface DashboardClientProps {
   initialStats: DashboardStatsResult;
   initialTrends: DashboardTrendState;
   initialHeatmapData: HeatmapCell[];
+  initialActivePersonnel: ActivePersonnelRow[];
+  initialUserRole: string;
   initialLastRefreshAt: string;
 }
 
@@ -148,6 +151,8 @@ export default function DashboardClient({
   initialStats,
   initialTrends,
   initialHeatmapData,
+  initialActivePersonnel,
+  initialUserRole,
   initialLastRefreshAt,
 }: DashboardClientProps) {
   const [liveTime, setLiveTime]             = useState("--:--:--");
@@ -173,6 +178,7 @@ export default function DashboardClient({
   const [refreshing, setRefreshing]         = useState(false);
   const [trends, setTrends]                 = useState<DashboardTrendState>(initialTrends);
   const [heatmapData, setHeatmapData]       = useState<HeatmapCell[]>(initialHeatmapData);
+  const [activePersonnel, setActivePersonnel] = useState<ActivePersonnelRow[]>(initialActivePersonnel);
   const intervalRef                         = useRef<ReturnType<typeof setInterval> | null>(null);
   const reqIdRef                            = useRef(0);
   const statsBootstrappedRef                = useRef(false);
@@ -181,9 +187,10 @@ export default function DashboardClient({
   const fetchStats = useCallback(async (plant: string, timeframe: string, silent = false, id: number) => {
     if (silent) setRefreshing(true); else { setLoading(true); setError(null); }
     try {
-      const [statsResult, trendsResult] = await Promise.allSettled([
+      const [statsResult, trendsResult, personnelResult] = await Promise.allSettled([
         getDashboardStats(plant, timeframe),
         silent ? Promise.resolve(null) : getDashboardTrends(plant, timeframe),
+        initialUserRole === "guardia" ? Promise.resolve(null) : getActivePersonnel(),
       ]);
       if (id !== reqIdRef.current) return;
 
@@ -206,6 +213,12 @@ export default function DashboardClient({
         setTrends(trendsResult.value.trend);
       } else if (!silent) {
         setTrends({ ok: null, deny: null, total: null, puntualidad: null });
+      }
+
+      if (personnelResult.status === "fulfilled" && personnelResult.value) {
+        setActivePersonnel(personnelResult.value);
+      } else if (initialUserRole !== "guardia" && !silent) {
+        setActivePersonnel([]);
       }
 
       setLastRefresh(new Date());
@@ -259,6 +272,9 @@ export default function DashboardClient({
       : formatGateLabelFromPlant(selectedPlant, gateOptions);
   const encodedPlant = encodeURIComponent(selectedPlant);
   const encodedTimeframe = encodeURIComponent(selectedTimeframe);
+  const operationalZones = zones.filter((zone) => zone.name !== "Sin planta").slice(0, 4);
+  const currentGateLoad = operationalZones.reduce((sum, zone) => sum + zone.count, 0);
+  const personnelSummary = activePersonnel.slice(0, 5);
 
   const sparkSeries = flowData.length > 1
     ? {
@@ -568,6 +584,134 @@ export default function DashboardClient({
         </div>
 
         <div className="flex flex-col gap-5">
+          {(initialUserRole !== "guardia" || activePersonnel.length > 0) && (
+            <section className="sg-panel p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <UsersRound className="h-4 w-4 text-[var(--sg-accent)]" />
+                  <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                    Cobertura del turno
+                  </span>
+                </div>
+                <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  {activePersonnel.length} guardia{activePersonnel.length === 1 ? "" : "s"} activo{activePersonnel.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Clock3 className="h-4 w-4 text-[var(--sg-accent)]" />
+                    <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Operación visible
+                    </span>
+                  </div>
+                  <div className="text-[26px] font-bold leading-none text-[var(--sg-ink)]">
+                    {currentGateLoad}
+                  </div>
+                  <div className="mt-2 text-[12px] text-[var(--sg-copy)]">
+                    registros en las puertas más activas del período
+                  </div>
+                </div>
+
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-[var(--sg-success)]" />
+                    <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Plantas con movimiento
+                    </span>
+                  </div>
+                  <div className="text-[26px] font-bold leading-none text-[var(--sg-ink)]">
+                    {operationalZones.length}
+                  </div>
+                  <div className="mt-2 text-[12px] text-[var(--sg-copy)]">
+                    {selectedLabel === "Global" ? "sedes/puertas" : selectedLabel} con actividad reciente
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                  <div className="border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Guardias activos
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--sg-line)]">
+                    {personnelSummary.length === 0 ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          Sin guardias activos visibles
+                        </div>
+                      </div>
+                    ) : (
+                      personnelSummary.map((person) => (
+                        <div key={`${person.name}-${person.turn}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel)] sg-font-mono text-[11px] font-bold text-[var(--sg-accent)]">
+                              {person.initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-bold text-[var(--sg-ink)]">{person.name}</div>
+                              <div className="mt-0.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                {person.turn}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)]">
+                            <span className="h-2 w-2 rounded-full bg-[var(--sg-success)]" />
+                            activo
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                  <div className="border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Carga por puerta
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--sg-line)]">
+                    {operationalZones.length === 0 ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          Sin movimiento en este período
+                        </div>
+                      </div>
+                    ) : (
+                      operationalZones.map((zone) => (
+                        <div key={zone.name} className="px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
+                                {formatGateLabelFromPlant(zone.name, gateOptions)}
+                              </div>
+                              <div className="mt-0.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                {zone.count} registros
+                              </div>
+                            </div>
+                            <span className={`sg-font-mono text-[10px] uppercase tracking-widest ${zone.tone === "ok" ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}>
+                              {zone.pct}% a tiempo
+                            </span>
+                          </div>
+                          <div className="mt-3 h-2 overflow-hidden bg-[rgba(196,192,180,0.08)]">
+                            <div
+                              className={`h-full ${zone.tone === "ok" ? "bg-[var(--sg-success)]" : "bg-[var(--sg-danger)]"}`}
+                              style={{ width: `${Math.max(8, zone.pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="sg-panel p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">

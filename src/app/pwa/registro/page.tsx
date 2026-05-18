@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { getRecentRegistrations, getResponsables, getUserGateOptions } from "@/app/actions";
 import PWARegistroWizard from "./PWARegistroWizard";
 
-export default async function PWARegistroPage() {
+export default async function PWARegistroPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ plant?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/pwa/login");
@@ -12,6 +16,8 @@ export default async function PWARegistroPage() {
   if (role === "administrador") redirect("/admin");
   if (role === "supervisor") redirect("/pwa/supervisor");
 
+  const requestedParams = searchParams ? await searchParams : undefined;
+  const requestedPlant = requestedParams?.plant?.trim() ?? "";
   const plant = user.user_metadata?.plant as string ?? "";
   const agenteName = user.user_metadata?.nombre as string ?? user.email ?? "";
   const gateOptions = await getUserGateOptions();
@@ -20,6 +26,9 @@ export default async function PWARegistroPage() {
     : plant
       ? [plant]
       : [];
+  const resolvedPlant = requestedPlant && plants.includes(requestedPlant)
+    ? requestedPlant
+    : plant;
 
   const [responsables, recentData] = await Promise.all([
     getResponsables(),
@@ -28,7 +37,7 @@ export default async function PWARegistroPage() {
 
   return (
     <PWARegistroWizard
-      defaultPlant={plant}
+      defaultPlant={resolvedPlant}
       defaultAgente={agenteName}
       responsables={responsables}
       agentes={[agenteName]}
