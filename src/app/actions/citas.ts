@@ -116,10 +116,20 @@ export async function activateCita(rawData: unknown) {
 }
 
 // Obtiene las citas programadas del día para una planta.
-export async function getCitasDelDia(plant: string) {
+function normalizePlantScope(input: string | string[]): string[] {
+  if (Array.isArray(input)) return [...new Set(input.map((item) => item.trim()).filter(Boolean))];
+  return input.trim() ? [input.trim()] : [];
+}
+
+export async function getCitasDelDia(plant: string | string[]) {
   const ctx = await getUserContext();
   const supabase = await createClient();
   const { date: dateStr } = nowLima();
+  const plants = normalizePlantScope(plant);
+
+  if (plants.length === 0) {
+    return [];
+  }
 
   let query = supabase
     .from("atenciones")
@@ -127,7 +137,7 @@ export async function getCitasDelDia(plant: string) {
       "id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min"
     )
     .eq("fecha", dateStr)
-    .eq("planta", plant)
+    .in("planta", plants)
     .not("hora_cita", "is", null)
     .in("estado", ["esperado", "activo"])
     .order("fecha", { ascending: true })
@@ -139,7 +149,7 @@ export async function getCitasDelDia(plant: string) {
 
   const { data, error } = await query;
   if (error) {
-    logError("getCitasDelDia", error, { plant });
+    logError("getCitasDelDia", error, { plants });
     return [];
   }
 

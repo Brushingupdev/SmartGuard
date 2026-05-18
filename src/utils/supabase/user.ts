@@ -24,6 +24,8 @@ import { verifyValue } from "@/utils/cookie-signing";
 
 export interface UserContext {
   userId: string;
+  email: string;
+  displayName: string;
   role: string;
   companyId: string | null;
   isAdmin: boolean;
@@ -75,6 +77,8 @@ export async function getUserContext(): Promise<UserContext | null> {
       } else {
         return {
           userId: user.id,
+          email: user.email ?? "",
+          displayName: (user.user_metadata?.nombre as string | undefined) ?? user.email ?? "Supervisor",
           role: "supervisor",
           companyId,
           isAdmin: false,
@@ -96,6 +100,8 @@ export async function getUserContext(): Promise<UserContext | null> {
 
   return {
     userId: user.id,
+    email: user.email ?? "",
+    displayName: (user.user_metadata?.nombre as string | undefined) ?? user.email ?? "Usuario",
     role: realRole,
     companyId: realIsAdmin
       ? null

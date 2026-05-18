@@ -22,6 +22,7 @@ import { isAbandonedRecord, isDelayedRecord } from "@/app/registro/status";
 import { usePWATheme } from "@/contexts/PWAThemeContext";
 import type { RecentRegistration, CitaRow } from "@/app/registro/types";
 import { formatGateLabelFromPlant } from "@/lib/gates";
+import { humanizeError } from "@/lib/humanizeError";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -785,7 +786,7 @@ function NuevaCitaInline({ plantas, responsables, companyId, onSave, onClose }: 
     });
     setSaving(false);
     if (result.success) { onSave(); onClose(); }
-    else setError(result.error ?? "Error al guardar");
+    else setError(humanizeError(result.error));
   };
 
   return (
@@ -1055,7 +1056,15 @@ export default function PWASupervisorHome({
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReg, setSelectedReg] = useState<RecentRegistration | null>(null);
   const [filterPlant, setFilterPlant] = useState<string>("Todos");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const liveNow = useLiveNow();
+
+  const showToast = useCallback((message: string, duration = 3200) => {
+    setToastMessage(message);
+    window.setTimeout(() => {
+      setToastMessage((current) => (current === message ? null : current));
+    }, duration);
+  }, []);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
@@ -1079,25 +1088,47 @@ export default function PWASupervisorHome({
       .channel("pwa-supervisor")
       .on("postgres_changes", { event: "*", schema: "public", table: "atenciones" },
         () => { void refresh(true); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "guardia_eventos" },
+        () => { void refresh(true); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [refresh]);
 
   const handleClose = async (reg: RecentRegistration) => {
-    await closeAtencion({ id: reg.id, motivoDemora: "" });
-    await refresh(true);
+    const result = await closeAtencion(reg.id, "");
+    if (result.success) {
+      showToast(`Atención cerrada · ${result.espera_min} min`);
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
   const handleDocs = async (reg: RecentRegistration) => {
-    await closeAtencionDocs({ id: reg.id });
-    await refresh(true);
+    const result = await closeAtencionDocs(reg.id);
+    if (result.success) {
+      showToast(`Documentos entregados · ${result.tiempo_total_min} min`);
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
   const handleActivateCita = async (id: number) => {
-    await activateCita({ id });
-    await refresh(true);
+    const result = await activateCita({ id });
+    if (result.success) {
+      showToast("Llegada confirmada.");
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
   const handleCancelCita = async (id: number) => {
-    await cancelarCita({ id });
-    await refresh(true);
+    const result = await cancelarCita({ id });
+    if (result.success) {
+      showToast("Cita cancelada.");
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
   const handleLogout = async () => {
     const supabase = createClient();
@@ -1121,6 +1152,20 @@ export default function PWASupervisorHome({
   return (
     <div className="flex flex-col min-h-screen min-h-[100dvh]"
       style={{ background: "var(--pwa-bg)" }}>
+
+      <AnimatePresence>
+        {toastMessage ? (
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 14 }}
+            className="fixed left-4 right-4 top-4 z-[70] px-4 py-3"
+            style={{ background: "rgba(19,23,20,0.96)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 26px rgba(0,0,0,0.32)", color: "var(--pwa-ink)" }}
+          >
+            <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: 0 }}>{toastMessage}</p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Header */}
       <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3"

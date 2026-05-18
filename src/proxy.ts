@@ -7,14 +7,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 // Roles determined STRICTLY from user_metadata.role (no email fallback):
 //   • administrador → /admin (full access, multi-tenant overview)
 //   • supervisor    → /dashboard, /historial, /registro, /reporte, /empresa, /monitor, /perfil
-//   • guardia       → /registro only (garita operations)
+//   • guardia       → /dashboard, /historial, /alertas, /perfil, /registro
 //
 // Edge cases handled:
 //   • Users WITHOUT metadata.role → treated as guardia (least privilege)
 //   • Admin visiting /dashboard  → redirected to /admin
 //   • Signed-in user on /login   → redirected to home based on role
-//   • Guardia visiting protected → redirected to /registro
-//   • Supervisor visiting /alertas or /usuarios → redirected to /dashboard
+//   • Guardia visiting admin/reporting routes → redirected to /dashboard
+//   • Supervisor visiting admin-only routes → redirected to /dashboard
 //
 // Protected routes: /dashboard, /historial, /registro, /alertas, /usuarios,
 // /reporte, /empresa, /admin, /monitor, /perfil
@@ -82,7 +82,7 @@ export async function proxy(request: NextRequest) {
   // If the user is signed in and trying to access the login page, redirect them based on their role
   if (user && request.nextUrl.pathname === '/login') {
     const url = request.nextUrl.clone();
-    url.pathname = isGuardia ? '/registro' : isAdmin ? '/admin' : '/dashboard';
+    url.pathname = isGuardia ? '/dashboard' : isAdmin ? '/admin' : '/dashboard';
     return NextResponse.redirect(url);
   }
 
@@ -114,15 +114,24 @@ export async function proxy(request: NextRequest) {
   if (user) {
     const path = request.nextUrl.pathname;
 
-    // Guardias: solo /registro y /alertas
-    if (isGuardia && (path.startsWith('/dashboard') || path.startsWith('/historial') || path.startsWith('/usuarios') || path.startsWith('/reporte'))) {
+    // Guardias: plataforma de consulta/rendimiento, sin admin ni análisis global
+    if (
+      isGuardia &&
+      (
+        path.startsWith('/usuarios') ||
+        path.startsWith('/reporte') ||
+        path.startsWith('/empresa') ||
+        path.startsWith('/admin') ||
+        path.startsWith('/monitor')
+      )
+    ) {
       const url = request.nextUrl.clone();
-      url.pathname = '/registro';
+      url.pathname = '/dashboard';
       return NextResponse.redirect(url);
     }
 
-    // Supervisores: sin acceso a /usuarios
-    if (isSupervisor && path.startsWith('/usuarios')) {
+    // Supervisores: sin acceso a rutas de administración global
+    if (isSupervisor && (path.startsWith('/usuarios') || path.startsWith('/admin') || path.startsWith('/monitor'))) {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       return NextResponse.redirect(url);

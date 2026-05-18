@@ -20,11 +20,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createAtencion } from "@/app/actions";
+import { createAtencion, getVehicleProfile } from "@/app/actions";
 import type { GateAssignment } from "@/lib/gates";
 import { formatGateLabelFromPlant, gateFromPlant } from "@/lib/gates";
 import { usePWATheme } from "@/contexts/PWAThemeContext";
 import type { RecentRegistration } from "@/app/registro/types";
+import { humanizeError } from "@/lib/humanizeError";
 
 interface Props {
   defaultPlant: string;
@@ -390,6 +391,8 @@ export default function PWARegistroWizard({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
   const [timeLabel, setTimeLabel] = useState<string>("");
   const [recentRecords, setRecentRecords] = useState<RecentRegistration[]>(initialRecentRecords);
 
@@ -412,13 +415,50 @@ export default function PWARegistroWizard({
   const activeGate = gateOptions.find((item) => item.plant === data.plant) ?? gateFromPlant(data.plant);
   const plantLabel = formatGateLabelFromPlant(data.plant, gateOptions);
   const filledFields = [data.razonSocial, data.empresa, data.responsable, data.agente].filter((value) => value.trim()).length;
+  const duplicateWarning = useMemo(() => {
+    const term = data.razonSocial.trim().toUpperCase();
+    if (term.length < 3) return null;
+    return (
+      recentRecords.find((record) =>
+        record.planta === data.plant &&
+        !record.attended &&
+        !record.docsDelivered &&
+        record.razonSocial.toUpperCase().includes(term)
+      ) ?? null
+    );
+  }, [data.plant, data.razonSocial, recentRecords]);
 
   const handleChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    if ((key === "razonSocial" || key === "plant") && duplicateConfirmed) {
+      setDuplicateConfirmed(false);
+    }
+    if (error) setError(null);
     setData((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleVehiclePrefill = async () => {
+    const term = data.razonSocial.trim();
+    if (term.length < 3) return;
+    setPrefillLoading(true);
+    try {
+      const profile = await getVehicleProfile(term);
+      if (!profile) return;
+      setData((current) => ({
+        ...current,
+        empresa: current.empresa.trim() || profile.empresa || current.empresa,
+        tipoOperacion: profile.tipoOperacion || current.tipoOperacion,
+      }));
+    } finally {
+      setPrefillLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
     if (!data.razonSocial.trim()) return;
+    if (duplicateWarning && !duplicateConfirmed) {
+      setDuplicateConfirmed(true);
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
@@ -433,7 +473,7 @@ export default function PWARegistroWizard({
         note: data.note.trim(),
         plant: data.plant,
         horaCita: null,
-        forceDuplicate: false,
+        forceDuplicate: duplicateConfirmed,
       });
 
       if (result.success) {
@@ -464,12 +504,13 @@ export default function PWARegistroWizard({
         };
         setTimeLabel(createdTime);
         setRecentRecords((current) => [newRecord, ...current].slice(0, 8));
+        setDuplicateConfirmed(false);
         setDone(true);
       } else {
-        setError(result.error ?? "Error al registrar");
+        setError(humanizeError(result.error));
       }
     } catch {
-      setError("Error inesperado");
+      setError(humanizeError("Error inesperado"));
     } finally {
       setSubmitting(false);
     }
@@ -606,6 +647,11 @@ export default function PWARegistroWizard({
                 icon={Truck}
                 autoFocus
               />
+              {prefillLoading ? (
+                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "-2px 0 0" }}>
+                  Buscando datos previos...
+                </p>
+              ) : null}
               <TextField
                 label="Empresa / transportista"
                 value={data.empresa}
@@ -613,9 +659,43 @@ export default function PWARegistroWizard({
                 placeholder="EMPRESA DESTINO"
                 icon={Building2}
               />
+              <button
+                type="button"
+                onClick={handleVehiclePrefill}
+                disabled={prefillLoading || data.razonSocial.trim().length < 3}
+                className="flex h-10 items-center justify-center gap-2 disabled:opacity-45"
+                style={{
+                  background: "var(--pwa-surface-2)",
+                  border: "1px solid var(--pwa-border)",
+                  color: "var(--pwa-muted)",
+                  cursor: "pointer",
+                  fontFamily: "var(--sg-font-mono)",
+                  fontSize: 9,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <Clock3 className="h-4 w-4" />
+                {prefillLoading ? "Buscando..." : "Usar historial similar"}
+              </button>
               <TipoOperacionRow value={data.tipoOperacion} onChange={(value) => handleChange("tipoOperacion", value)} />
             </div>
           </SurfaceCard>
+
+          {duplicateWarning ? (
+            <div
+              className="px-4 py-3"
+              style={{
+                background: duplicateConfirmed ? "rgba(212,134,74,0.12)" : "rgba(200,160,75,0.08)",
+                borderLeft: `3px solid ${duplicateConfirmed ? "#d4864a" : "var(--pwa-accent)"}`,
+              }}
+            >
+              <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: duplicateConfirmed ? "#d4864a" : "var(--pwa-accent)", margin: 0 }}>
+                <strong>Posible duplicado:</strong> ya hay un ingreso pendiente a las <strong style={{ color: "var(--pwa-ink)" }}>{duplicateWarning.time}</strong> en {formatGateLabelFromPlant(duplicateWarning.planta, gateOptions)}.
+                {duplicateConfirmed ? " Se enviará como duplicado confirmado." : " Verifica antes de continuar."}
+              </p>
+            </div>
+          ) : null}
 
           <SurfaceCard className="p-4">
             <SectionLabel>Responsables del turno</SectionLabel>
@@ -682,7 +762,7 @@ export default function PWARegistroWizard({
           <div className="grid gap-3">
             {error ? (
               <div className="px-4 py-3" style={{ background: "rgba(211,92,79,0.08)", borderLeft: "3px solid #d35c4f" }}>
-                <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d35c4f", margin: 0 }}>
+                <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 12, color: "#d35c4f", margin: 0 }}>
                   {error}
                 </p>
               </div>
@@ -702,7 +782,7 @@ export default function PWARegistroWizard({
                 </>
               ) : (
                 <>
-                  Registrar vehiculo
+                  {duplicateWarning && !duplicateConfirmed ? "Confirmar duplicado" : "Registrar vehiculo"}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

@@ -39,7 +39,7 @@ export async function login(formData: FormData) {
   const isAdmin   = metaRole === 'administrador'
 
   revalidatePath('/', 'layout')
-  redirect(isGuardia ? '/registro' : isAdmin ? '/admin' : '/dashboard')
+  redirect(isGuardia ? '/dashboard' : isAdmin ? '/admin' : '/dashboard')
 }
 
 export async function logout() {
@@ -81,5 +81,5 @@ export async function updatePassword(rawPassword: unknown) {
   const metaRole = user?.user_metadata?.role as string | undefined
   const isGuardia = metaRole === 'guardia'
   const isAdmin   = metaRole === 'administrador'
-  redirect(isGuardia ? '/registro' : isAdmin ? '/admin' : '/dashboard')
+  redirect(isGuardia ? '/dashboard' : isAdmin ? '/admin' : '/dashboard')
 }

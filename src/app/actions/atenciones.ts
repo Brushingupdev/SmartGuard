@@ -2,6 +2,7 @@
 
 import { differenceInMinutes } from "date-fns";
 import { createClient } from "@/utils/supabase/server";
+import { getUserPlants } from "./companies";
 import { getUserContext } from "@/utils/supabase/user";
 import {
   createAtencionSchema,
@@ -17,6 +18,11 @@ import { upsertResponsables, upsertAgentes } from "./responsables";
 
 const MANUAL_LONG_DURATION_LIMIT_MINUTES = 16 * 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function guardAgentAliases(ctx: Awaited<ReturnType<typeof getUserContext>>): string[] {
+  if (!ctx || ctx.role !== "guardia") return [];
+  return [...new Set([ctx.displayName, ctx.email].map((value) => value?.trim()).filter(Boolean) as string[])];
+}
 
 function parseDateTime(date: string | null | undefined, time: string | null | undefined): Date | null {
   if (!date || !time) return null;
@@ -605,6 +611,11 @@ export async function getAtenciones(rawParams: unknown) {
     query = query.eq("company_id", filterCompanyId);
   }
 
+  const aliases = guardAgentAliases(ctx);
+  if (aliases.length > 0) {
+    query = query.in("agente", aliases);
+  }
+
   query = applyAtencionFilters(query, { search, plant, segment, dateFrom, dateTo });
 
   query = query.order(sortBy, { ascending: sortDir === "asc", nullsFirst: sortDir === "asc" });
@@ -642,6 +653,11 @@ export async function getAtencionesForExport(
     query = query.eq("company_id", ctx.companyId);
   }
 
+  const aliases = guardAgentAliases(ctx);
+  if (aliases.length > 0) {
+    query = query.in("agente", aliases);
+  }
+
   query = applyAtencionFilters(query, { search, plant, segment, dateFrom, dateTo });
 
   query = query.order(sortBy, { ascending: sortDir === "asc", nullsFirst: sortDir === "asc" }).limit(5000);
@@ -671,6 +687,11 @@ export async function searchSuggestions(rawData: unknown): Promise<string[]> {
 
   if (!ctx?.isAdmin && ctx?.companyId) {
     query = query.eq("company_id", ctx.companyId);
+  }
+
+  const aliases = guardAgentAliases(ctx);
+  if (aliases.length > 0) {
+    query = query.in("agente", aliases);
   }
 
   const { data } = await query.limit(500);
@@ -748,6 +769,8 @@ export async function getAvailableYears(): Promise<string[]> {
   const makeQuery = () => {
     let q = supabase.from("atenciones").select("anio").not("anio", "is", null);
     if (filterCompany) q = q.eq("company_id", filterCompany);
+    const aliases = guardAgentAliases(ctx);
+    if (aliases.length > 0) q = q.in("agente", aliases);
     return q;
   };
 
@@ -763,17 +786,27 @@ export async function getAvailableYears(): Promise<string[]> {
   return Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(minYear + i));
 }
 
-export async function getRecentRegistrations(plant: string, limit = 20, offset = 0) {
+function normalizePlantScope(input: string | string[]): string[] {
+  if (Array.isArray(input)) return [...new Set(input.map((item) => item.trim()).filter(Boolean))];
+  return input.trim() ? [input.trim()] : [];
+}
+
+export async function getRecentRegistrations(plant: string | string[], limit = 20, offset = 0) {
   const supabase = await createClient();
   const ctx = await getUserContext();
   const { date: dateStr, time: timeStr } = nowLima();
+  const plants = normalizePlantScope(plant);
+
+  if (plants.length === 0) {
+    return { records: [], total: 0 };
+  }
 
   const buildQueries = (includeDemoraCitaMin: boolean) => {
     const demoraField = includeDemoraCitaMin ? ", demora_cita_min" : "";
     let activeQuery = supabase
       .from("atenciones")
       .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
-      .eq("planta", plant)
+      .in("planta", plants)
       .eq("fecha", dateStr)
       .not("h_registro", "is", null)
       .order("id", { ascending: false })
@@ -782,7 +815,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
     let overdueExpectedQuery = supabase
       .from("atenciones")
       .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
-      .eq("planta", plant)
+      .in("planta", plants)
       .eq("fecha", dateStr)
       .eq("estado", "esperado")
       .not("hora_cita", "is", null)
@@ -810,7 +843,7 @@ export async function getRecentRegistrations(plant: string, limit = 20, offset =
   }
 
   if (activeError || overdueExpectedError) {
-    logError("getRecentRegistrations", activeError || overdueExpectedError, { plant });
+    logError("getRecentRegistrations", activeError || overdueExpectedError, { plants });
     return { records: [], total: 0 };
   }
 
@@ -874,6 +907,7 @@ export async function getSupervisorHoyData() {
   const supabase = await createClient();
   const ctx = await getUserContext();
   const { date: dateStr, time: timeStr } = nowLima();
+  const configuredPlants = await getUserPlants();
 
   const sel = "id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado";
 
@@ -959,7 +993,11 @@ export async function getSupervisorHoyData() {
     esperaMin: (c.espera_min as number) ?? null,
   }));
 
-  const plantas = [...new Set(records.map(r => r.planta).filter(Boolean))].sort();
+  const plantas = [...new Set([
+    ...configuredPlants,
+    ...records.map(r => r.planta).filter(Boolean),
+    ...citas.map(c => c.planta).filter(Boolean),
+  ])].sort();
 
   return { records, citas, plantas };
 }

@@ -88,8 +88,8 @@ export default function LoginPage() {
               Tu planta<br />bajo<br /><em>control.</em>
             </h1>
             <p className="mt-6 max-w-[34rem] text-[15px] leading-[1.7] font-light text-[var(--sg-copy)]">
-              Accede al panel operativo de tu empresa. Registra ingresos, monitorea el flujo
-              vehicular y audita cada evento en tiempo real.
+              Accede al panel operativo de tu empresa. Monitorea el flujo vehicular,
+              consulta el historial y sigue el rendimiento en tiempo real.
             </p>
 
             <div className="mt-10 grid grid-cols-3 gap-0 border border-[var(--sg-line)]">
@@ -154,7 +154,7 @@ export default function LoginPage() {
               Bienvenido al<br />centro operativo.
             </h2>
             <p className="mt-4 text-[13px] leading-[1.6] font-light text-[var(--sg-copy)]">
-              Usa tus credenciales para entrar al tablero, registrar accesos y consultar historial.
+              Usa tus credenciales para entrar al tablero, revisar la operación y consultar tu historial.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-7 space-y-5">

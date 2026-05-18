@@ -4,10 +4,12 @@ import AppLayout from "@/components/AppLayout";
 import { getUserProfile, changePassword } from "@/app/actions";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BarChart3,
   Building2,
   CheckCircle2,
   Eye,
   EyeOff,
+  History,
   KeyRound,
   Lock,
   MapPin,
@@ -15,7 +17,8 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState, type ComponentType } from "react";
 
 function roleLabel(role: string | null, isAdmin: boolean) {
   if (isAdmin) return "Administrador";
@@ -90,6 +93,37 @@ function PasswordInput({
         </button>
       </div>
     </div>
+  );
+}
+
+function QuickLinkCard({
+  href,
+  icon: Icon,
+  title,
+  description,
+}: {
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-start gap-3 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4 transition-colors hover:border-[var(--sg-accent)] hover:bg-[rgba(200,168,75,0.04)]"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel)] text-[var(--sg-accent)] transition-colors group-hover:border-[var(--sg-accent)]">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="sg-font-display text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--sg-ink)]">
+          {title}
+        </div>
+        <div className="mt-1 text-[11px] leading-[1.55] text-[var(--sg-muted)]">
+          {description}
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -193,68 +227,111 @@ export default function PerfilPage() {
         </div>
 
         {/* Right — change password */}
-        <div className="sg-panel p-6">
-          <div className="flex items-center gap-3 border-b border-[var(--sg-line)] pb-4 mb-6">
-            <div className="flex h-9 w-9 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-accent)]">
-              <KeyRound className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="sg-font-display text-[14px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-                Cambiar contraseña
+        <div className="flex flex-col gap-6">
+          <div className="sg-panel p-6">
+            <div className="flex items-center gap-3 border-b border-[var(--sg-line)] pb-4 mb-6">
+              <div className="flex h-9 w-9 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-accent)]">
+                <BarChart3 className="h-4 w-4" />
               </div>
-              <p className="text-[10px] text-[var(--sg-muted)]">
-                Mínimo 6 caracteres · se cierra sesión en otros dispositivos
-              </p>
+              <div>
+                <div className="sg-font-display text-[14px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                  {profile?.role === "guardia" ? "Tu espacio web" : "Accesos rápidos"}
+                </div>
+                <p className="text-[10px] text-[var(--sg-muted)]">
+                  {profile?.role === "guardia"
+                    ? "Consulta tu rendimiento, el historial y la operación sin entrar al PWA."
+                    : "Entra rápido a las vistas clave de operación y seguimiento."}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <QuickLinkCard
+                href="/dashboard"
+                icon={BarChart3}
+                title={profile?.role === "guardia" ? "Mi rendimiento" : "Dashboard"}
+                description={
+                  profile?.role === "guardia"
+                    ? "Métricas operativas, visibilidad por planta y resumen de tu actividad."
+                    : "Vista en vivo con indicadores, operación y desempeño por planta."
+                }
+              />
+              <QuickLinkCard
+                href="/historial"
+                icon={History}
+                title={profile?.role === "guardia" ? "Mi historial" : "Historial"}
+                description={
+                  profile?.role === "guardia"
+                    ? "Revisa registros, tiempos y trazabilidad de tus operaciones."
+                    : "Consulta la trazabilidad histórica y los tiempos registrados."
+                }
+              />
             </div>
           </div>
 
-          <div className="grid gap-4 max-w-[420px]">
-            <PasswordInput
-              label="Contraseña actual *"
-              value={currentPwd}
-              onChange={setCurrentPwd}
-              placeholder="Tu contraseña actual"
-            />
-            <PasswordInput
-              label="Nueva contraseña *"
-              value={newPwd}
-              onChange={setNewPwd}
-              placeholder="Mínimo 6 caracteres"
-            />
-            <PasswordInput
-              label="Confirmar nueva contraseña *"
-              value={confirmPwd}
-              onChange={setConfirmPwd}
-              placeholder="Repite la nueva contraseña"
-            />
-
-            {newPwd && confirmPwd && newPwd !== confirmPwd && (
-              <div className="flex items-center gap-2 text-[11px] text-[var(--sg-danger)] border-l-2 border-[var(--sg-danger)] pl-3 py-1 bg-[rgba(211,92,79,0.06)]">
-                <X className="h-3.5 w-3.5 shrink-0" />
-                Las contraseñas no coinciden
+          <div className="sg-panel p-6">
+            <div className="flex items-center gap-3 border-b border-[var(--sg-line)] pb-4 mb-6">
+              <div className="flex h-9 w-9 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[var(--sg-accent)]">
+                <KeyRound className="h-4 w-4" />
               </div>
-            )}
+              <div>
+                <div className="sg-font-display text-[14px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
+                  Cambiar contraseña
+                </div>
+                <p className="text-[10px] text-[var(--sg-muted)]">
+                  Mínimo 6 caracteres · se cierra sesión en otros dispositivos
+                </p>
+              </div>
+            </div>
 
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={handleChangePassword}
-              disabled={saving || !currentPwd || !newPwd || !confirmPwd || newPwd !== confirmPwd}
-              className="sg-btn sg-btn-accent justify-center h-11 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
-            >
-              {saving ? (
-                <motion.span
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
-                >
-                  <KeyRound className="h-4 w-4" />
-                </motion.span>
-              ) : (
-                <>
-                  <KeyRound className="h-4 w-4" />
-                  Actualizar contraseña
-                </>
+            <div className="grid gap-4 max-w-[420px]">
+              <PasswordInput
+                label="Contraseña actual *"
+                value={currentPwd}
+                onChange={setCurrentPwd}
+                placeholder="Tu contraseña actual"
+              />
+              <PasswordInput
+                label="Nueva contraseña *"
+                value={newPwd}
+                onChange={setNewPwd}
+                placeholder="Mínimo 6 caracteres"
+              />
+              <PasswordInput
+                label="Confirmar nueva contraseña *"
+                value={confirmPwd}
+                onChange={setConfirmPwd}
+                placeholder="Repite la nueva contraseña"
+              />
+
+              {newPwd && confirmPwd && newPwd !== confirmPwd && (
+                <div className="flex items-center gap-2 text-[11px] text-[var(--sg-danger)] border-l-2 border-[var(--sg-danger)] pl-3 py-1 bg-[rgba(211,92,79,0.06)]">
+                  <X className="h-3.5 w-3.5 shrink-0" />
+                  Las contraseñas no coinciden
+                </div>
               )}
-            </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleChangePassword}
+                disabled={saving || !currentPwd || !newPwd || !confirmPwd || newPwd !== confirmPwd}
+                className="sg-btn sg-btn-accent justify-center h-11 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+              >
+                {saving ? (
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                  </motion.span>
+                ) : (
+                  <>
+                    <KeyRound className="h-4 w-4" />
+                    Actualizar contraseña
+                  </>
+                )}
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>

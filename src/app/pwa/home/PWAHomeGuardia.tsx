@@ -7,8 +7,8 @@ import { useLiveNow, getWaitSeconds, fmtLiveWait } from "@/hooks/useLiveTimer";
 import VehicleDetailDrawer from "@/components/VehicleDetailDrawer";
 import {
   AlertTriangle, ArrowRight, BarChart3, Bell, BookOpen, Calendar, Camera,
-  CheckCircle2, ChevronDown, FileCheck2, LogOut,
-  MapPin, Palette, Plus, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
+  CheckCircle2, ChevronDown, Copy, FileCheck2, Link2, LogOut,
+  MapPin, Palette, Plus, QrCode, RefreshCw, Send, Shield, Truck, User, UserCheck, X, Zap,
 } from "lucide-react";
 import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { useRouter } from "next/navigation";
@@ -18,14 +18,24 @@ import {
   preRegisterCita, crearGuardiaEvento, getGuardiaEventosHoy,
   type GuardiaEvento,
 } from "@/app/actions";
-import { formatGateLabelFromPlant } from "@/lib/gates";
+import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import { isAbandonedRecord, isDelayedRecord } from "@/app/registro/status";
 import { usePWATheme } from "@/contexts/PWAThemeContext";
 import { clearGuardSession } from "@/app/pwa/storage";
 import type { RecentRegistration, CitaRow } from "@/app/registro/types";
+import { humanizeError } from "@/lib/humanizeError";
 
 const INACTIVITY_MS = 5 * 60 * 1000;
 const ease: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const MOTIVOS_DEMORA = [
+  "Documentación incompleta",
+  "Revisión manual requerida",
+  "Falla de sistema",
+  "Exceso de vehículos",
+  "Verificación de carga",
+  "Problema con conductor",
+  "Otro",
+] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -216,6 +226,178 @@ function ScreenHeader({
   );
 }
 
+function ToastNotice({ message }: { message: string | null }) {
+  return (
+    <AnimatePresence>
+      {message ? (
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 14 }}
+          className="fixed left-4 right-4 top-4 z-[70] px-4 py-3"
+          style={{
+            background: "rgba(19,23,20,0.96)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 10px 26px rgba(0,0,0,0.32)",
+            color: "var(--pwa-ink)",
+          }}
+        >
+          <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, margin: 0 }}>{message}</p>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function ActionSheet({
+  title,
+  message,
+  confirmText,
+  confirmTone = "accent",
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: React.ReactNode;
+  confirmText: string;
+  confirmTone?: "accent" | "danger" | "info";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const toneColor =
+    confirmTone === "danger" ? "#d35c4f" : confirmTone === "info" ? "#6ba7ff" : "var(--pwa-accent)";
+  const toneFg = confirmTone === "accent" ? "var(--pwa-accent-fg)" : "#fff";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80]"
+        style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(3px)" }}
+        onClick={onCancel}
+      />
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-[81] flex flex-col"
+        style={{ background: "var(--pwa-surface)", borderTop: `2px solid ${toneColor}` }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full" style={{ background: "var(--pwa-border)" }} />
+        </div>
+        <div className="px-5 pb-5 pt-3">
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+            {title}
+          </p>
+          <div style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", marginTop: 12, lineHeight: 1.55 }}>
+            {message}
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 h-12"
+              style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", color: "var(--pwa-muted)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 h-12"
+              style={{ background: toneColor, border: "none", color: toneFg, cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function DelayReasonSheet({
+  reg,
+  onConfirm,
+  onCancel,
+}: {
+  reg: RecentRegistration;
+  onConfirm: (motivo: string) => void;
+  onCancel: () => void;
+}) {
+  const [motivo, setMotivo] = useState<string>(MOTIVOS_DEMORA[0]);
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80]"
+        style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(3px)" }}
+        onClick={onCancel}
+      />
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-[81] flex flex-col"
+        style={{ background: "var(--pwa-surface)", borderTop: "2px solid #d4864a" }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full" style={{ background: "var(--pwa-border)" }} />
+        </div>
+        <div className="px-5 pb-5 pt-3">
+          <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 18, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: 0 }}>
+            Demora detectada
+          </p>
+          <p style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)", margin: "12px 0 0", lineHeight: 1.55 }}>
+            El vehículo <strong style={{ color: "var(--pwa-ink)" }}>{reg.razonSocial}</strong> ya superó el umbral de espera. Indica el motivo antes de iniciar la atención.
+          </p>
+          <div className="mt-4 flex flex-col gap-1.5">
+            <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+              Motivo de demora
+            </label>
+            <div className="relative">
+              <select
+                value={motivo}
+                onChange={(event) => setMotivo(event.target.value)}
+                className="w-full h-12 appearance-none px-3 outline-none"
+                style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", color: "var(--pwa-ink)", fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, textTransform: "uppercase" }}
+              >
+                {MOTIVOS_DEMORA.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--pwa-muted)" }} />
+            </div>
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 h-12"
+              style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", color: "var(--pwa-muted)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => onConfirm(motivo)}
+              className="flex-1 h-12"
+              style={{ background: "#d4864a", border: "none", color: "#14110a", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}
+            >
+              Confirmar cierre
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 function TabButton({ tab, active, onChange }: {
   tab: { key: Tab; icon: React.ReactNode; label: string; badge?: number };
   active: Tab;
@@ -253,6 +435,49 @@ function TabButton({ tab, active, onChange }: {
           style={{ background: "var(--pwa-accent)" }} />
       )}
     </button>
+  );
+}
+
+function PlantScopeSelector({
+  plants,
+  activePlant,
+  gateOptions,
+  onChange,
+}: {
+  plants: string[];
+  activePlant: string;
+  gateOptions: GateAssignment[];
+  onChange: (plant: string) => void;
+}) {
+  if (plants.length <= 1) return null;
+
+  return (
+    <div className="mx-4 mb-3 flex gap-2 overflow-x-auto pb-1">
+      {plants.map((plant) => {
+        const active = plant === activePlant;
+        return (
+          <button
+            key={plant}
+            onClick={() => onChange(plant)}
+            className="shrink-0 px-3 py-1.5"
+            style={{
+              background: active ? "var(--pwa-accent)" : "var(--pwa-surface-2)",
+              border: `1px solid ${active ? "var(--pwa-accent)" : "var(--pwa-border)"}`,
+              color: active ? "var(--pwa-accent-fg)" : "var(--pwa-muted)",
+              cursor: "pointer",
+              borderRadius: 999,
+              fontFamily: "var(--sg-font-mono)",
+              fontSize: 9,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              fontWeight: active ? 700 : 400,
+            }}
+          >
+            {formatGateLabelFromPlant(plant, gateOptions)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -501,11 +726,12 @@ function HomeOverviewCard({
   );
 }
 
-function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh, refreshing, onClose, onDocs, onTap, onOpenCitas, onOpenEventos, onOpenRendimiento }: {
-  plant: string;
+function TabInicio({ plants, activePlant, gateOptions, records, citas, onRefresh, refreshing, onClose, onDocs, onTap, onOpenCitas, onOpenEventos, onOpenRendimiento, onPlantChange }: {
+  plants: string[];
+  activePlant: string;
+  gateOptions: GateAssignment[];
   records: RecentRegistration[];
-  citasPendientes: number;
-  citasRetrasadas: number;
+  citas: CitaRow[];
   onRefresh: () => void;
   refreshing: boolean;
   onClose: (reg: RecentRegistration) => void;
@@ -514,10 +740,13 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
   onOpenCitas: () => void;
   onOpenEventos: () => void;
   onOpenRendimiento: () => void;
+  onPlantChange: (plant: string) => void;
 }) {
   const router = useRouter();
   const now = useLiveNow();
-  const rows = records
+  const scopedRecords = records.filter((reg) => reg.planta === activePlant);
+  const scopedCitas = citas.filter((cita) => cita.planta === activePlant);
+  const rows = scopedRecords
     .map(reg => ({ reg, level: getLevel(reg, now), waitMin: getWaitMin(reg) }))
     .sort((a, b) => LEVEL_CFG[a.level].order - LEVEL_CFG[b.level].order || b.waitMin - a.waitMin);
 
@@ -525,6 +754,13 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
   const pendientes = rows.filter(r => ["urgente","demorado","esperando","fresco"].includes(r.level)).length;
   const completos  = rows.filter(r => r.level === "completo").length;
   const rendimiento = rows.length > 0 ? Math.round((completos / rows.length) * 100) : 0;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const citasPendientes = scopedCitas.filter(c => c.estado === "esperado").length;
+  const citasRetrasadas = scopedCitas.filter((c) => {
+    if (c.estado !== "esperado") return false;
+    const [hour, minute] = c.horaCita.split(":").map(Number);
+    return (hour * 60 + minute) < nowMinutes - 10;
+  }).length;
 
   return (
     <div className="flex flex-col">
@@ -532,6 +768,13 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
         tab="inicio"
         title="Inicio"
         trailing={<button style={{ background: "none", border: "none", color: "var(--pwa-ink-soft)", cursor: "pointer" }}><Bell className="h-4 w-4" /></button>}
+      />
+
+      <PlantScopeSelector
+        plants={plants}
+        activePlant={activePlant}
+        gateOptions={gateOptions}
+        onChange={onPlantChange}
       />
 
       <div className="mx-4 mt-1 flex flex-col gap-3">
@@ -653,6 +896,120 @@ function TabInicio({ plant, records, citasPendientes, citasRetrasadas, onRefresh
 
 // ── Nueva cita — bottom sheet ─────────────────────────────────────────────────
 
+function LinkSheet({ plants, companyId, gateOptions, onClose }: {
+  plants: string[];
+  companyId: string;
+  gateOptions: GateAssignment[];
+  onClose: () => void;
+}) {
+  const [selectedPlant, setSelectedPlant] = useState(plants[0] ?? "");
+  const [copied, setCopied] = useState(false);
+
+  const token = typeof window !== "undefined" ? btoa(companyId + "|" + selectedPlant) : "";
+  const url = typeof window !== "undefined"
+    ? `${window.location.origin}/cita/${encodeURIComponent(token)}`
+    : "";
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}&bgcolor=0d0f0e&color=c8a84b&margin=10`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const handleWhatsApp = () => {
+    const msg = encodeURIComponent(`Hola, puedes registrar tu cita de visita desde este enlace:\n${url}`);
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80]" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(3px)" }}
+        onClick={onClose} />
+      <motion.div
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-[81] flex flex-col"
+        style={{ background: "var(--pwa-surface)", borderTop: "2px solid var(--pwa-accent)", maxHeight: "85vh" }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="h-1 w-10 rounded-full" style={{ background: "var(--pwa-border)" }} />
+        </div>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid var(--pwa-border)" }}>
+          <div>
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--pwa-accent)", margin: 0 }}>
+              Portal de citas
+            </p>
+            <h3 style={{ fontFamily: "var(--sg-font-display)", fontSize: 17, fontWeight: 800, textTransform: "uppercase", color: "var(--pwa-ink)", margin: "3px 0 0" }}>
+              QR para proveedores
+            </h3>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pwa-muted)" }}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+          {plants.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <label style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--pwa-muted)" }}>
+                Planta / puerta
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedPlant}
+                  onChange={(event) => setSelectedPlant(event.target.value)}
+                  className="w-full h-12 appearance-none px-3 outline-none"
+                  style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)", color: "var(--pwa-ink)", fontFamily: "var(--sg-font-display)", fontSize: 14, fontWeight: 700, textTransform: "uppercase" }}
+                >
+                  {plants.map((plant) => (
+                    <option key={plant} value={plant}>
+                      {formatGateLabelFromPlant(plant, gateOptions)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--pwa-muted)" }} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col items-center gap-3 py-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrUrl} alt="QR de citas" width={160} height={160} className="rounded-sm" style={{ imageRendering: "pixelated" }} />
+            <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pwa-muted)", textAlign: "center", margin: 0 }}>
+              {formatGateLabelFromPlant(selectedPlant, gateOptions)} · escanea para agendar
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-2.5"
+            style={{ background: "var(--pwa-surface-2)", border: "1px solid var(--pwa-border)" }}>
+            <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--pwa-accent)" }} />
+            <p className="flex-1 truncate" style={{ fontFamily: "var(--sg-font-mono)", fontSize: 10, color: "var(--pwa-ink-soft)", margin: 0 }}>
+              {url}
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <motion.button whileTap={{ scale: 0.96 }} onClick={handleCopy}
+              className="flex-1 h-12 flex items-center justify-center gap-2"
+              style={{ background: copied ? "rgba(107,189,138,0.15)" : "var(--pwa-surface-2)", border: `1px solid ${copied ? "#6bbd8a" : "var(--pwa-border)"}`, color: copied ? "#6bbd8a" : "var(--pwa-ink)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
+              <Copy className="h-4 w-4" />
+              {copied ? "¡Copiado!" : "Copiar link"}
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.96 }} onClick={handleWhatsApp}
+              className="flex-1 h-12 flex items-center justify-center gap-2"
+              style={{ background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.35)", color: "#25d366", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
+              <QrCode className="h-4 w-4" />
+              WhatsApp
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 function NuevaCitaSheet({ plant, agente, responsables, onSave, onClose }: {
   plant: string;
   agente: string;
@@ -685,7 +1042,7 @@ function NuevaCitaSheet({ plant, agente, responsables, onSave, onClose }: {
     });
     setSaving(false);
     if (result.success) { onSave(); onClose(); }
-    else setError(result.error ?? "Error al guardar");
+    else setError(humanizeError(result.error));
   };
 
   return (
@@ -841,27 +1198,33 @@ function NuevaCitaSheet({ plant, agente, responsables, onSave, onClose }: {
 
 // ── Tab: Citas ────────────────────────────────────────────────────────────────
 
-function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, onRefresh }: {
+function TabCitas({ citas, plants, activePlant, gateOptions, agente, responsables, companyId, onActivate, onCancel, onRefresh, onPlantChange }: {
   citas: CitaRow[];
-  plant: string;
+  plants: string[];
+  activePlant: string;
+  gateOptions: GateAssignment[];
   agente: string;
   responsables: string[];
+  companyId: string;
   onActivate: (id: number) => void;
   onCancel: (id: number) => void;
   onRefresh: () => void;
+  onPlantChange: (plant: string) => void;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [showLinkSheet, setShowLinkSheet] = useState(false);
   const [activeView, setActiveView] = useState<"proximas" | "retrasadas" | "llegaron">("proximas");
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  const scopedCitas = citas.filter((cita) => cita.planta === activePlant);
 
-  const retrasadas = citas.filter(c => {
+  const retrasadas = scopedCitas.filter(c => {
     const parts = c.horaCita.split(":").map(Number);
     const citaMin = parts[0] * 60 + parts[1];
     return c.estado === "esperado" && citaMin < nowMin - 10;
   });
-  const proximas = citas.filter(c => !retrasadas.includes(c) && c.estado === "esperado");
-  const llegaron = citas.filter(c => c.estado === "activo" || c.estado === "atendido");
+  const proximas = scopedCitas.filter(c => !retrasadas.includes(c) && c.estado === "esperado");
+  const llegaron = scopedCitas.filter(c => c.estado === "activo" || c.estado === "atendido");
 
   const groups = {
     proximas: { label: "Próximas", color: "#6bbd8a", items: proximas },
@@ -873,6 +1236,12 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
   return (
     <div className="flex flex-col mt-4">
       <ScreenHeader tab="citas" title="Citas" />
+      <PlantScopeSelector
+        plants={plants}
+        activePlant={activePlant}
+        gateOptions={gateOptions}
+        onChange={onPlantChange}
+      />
       <div className="mx-4 p-5 relative overflow-hidden" style={{ background: "var(--pwa-surface)", border: "1px solid var(--pwa-border)", borderRadius: 14 }}>
         <div style={{ position: "absolute", top: 0, right: 0, width: 140, height: 140, background: "radial-gradient(circle at top right, color-mix(in srgb, var(--pwa-accent) 8%, transparent), transparent)", pointerEvents: "none" }} />
         <div>
@@ -885,7 +1254,7 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
           </p>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.16em",
             textTransform: "uppercase", color: "var(--pwa-muted)", margin: "6px 0 0" }}>
-            {formatGateLabelFromPlant(plant)} · {citas.length} programada{citas.length !== 1 ? "s" : ""}
+            {formatGateLabelFromPlant(activePlant, gateOptions)} · {scopedCitas.length} programada{scopedCitas.length !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-4">
@@ -904,11 +1273,20 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
             </div>
           ))}
         </div>
-        <motion.button whileTap={{ scale: 0.98 }} onClick={() => setShowForm(true)}
-          className="flex h-[52px] w-full items-center justify-center gap-2 mt-4"
-          style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}>
-          <Plus className="h-4 w-4" /> Nueva cita
-        </motion.button>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <motion.button whileTap={{ scale: 0.98 }} onClick={() => setShowForm(true)}
+            className="flex h-[52px] w-full items-center justify-center gap-2"
+            style={{ background: "var(--pwa-accent)", color: "var(--pwa-accent-fg)", border: "none", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 700 }}>
+            <Plus className="h-4 w-4" /> Nueva cita
+          </motion.button>
+          <button
+            onClick={() => setShowLinkSheet(true)}
+            className="flex h-[52px] w-full items-center justify-center gap-2"
+            style={{ background: "var(--pwa-surface-2)", color: "var(--pwa-ink)", border: "1px solid var(--pwa-border)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700 }}
+          >
+            <QrCode className="h-4 w-4" /> Portal QR
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 px-4 mt-4 overflow-x-auto pb-1">
@@ -938,7 +1316,7 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
       </div>
 
       {/* Lista vacía */}
-      {citas.length === 0 && (
+      {scopedCitas.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 py-14 mx-4"
           style={{ border: "1px dashed var(--pwa-border)" }}>
           <Calendar className="h-10 w-10 opacity-10" style={{ color: "var(--pwa-muted)" }} />
@@ -955,7 +1333,7 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
         </div>
       )}
 
-      {citas.length > 0 && (
+      {scopedCitas.length > 0 && (
         <div className="mx-4 mt-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="h-3 w-0.5" style={{ background: currentGroup.color }} />
@@ -1046,13 +1424,21 @@ function TabCitas({ citas, plant, agente, responsables, onActivate, onCancel, on
       {/* Bottom sheet nueva cita */}
       {showForm && (
         <NuevaCitaSheet
-          plant={plant}
+          plant={activePlant}
           agente={agente}
           responsables={responsables}
           onSave={onRefresh}
           onClose={() => setShowForm(false)}
         />
       )}
+      {showLinkSheet && companyId ? (
+        <LinkSheet
+          plants={plants}
+          companyId={companyId}
+          gateOptions={gateOptions}
+          onClose={() => setShowLinkSheet(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1137,35 +1523,66 @@ const TIPO_OPTIONS = [
   { key: "novedad",   label: "Novedad",     color: "#6ba7ff", desc: "Observación del turno" },
 ] as const;
 
-function TabEventos({ eventos, agente, planta, onRefresh }: {
+function TabEventos({ eventos, agente, planta, plants, gateOptions, onRefresh, onPlantChange }: {
   eventos: GuardiaEvento[];
   agente: string;
   planta: string;
+  plants: string[];
+  gateOptions: GateAssignment[];
   onRefresh: () => void;
+  onPlantChange: (plant: string) => void;
 }) {
   const [tipo, setTipo]       = useState<"incidente" | "novedad">("incidente");
+  const [urgent, setUrgent]   = useState(false);
   const [desc, setDesc]       = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoMimeType, setPhotoMimeType] = useState<string | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  const clearPhoto = useCallback(() => {
+    setPhotoPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    setPhotoBase64(null);
+    setPhotoMimeType(null);
+    setProcessingPhoto(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    };
+  }, [photoPreviewUrl]);
 
   const handleSend = async () => {
     if (!desc.trim()) return;
     setSending(true);
+    setSendError(null);
     const result = await crearGuardiaEvento({
-      tipo, descripcion: desc.trim(),
-      foto_url: photoUrl,
+      tipo,
+      urgente: urgent,
+      descripcion: desc.trim(),
+      foto_base64: photoBase64,
+      foto_mime_type: photoMimeType,
       agente, planta,
     });
     setSending(false);
     if (result.success) {
       setDesc("");
-      setPhotoUrl(null);
+      setUrgent(false);
+      clearPhoto();
       setSent(true);
       setTimeout(() => setSent(false), 2500);
       onRefresh();
+      return;
     }
+    setSendError(humanizeError(result.error));
   };
 
   function fmtEvento(ts: string): string {
@@ -1175,6 +1592,12 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
   return (
     <div className="flex flex-col gap-4 mx-4">
       <ScreenHeader tab="eventos" title="Bitácora" />
+      <PlantScopeSelector
+        plants={plants}
+        activePlant={planta}
+        gateOptions={gateOptions}
+        onChange={onPlantChange}
+      />
 
       {/* Formulario */}
       <div className="flex flex-col gap-3 p-4"
@@ -1210,7 +1633,10 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
         {/* Descripción */}
         <textarea
           value={desc}
-          onChange={e => setDesc(e.target.value)}
+          onChange={e => {
+            setDesc(e.target.value);
+            if (sendError) setSendError(null);
+          }}
           placeholder="Describe lo que ocurrió..."
           rows={3}
           className="w-full outline-none resize-none p-3 text-[14px]"
@@ -1229,10 +1655,10 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
               fontFamily: "var(--sg-font-mono)", fontSize: 9,
               letterSpacing: "0.12em", textTransform: "uppercase" }}>
             <Camera className="h-3.5 w-3.5" />
-            {photoUrl ? "Foto ✓" : "Adjuntar foto"}
+            {processingPhoto ? "Procesando..." : photoPreviewUrl ? "Foto ✓" : "Adjuntar foto"}
           </button>
-          {photoUrl && (
-            <button onClick={() => setPhotoUrl(null)}
+          {photoPreviewUrl && (
+            <button onClick={clearPhoto}
               style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, color: "var(--pwa-danger)",
                 letterSpacing: "0.1em", textTransform: "uppercase", background: "none", border: "none",
                 cursor: "pointer" }}>
@@ -1241,23 +1667,64 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
           )}
           <input ref={cameraRef} type="file" accept="image/*" capture="environment"
             className="hidden"
-            onChange={e => {
+            onChange={async e => {
               const f = e.target.files?.[0];
-              if (f) setPhotoUrl(URL.createObjectURL(f));
+              if (f) {
+                clearPhoto();
+                setProcessingPhoto(true);
+                setPhotoMimeType(f.type || "image/jpeg");
+                setPhotoPreviewUrl(URL.createObjectURL(f));
+                try {
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const result = typeof reader.result === "string" ? reader.result : "";
+                      const payload = result.split(",")[1];
+                      if (!payload) {
+                        reject(new Error("No se pudo leer la imagen."));
+                        return;
+                      }
+                      resolve(payload);
+                    };
+                    reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer la imagen."));
+                    reader.readAsDataURL(f);
+                  });
+                  setPhotoBase64(base64);
+                } catch {
+                  clearPhoto();
+                } finally {
+                  setProcessingPhoto(false);
+                }
+              }
               e.target.value = "";
             }} />
         </div>
-        {photoUrl && (
+        {photoPreviewUrl && (
           <div className="relative overflow-hidden" style={{ border: "1px solid var(--pwa-border)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photoUrl} alt="evidencia" className="h-28 w-full object-cover" />
+            <img src={photoPreviewUrl} alt="evidencia" className="h-28 w-full object-cover" />
             <button
-              onClick={() => setPhotoUrl(null)}
+              onClick={clearPhoto}
               className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center"
               style={{ background: "rgba(0,0,0,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", cursor: "pointer" }}
             >
               <X className="h-3 w-3" />
             </button>
+          </div>
+        )}
+
+        {sendError && (
+          <div
+            className="px-3 py-2"
+            style={{
+              background: "color-mix(in srgb, var(--pwa-danger) 10%, transparent)",
+              borderLeft: "3px solid var(--pwa-danger)",
+              color: "var(--pwa-danger)",
+              fontFamily: "var(--sg-font-body)",
+              fontSize: 12,
+            }}
+          >
+            {sendError}
           </div>
         )}
 
@@ -1271,11 +1738,11 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
             </p>
           </div>
           <button
-            onClick={() => setTipo((current) => (current === "incidente" ? "novedad" : "incidente"))}
+            onClick={() => setUrgent((current) => !current)}
             className="relative h-7 w-12 rounded-full"
-            style={{ background: tipo === "incidente" ? "#d35c4f" : "rgba(255,255,255,0.12)", border: "none", cursor: "pointer" }}
+            style={{ background: urgent ? "#d35c4f" : "rgba(255,255,255,0.12)", border: "none", cursor: "pointer" }}
           >
-            <span className="absolute top-[2px] h-6 w-6 rounded-full bg-white transition-all" style={{ left: tipo === "incidente" ? 22 : 2 }} />
+            <span className="absolute top-[2px] h-6 w-6 rounded-full bg-white transition-all" style={{ left: urgent ? 22 : 2 }} />
           </button>
         </div>
 
@@ -1283,10 +1750,10 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={handleSend}
-          disabled={sending || !desc.trim()}
+          disabled={sending || processingPhoto || !desc.trim()}
           className="w-full h-12 flex items-center justify-center gap-2 transition-opacity disabled:opacity-40"
           style={{
-            background: sent ? "#6bbd8a" : TIPO_OPTIONS.find(t => t.key === tipo)?.color,
+            background: sent ? "#6bbd8a" : urgent ? "#d35c4f" : TIPO_OPTIONS.find(t => t.key === tipo)?.color,
             color: "#000", border: "none", cursor: "pointer",
             fontFamily: "var(--sg-font-mono)", fontSize: 11,
             letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700,
@@ -1295,21 +1762,23 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
             ? <><CheckCircle2 className="h-4 w-4" /> Reportado</>
             : sending
             ? "Enviando..."
+            : processingPhoto
+            ? "Procesando foto..."
             : <><Send className="h-4 w-4" /> Enviar reporte</>
           }
         </motion.button>
       </div>
 
       {/* Historial del día */}
-      {eventos.length > 0 && (
+      {eventos.filter((event) => event.planta === planta).length > 0 && (
         <div>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.2em",
             textTransform: "uppercase", color: "var(--pwa-muted)", marginBottom: 8 }}>
             Historial reciente
           </p>
           <div className="flex flex-col" style={{ border: "1px solid var(--pwa-border)" }}>
-            {eventos.map(ev => {
-              const color = ev.tipo === "emergencia" ? "#d35c4f"
+            {eventos.filter((event) => event.planta === planta).map(ev => {
+              const color = ev.urgente || ev.tipo === "emergencia" ? "#d35c4f"
                 : ev.tipo === "incidente" ? "#d4864a" : "#6ba7ff";
               return (
                 <div key={ev.id} className="flex gap-3 px-4 py-3"
@@ -1320,7 +1789,7 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
                         letterSpacing: "0.14em", textTransform: "uppercase", color, fontWeight: 600 }}>
-                        {ev.tipo}
+                        {ev.urgente && ev.tipo !== "emergencia" ? `${ev.tipo} · urgente` : ev.tipo}
                       </span>
                       <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
                         color: "var(--pwa-muted)" }}>
@@ -1339,7 +1808,7 @@ function TabEventos({ eventos, agente, planta, onRefresh }: {
         </div>
       )}
 
-      {eventos.length === 0 && (
+      {eventos.filter((event) => event.planta === planta).length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-10"
           style={{ opacity: 0.5 }}>
           <BookOpen className="h-8 w-8" style={{ color: "var(--pwa-muted)" }} />
@@ -1362,11 +1831,11 @@ function TabRendimiento({ guardName, plant, records, eventos, onOpenPerfil }: {
   eventos: GuardiaEvento[];
   onOpenPerfil: () => void;
 }) {
-  const misRegistros = records.filter((r) => r.agente === guardName);
+  const misRegistros = records.filter((r) => r.agente === guardName && r.planta === plant);
   const misPendientes = misRegistros.filter((r) => !r.attended && !r.docsDelivered).length;
   const misCompletados = misRegistros.filter((r) => r.docsDelivered).length;
   const misDemoras = misRegistros.filter((r) => isDelayedRecord(r)).length;
-  const misEventos = eventos.length;
+  const misEventos = eventos.filter((event) => event.planta === plant).length;
 
   const avgEspera = misRegistros.filter((r) => r.espera_min != null).length > 0
     ? Math.round(
@@ -1432,7 +1901,7 @@ function TabRendimiento({ guardName, plant, records, eventos, onOpenPerfil }: {
               Historial personal
             </p>
             <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--pwa-muted)", margin: "4px 0 0" }}>
-              Última actividad del turno
+              {formatGateLabelFromPlant(plant)} · última actividad
             </p>
           </div>
           <button onClick={onOpenPerfil} className="flex items-center gap-1" style={{ background: "none", border: "none", color: "var(--pwa-accent)", cursor: "pointer", fontFamily: "var(--sg-font-mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase" }}>
@@ -1478,13 +1947,20 @@ function ProfileOption({
   label,
   value,
   tone = "default",
+  onClick,
 }: {
   label: string;
   value?: string;
   tone?: "default" | "danger";
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: "1px solid var(--pwa-border)", background: "var(--pwa-surface)" }}>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      style={{ borderTop: "1px solid var(--pwa-border)", background: "var(--pwa-surface)" }}
+    >
       <div>
         <p style={{ fontFamily: "var(--sg-font-display)", fontSize: 13, fontWeight: 700, textTransform: "uppercase", color: tone === "danger" ? "var(--pwa-danger)" : "var(--pwa-ink)", margin: 0 }}>
           {label}
@@ -1498,13 +1974,15 @@ function ProfileOption({
         ) : null}
         <ArrowRight className="h-3.5 w-3.5" style={{ color: tone === "danger" ? "var(--pwa-danger)" : "var(--pwa-muted)" }} />
       </div>
-    </div>
+    </button>
   );
 }
 
-function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimiento }: {
+function TabPerfil({ guardName, plant, plants, gateOptions, records, eventos, onLogout, onOpenRendimiento }: {
   guardName: string;
   plant: string;
+  plants: string[];
+  gateOptions: GateAssignment[];
   records: RecentRegistration[];
   eventos: GuardiaEvento[];
   onLogout: () => void;
@@ -1558,8 +2036,9 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
         <div className="mt-4 grid gap-3">
           {[
             ["Turno", "Matutino (06:00 - 14:00)"],
-            ["Planta asignada", plant.split(" ")[0] || plant],
-            ["Puerta asignada", formatGateLabelFromPlant(plant)],
+            ["Puertas activas", String(plants.length || 1)],
+            ["Planta activa", plant.split(" ")[0] || plant],
+            ["Puerta activa", formatGateLabelFromPlant(plant, gateOptions)],
           ].map(([label, value]) => (
             <div key={label} className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0" style={{ borderColor: "var(--pwa-border)" }}>
               <span style={{ fontFamily: "var(--sg-font-body)", fontSize: 13, color: "var(--pwa-ink-soft)" }}>{label}</span>
@@ -1575,9 +2054,9 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
             Opciones
           </p>
         </div>
-        <button onClick={onOpenRendimiento} className="w-full text-left">
-          <ProfileOption label="Mi rendimiento" value="detalle del día" />
-        </button>
+        <ProfileOption label="Mi rendimiento" value="detalle del día" onClick={onOpenRendimiento} />
+        <ProfileOption label="Panel web" value="dashboard" onClick={() => { window.location.href = "/dashboard"; }} />
+        <ProfileOption label="Historial web" value="detalle completo" onClick={() => { window.location.href = "/historial"; }} />
         <ProfileOption label="Ajustes visuales" value="tema actual" />
         <ProfileOption label="Ayuda" value="guía rápida" />
       </div>
@@ -1641,7 +2120,10 @@ function TabPerfil({ guardName, plant, records, eventos, onLogout, onOpenRendimi
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 interface Props {
+  companyId: string;
   plant: string;
+  plants: string[];
+  gateOptions: GateAssignment[];
   guardName: string;
   initialRecords: RecentRegistration[];
   initialCitas: CitaRow[];
@@ -1649,17 +2131,39 @@ interface Props {
   responsables: string[];
 }
 
-export default function PWAHomeGuardia({ plant, guardName, initialRecords, initialCitas, initialEventos, responsables }: Props) {
+export default function PWAHomeGuardia({ companyId, plant, plants, gateOptions, guardName, initialRecords, initialCitas, initialEventos, responsables }: Props) {
   const router = useRouter();
   const [tab, setTab]               = useState<Tab>("inicio");
   const [records, setRecords]       = useState(initialRecords);
   const [citas, setCitas]           = useState(initialCitas);
   const [eventos, setEventos]       = useState(initialEventos);
+  const [activePlant, setActivePlant] = useState(plant || plants[0] || "");
   const [refreshing, setRefreshing] = useState(false);
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
   const [selectedReg, setSelectedReg] = useState<RecentRegistration | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [pendingDelayRecord, setPendingDelayRecord] = useState<RecentRegistration | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    message: React.ReactNode;
+    confirmText: string;
+    confirmTone?: "accent" | "danger" | "info";
+    action: () => void | Promise<void>;
+  } | null>(null);
   const inactivityRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const liveNow = useLiveNow();
+  const scopedRecords = records.filter((record) => record.planta === activePlant);
+  const scopedCitas = citas.filter((cita) => cita.planta === activePlant);
+
+  useEffect(() => {
+    if (!activePlant && plants.length > 0) {
+      setActivePlant(plants[0]);
+      return;
+    }
+    if (activePlant && plants.length > 0 && !plants.includes(activePlant)) {
+      setActivePlant(plants[0]);
+    }
+  }, [activePlant, plants]);
 
   // Auto-logout por inactividad
   const resetInactivity = useCallback(() => {
@@ -1684,22 +2188,29 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     const [{ records: fresh }, freshCitas, freshEventos] = await Promise.all([
-      getRecentRegistrations(plant, 100),
-      getCitasDelDia(plant),
-      getGuardiaEventosHoy(plant),
+      getRecentRegistrations(plants, 100),
+      getCitasDelDia(plants),
+      getGuardiaEventosHoy(plants),
     ]);
     setRecords(fresh);
     setCitas(freshCitas);
     setEventos(freshEventos);
     if (!silent) setRefreshing(false);
-  }, [plant]);
+  }, [plants]);
+
+  const showToast = useCallback((message: string, duration = 3200) => {
+    setToastMessage(message);
+    window.setTimeout(() => {
+      setToastMessage((current) => (current === message ? null : current));
+    }, duration);
+  }, []);
 
   const handleEmergencia = async () => {
     await crearGuardiaEvento({
       tipo: "emergencia",
       descripcion: "EMERGENCIA activada desde el PWA",
       agente: guardName,
-      planta: plant,
+      planta: activePlant,
     });
     await refresh(true);
   };
@@ -1713,40 +2224,114 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
   // Supabase Realtime — actualización instantánea
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
-      .channel(`pwa-guard-${plant}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "atenciones", filter: `planta=eq.${plant}` },
-        () => { void refresh(true); }
-      )
-      .subscribe();
+    let channel = supabase.channel(`pwa-guard-${plants.join("-") || "default"}`);
+    plants.forEach((currentPlant) => {
+      channel = channel
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "atenciones", filter: `planta=eq.${currentPlant}` },
+          () => { void refresh(true); }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "guardia_eventos", filter: `planta=eq.${currentPlant}` },
+          () => { void refresh(true); }
+        );
+    });
+    channel.subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [plant, refresh]);
+  }, [plants, refresh]);
+
+  const runClose = async (reg: RecentRegistration, motivo?: string) => {
+    setClosingIds((current) => new Set(current).add(reg.id));
+    const result = await closeAtencion(reg.id, motivo);
+    setClosingIds((current) => {
+      const next = new Set(current);
+      next.delete(reg.id);
+      return next;
+    });
+    if (result.success) {
+      showToast(`Atención cerrada · ${result.espera_min} min de espera`);
+      await refresh(true);
+      if (selectedReg?.id === reg.id) setSelectedReg(null);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
+  };
 
   const handleClose = async (reg: RecentRegistration) => {
-    setClosingIds(p => new Set(p).add(reg.id));
-    await closeAtencion({ id: reg.id, motivoDemora: "" });
-    await refresh(true);
-    setClosingIds(p => { const s = new Set(p); s.delete(reg.id); return s; });
+    const [hh, mm] = reg.time.split(":").map(Number);
+    const startMin = hh * 60 + mm;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const diff = nowMin - startMin < 0 ? nowMin - startMin + 1440 : nowMin - startMin;
+
+    if (diff >= 30 || isDelayedRecord(reg, now)) {
+      setPendingDelayRecord(reg);
+      return;
+    }
+
+    setPendingConfirm({
+      title: "Confirmar atención",
+      message: (
+        <>
+          ¿Iniciar la atención para <strong style={{ color: "var(--pwa-ink)" }}>{reg.razonSocial}</strong> en {formatGateLabelFromPlant(reg.planta, gateOptions)}?
+        </>
+      ),
+      confirmText: "Iniciar atención",
+      confirmTone: "accent",
+      action: () => runClose(reg),
+    });
   };
 
   const handleDocs = async (reg: RecentRegistration) => {
-    setClosingIds(p => new Set(p).add(reg.id));
-    await closeAtencionDocs({ id: reg.id });
-    await refresh(true);
-    setClosingIds(p => { const s = new Set(p); s.delete(reg.id); return s; });
+    setPendingConfirm({
+      title: "Finalizar flujo",
+      message: (
+        <>
+          ¿Confirmar entrega de documentos y salida para <strong style={{ color: "var(--pwa-ink)" }}>{reg.razonSocial}</strong>?
+        </>
+      ),
+      confirmText: "Entregar docs",
+      confirmTone: "info",
+      action: async () => {
+        setClosingIds((current) => new Set(current).add(reg.id));
+        const result = await closeAtencionDocs(reg.id);
+        setClosingIds((current) => {
+          const next = new Set(current);
+          next.delete(reg.id);
+          return next;
+        });
+        if (result.success) {
+          showToast(`Documentos entregados · ${result.tiempo_total_min} min total`);
+          await refresh(true);
+          if (selectedReg?.id === reg.id) setSelectedReg(null);
+          return;
+        }
+        showToast(humanizeError(result.error), 4200);
+      },
+    });
   };
 
   const handleActivateCita = async (id: number) => {
-    await activateCita({ id });
-    await refresh(true);
+    const result = await activateCita({ id });
+    if (result.success) {
+      showToast("Llegada confirmada.");
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
 
   const handleCancelCita = async (id: number) => {
-    await cancelarCita({ id });
-    await refresh(true);
+    const result = await cancelarCita({ id });
+    if (result.success) {
+      showToast("Cita cancelada.");
+      await refresh(true);
+      return;
+    }
+    showToast(humanizeError(result.error), 4200);
   };
 
   const handleLogout = () => {
@@ -1756,9 +2341,9 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
 
   const now = new Date();
   const urgentes = records.filter(r => isAbandonedRecord(r, now)).length;
-  const citasPendientes = citas.filter(c => c.estado === "esperado").length;
+  const citasPendientes = scopedCitas.filter(c => c.estado === "esperado").length;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const citasRetrasadas = citas.filter((c) => {
+  const citasRetrasadas = scopedCitas.filter((c) => {
     if (c.estado !== "esperado") return false;
     const [hour, minute] = c.horaCita.split(":").map(Number);
     return (hour * 60 + minute) < nowMinutes - 10;
@@ -1774,10 +2359,11 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabInicio
-                plant={plant}
+                plants={plants}
+                activePlant={activePlant}
+                gateOptions={gateOptions}
                 records={records}
-                citasPendientes={citasPendientes}
-                citasRetrasadas={citasRetrasadas}
+                citas={citas}
                 onRefresh={() => refresh(false)}
                 refreshing={refreshing}
                 onClose={handleClose}
@@ -1786,6 +2372,7 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
                 onOpenCitas={() => setTab("citas")}
                 onOpenEventos={() => setTab("eventos")}
                 onOpenRendimiento={() => setTab("rendimiento")}
+                onPlantChange={setActivePlant}
               />
             </motion.div>
           )}
@@ -1795,12 +2382,16 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabCitas
                 citas={citas}
-                plant={plant}
+                plants={plants}
+                activePlant={activePlant}
+                gateOptions={gateOptions}
                 agente={guardName}
                 responsables={responsables}
+                companyId={companyId}
                 onActivate={handleActivateCita}
                 onCancel={handleCancelCita}
                 onRefresh={() => refresh(false)}
+                onPlantChange={setActivePlant}
               />
             </motion.div>
           )}
@@ -1811,8 +2402,11 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               <TabEventos
                 eventos={eventos}
                 agente={guardName}
-                planta={plant}
+                planta={activePlant}
+                plants={plants}
+                gateOptions={gateOptions}
                 onRefresh={() => refresh(true)}
+                onPlantChange={setActivePlant}
               />
             </motion.div>
           )}
@@ -1822,7 +2416,7 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabRendimiento
                 guardName={guardName}
-                plant={plant}
+                plant={activePlant}
                 records={records}
                 eventos={eventos}
                 onOpenPerfil={() => setTab("perfil")}
@@ -1835,7 +2429,9 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
               exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <TabPerfil
                 guardName={guardName}
-                plant={plant}
+                plant={activePlant}
+                plants={plants}
+                gateOptions={gateOptions}
                 records={records}
                 eventos={eventos}
                 onLogout={handleLogout}
@@ -1854,6 +2450,35 @@ export default function PWAHomeGuardia({ plant, guardName, initialRecords, initi
         onMarkAttended={() => { if (selectedReg) handleClose(selectedReg); }}
         onMarkDocs={() => { if (selectedReg) handleDocs(selectedReg); }}
       />
+
+      {pendingDelayRecord ? (
+        <DelayReasonSheet
+          reg={pendingDelayRecord}
+          onCancel={() => setPendingDelayRecord(null)}
+          onConfirm={async (motivo) => {
+            const record = pendingDelayRecord;
+            setPendingDelayRecord(null);
+            await runClose(record, motivo);
+          }}
+        />
+      ) : null}
+
+      {pendingConfirm ? (
+        <ActionSheet
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmText={pendingConfirm.confirmText}
+          confirmTone={pendingConfirm.confirmTone}
+          onCancel={() => setPendingConfirm(null)}
+          onConfirm={async () => {
+            const action = pendingConfirm.action;
+            setPendingConfirm(null);
+            await action();
+          }}
+        />
+      ) : null}
+
+      <ToastNotice message={toastMessage} />
 
       {/* Bottom Tab Bar */}
       <TabBar

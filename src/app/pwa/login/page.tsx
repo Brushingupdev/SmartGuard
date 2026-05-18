@@ -91,8 +91,19 @@ export default function PWALoginPage() {
       if (result?.error) {
         setError(result.error);
         setLoading(false);
+        return;
       }
-      // Si no hay error, el server action redirige automáticamente
+
+      const role = result?.role;
+      if (role === "administrador") {
+        router.replace("/admin");
+        return;
+      }
+      if (role === "supervisor") {
+        router.replace("/pwa/supervisor");
+        return;
+      }
+      router.replace("/pwa/home");
     } catch {
       setError("Error inesperado. Intenta de nuevo.");
       setLoading(false);

@@ -188,6 +188,11 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "DÃ
   };
 }
 
+function guardAgentAliases(ctx: Awaited<ReturnType<typeof getUserContext>>): string[] {
+  if (!ctx || ctx.role !== "guardia") return [];
+  return [...new Set([ctx.displayName, ctx.email].map((value) => value?.trim()).filter(Boolean) as string[])];
+}
+
 async function resolveSitePlants(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ctx: Awaited<ReturnType<typeof getUserContext>>,
@@ -326,6 +331,8 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       .lte("fecha", to)
       .limit(5000);
     if (plant !== "Todos") query = query.eq("planta", plant);
+    const aliases = guardAgentAliases(ctx);
+    if (aliases.length > 0) query = query.in("agente", aliases);
     const { data, error } = await query;
     if (error || !data) throw error ?? new Error("Sin datos de dashboard");
     return buildDashboardStatsFromRows(data as DashboardMetricRow[], timeframe);
@@ -407,6 +414,8 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
         .limit(5000);
       if (sitePlants) query = query.in("planta", sitePlants);
       else if (plant !== "Todos") query = query.eq("planta", plant);
+      const aliases = guardAgentAliases(ctx);
+      if (aliases.length > 0) query = query.in("agente", aliases);
       const { data } = await query;
       const rows = (data ?? []) as Array<{ espera_min: number | null; demora_cita_min: number | null }>;
       return [{
@@ -495,6 +504,8 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
     } else if (plant !== "Todos") {
       query = query.eq("planta", plant);
     }
+    const aliases = guardAgentAliases(ctx);
+    if (aliases.length > 0) query = query.in("agente", aliases);
 
     const { data } = await query.limit(5000);
     if (!data?.length) return [];

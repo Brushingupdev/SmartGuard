@@ -6,29 +6,81 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart3, Bell, Building2, ChevronLeft, ChevronRight,
-  ClipboardList, CreditCard, History, LayoutDashboard, LayoutGrid,
+  CreditCard, History, LayoutDashboard, LayoutGrid,
   Menu, Users, X, LogOut, Activity, UserCircle,
   ShieldOff,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import type { LucideProps } from "lucide-react";
+import { useState, useEffect, type ComponentType } from "react";
 import { formatGateLabel } from "@/lib/gates";
 
+type NavItem = {
+  href: string;
+  icon: ComponentType<LucideProps>;
+  label: string;
+  note: string;
+  guardia: boolean;
+  guardiaLabel?: string;
+  guardiaNote?: string;
+};
+
 // Ítems para supervisores y guardias
-const supervisorItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard",  note: "Vista en vivo",      guardia: false },
-  { href: "/registro",  icon: ClipboardList,   label: "Registro",   note: "Captura operativa",  guardia: true  },
-  { href: "/alertas",   icon: Bell,            label: "Alertas",    note: "Incidentes activos", guardia: true  },
-  { href: "/historial", icon: History,         label: "Historial",  note: "Trazabilidad",        guardia: false },
-  { href: "/reporte",   icon: BarChart3,       label: "Análisis",   note: "Reporte detallado",  guardia: false },
-  { href: "/empresa",   icon: Building2,       label: "Mi Empresa", note: "Configuración",      guardia: false },
+const supervisorItems: NavItem[] = [
+  {
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    label: "Dashboard",
+    note: "Vista en vivo",
+    guardia: true,
+    guardiaLabel: "Rendimiento",
+    guardiaNote: "Mi operación",
+  },
+  {
+    href: "/alertas",
+    icon: Bell,
+    label: "Alertas",
+    note: "Incidentes activos",
+    guardia: true,
+  },
+  {
+    href: "/historial",
+    icon: History,
+    label: "Historial",
+    note: "Trazabilidad",
+    guardia: true,
+    guardiaLabel: "Mi historial",
+    guardiaNote: "Registros y tiempos",
+  },
+  {
+    href: "/reporte",
+    icon: BarChart3,
+    label: "Análisis",
+    note: "Reporte detallado",
+    guardia: false,
+  },
+  {
+    href: "/empresa",
+    icon: Building2,
+    label: "Mi Empresa",
+    note: "Configuración",
+    guardia: false,
+  },
+  {
+    href: "/perfil",
+    icon: UserCircle,
+    label: "Perfil",
+    note: "Cuenta y acceso",
+    guardia: true,
+    guardiaNote: "Cuenta y turno",
+  },
 ];
 
 // Ítems exclusivos del administrador
-const adminItems = [
-  { href: "/admin",        icon: LayoutGrid, label: "Empresas",  note: "Panel de control"    },
-  { href: "/admin/pagos",  icon: CreditCard, label: "Pagos",     note: "Facturación"         },
-  { href: "/monitor",      icon: Activity,   label: "Monitor",   note: "Salud del sistema"   },
-  { href: "/usuarios",     icon: Users,      label: "Usuarios",  note: "Gestión de cuentas"  },
+const adminItems: NavItem[] = [
+  { href: "/admin",       icon: LayoutGrid, label: "Empresas", note: "Panel de control",   guardia: false },
+  { href: "/admin/pagos", icon: CreditCard, label: "Pagos",    note: "Facturación",        guardia: false },
+  { href: "/monitor",     icon: Activity,   label: "Monitor",  note: "Salud del sistema",  guardia: false },
+  { href: "/usuarios",    icon: Users,      label: "Usuarios", note: "Gestión de cuentas", guardia: false },
 ];
 
 import { getUserProfile } from "@/app/actions";
@@ -140,10 +192,10 @@ function NavLinks({
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.12em]">
-                  {item.label}
+                  {isGuardia ? item.guardiaLabel ?? item.label : item.label}
                 </div>
                 <div className="sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)] mt-0.5">
-                  {item.note}
+                  {isGuardia ? item.guardiaNote ?? item.note : item.note}
                 </div>
               </div>
             )}

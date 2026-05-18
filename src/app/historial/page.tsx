@@ -856,23 +856,23 @@ export default function HistorialPage() {
       {/* Topbar */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sg-line)] pb-5">
         <div className="flex items-center gap-4">
-          <div className="sg-kicker">Historial</div>
+          <div className="sg-kicker">{userRole === "guardia" ? "Mi historial" : "Historial"}</div>
           <span className="sg-live-pill">
             <span className="sg-live-dot sg-pulse" />
-            Trazabilidad
+            {userRole === "guardia" ? "Trazabilidad personal" : "Trazabilidad"}
           </span>
         </div>
         <div className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.12em]">
-          {stats ? fmt.format(stats.total) : "—"} eventos históricos
+          {stats ? fmt.format(stats.total) : "—"} {userRole === "guardia" ? "registros propios" : "eventos históricos"}
         </div>
       </div>
 
       {/* Stats strip */}
       <div className="mb-6 grid grid-cols-2 gap-0 border border-[var(--sg-line)] md:grid-cols-4">
         {[
-          { label: "Eventos disponibles",  val: stats ? fmt.format(stats.total) : "—",   suffix: "" },
+          { label: userRole === "guardia" ? "Mis registros" : "Eventos disponibles",  val: stats ? fmt.format(stats.total) : "—",   suffix: "" },
           { label: "Demora promedio",       val: stats ? stats.avg.toString() : "—",       suffix: " min" },
-          { label: "Puertas monitoreadas", val: stats ? stats.plants.toString() : "—",    suffix: "" },
+          { label: userRole === "guardia" ? "Puertas operadas" : "Puertas monitoreadas", val: stats ? stats.plants.toString() : "—",    suffix: "" },
           { label: "Demora máxima",         val: stats ? fmt.format(stats.max) : "—",      suffix: " min" },
         ].map((s, i) => (
           <div
@@ -925,13 +925,15 @@ export default function HistorialPage() {
                 </button>
               )}
 
-              <button
-                onClick={() => setShowImport(true)}
-                className="sg-btn sg-btn-ghost sg-btn-sm flex items-center gap-2"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Importar Excel
-              </button>
+              {canEditRecords && (
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="sg-btn sg-btn-ghost sg-btn-sm flex items-center gap-2"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Importar Excel
+                </button>
+              )}
 
               <button
                 onClick={handleExport}

@@ -143,7 +143,7 @@ export default function PushSubscribeButton() {
           </p>
           <p style={{ fontFamily: "var(--sg-font-mono)", fontSize: 8, letterSpacing: "0.1em",
             textTransform: "uppercase", color: "var(--pwa-muted)", margin: "2px 0 0" }}>
-            {status === "subscribed" ? "Toca para desactivar" : "Recibe alertas de nuevos vehículos"}
+            {status === "subscribed" ? "Toca para desactivar" : "Recibe alertas de citas, demoras y nuevos vehículos"}
           </p>
         </div>
       </div>
