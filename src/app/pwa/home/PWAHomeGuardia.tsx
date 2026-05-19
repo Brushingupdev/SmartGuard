@@ -777,6 +777,8 @@ function TabInicio({ plants, activePlant, gateOptions, records, citas, onRefresh
         onChange={onPlantChange}
       />
 
+      <PushSubscribeButton variant="card" showMode="inactive" />
+
       <div className="mx-4 mt-1 flex flex-col gap-3">
         <HomeOverviewCard
           icon={Truck}

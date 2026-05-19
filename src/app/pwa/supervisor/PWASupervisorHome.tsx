@@ -226,6 +226,8 @@ function TabInicio({ records, plantas, eventos, onSelectPlanta }: {
 
   return (
     <div className="flex flex-col mt-4 gap-4">
+      <PushSubscribeButton variant="card" showMode="inactive" />
+
       {/* KPI chips */}
       <div className="flex gap-2 px-4">
         {[
