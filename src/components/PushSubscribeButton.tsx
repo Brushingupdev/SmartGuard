@@ -112,15 +112,15 @@ export default function PushSubscribeButton({
       <div
         className="mx-4 mt-4 overflow-hidden"
         style={{
-          background: "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008))",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.016), rgba(255,255,255,0.006))",
           border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 14,
-          boxShadow: "0 10px 24px rgba(0,0,0,0.16)",
+          borderRadius: 12,
+          boxShadow: "0 8px 18px rgba(0,0,0,0.14)",
         }}
       >
-        <div className="flex items-start gap-3 px-4 py-4">
+        <div className="flex items-center gap-3 px-3.5 py-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
             style={{
               background:
                 status === "subscribed"
@@ -135,8 +135,8 @@ export default function PushSubscribeButton({
             <p
               style={{
                 fontFamily: "var(--sg-font-mono)",
-                fontSize: 8,
-                letterSpacing: "0.16em",
+                fontSize: 7,
+                letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 color: "var(--pwa-muted)",
                 margin: 0,
@@ -147,11 +147,12 @@ export default function PushSubscribeButton({
             <p
               style={{
                 fontFamily: "var(--sg-font-display)",
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: 800,
                 textTransform: "uppercase",
                 color: "var(--pwa-ink)",
-                margin: "6px 0 0",
+                margin: "3px 0 0",
+                lineHeight: 1.15,
               }}
             >
               {copy.title}
@@ -159,70 +160,71 @@ export default function PushSubscribeButton({
             <p
               style={{
                 fontFamily: "var(--sg-font-body)",
-                fontSize: 13,
+                fontSize: 11,
                 color: "var(--pwa-ink-soft)",
-                margin: "8px 0 0",
-                lineHeight: 1.45,
+                margin: "4px 0 0",
+                lineHeight: 1.3,
               }}
             >
               {copy.detail}
             </p>
           </div>
-        </div>
 
-        {(status === "unsubscribed" || status === "subscribed") && (
-          <div className="px-4 pb-4 flex gap-2">
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={handleToggle}
-              disabled={loading}
-              className="flex-1 h-11 disabled:opacity-60"
-              style={{
-                background: status === "subscribed" ? "var(--pwa-surface-2)" : "var(--pwa-accent)",
-                color: status === "subscribed" ? "var(--pwa-ink)" : "var(--pwa-accent-fg)",
-                border: status === "subscribed" ? "1px solid var(--pwa-border)" : "none",
-                cursor: "pointer",
-                fontFamily: "var(--sg-font-mono)",
-                fontSize: 10,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                fontWeight: 700,
-                borderRadius: 10,
-              }}
-            >
-              {status === "subscribed" ? "Desactivar" : "Activar push"}
-            </motion.button>
-
-            {showTestAction ? (
+          {(status === "unsubscribed" || status === "subscribed") && (
+            <div className="flex items-center gap-2 shrink-0 self-center">
               <motion.button
                 whileTap={{ scale: 0.98 }}
-                onClick={handleSendTest}
+                onClick={handleToggle}
                 disabled={loading}
-                className="h-11 px-4 disabled:opacity-60"
+                className="h-9 px-3 disabled:opacity-60"
                 style={{
-                  background: "var(--pwa-surface-2)",
-                  border: "1px solid var(--pwa-border)",
-                  color: "var(--pwa-ink)",
+                  background: status === "subscribed" ? "var(--pwa-surface-2)" : "var(--pwa-accent)",
+                  color: status === "subscribed" ? "var(--pwa-ink)" : "var(--pwa-accent-fg)",
+                  border: status === "subscribed" ? "1px solid var(--pwa-border)" : "none",
                   cursor: "pointer",
-                  borderRadius: 10,
+                  fontFamily: "var(--sg-font-mono)",
+                  fontSize: 8,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                  borderRadius: 9,
+                  whiteSpace: "nowrap",
                 }}
-                aria-label="Enviar prueba"
               >
-                <Send className="h-4 w-4" />
+                {status === "subscribed" ? "Desactivar" : "Activar"}
               </motion.button>
-            ) : null}
-          </div>
-        )}
+
+              {showTestAction ? (
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSendTest}
+                  disabled={loading}
+                  className="h-9 w-9 disabled:opacity-60 flex items-center justify-center"
+                  style={{
+                    background: "var(--pwa-surface-2)",
+                    border: "1px solid var(--pwa-border)",
+                    color: "var(--pwa-ink)",
+                    cursor: "pointer",
+                    borderRadius: 9,
+                  }}
+                  aria-label="Enviar prueba"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </motion.button>
+              ) : null}
+            </div>
+          )}
+        </div>
 
         {message ? (
-          <div className="px-4 pb-4">
+          <div className="px-3.5 pb-3">
             <p
               style={{
                 fontFamily: "var(--sg-font-body)",
-                fontSize: 12,
+                fontSize: 11,
                 color: toneColor,
                 margin: 0,
-                lineHeight: 1.4,
+                lineHeight: 1.3,
               }}
             >
               {message}

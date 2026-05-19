@@ -10,6 +10,8 @@ export type PushStatus =
   | "subscribed"
   | "unsubscribed";
 
+const SW_READY_TIMEOUT_MS = 1800;
+
 async function getVapidPublicKey(): Promise<string | null> {
   try {
     const res = await fetch("/api/push/subscribe");
@@ -56,7 +58,19 @@ export function usePushSubscriptionStatus() {
       return { key: null, subscription: null };
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = (await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<ServiceWorkerRegistration | null>((resolve) => {
+        window.setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
+      }),
+    ])) ?? (await navigator.serviceWorker.getRegistration("/pwa/")) ?? null;
+
+    if (!registration) {
+      setSubscriptionEndpoint(null);
+      setStatus("unsubscribed");
+      return { key, subscription: null };
+    }
+
     const subscription = await registration.pushManager.getSubscription();
     setSubscriptionEndpoint(subscription?.endpoint ?? null);
     setStatus(subscription ? "subscribed" : "unsubscribed");
