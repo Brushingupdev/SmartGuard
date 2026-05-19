@@ -191,7 +191,7 @@ export default function PushSubscribeButton({
                   whiteSpace: "nowrap",
                 }}
               >
-                {status === "subscribed" ? "Desactivar" : "Activar"}
+                {loading ? "Procesando..." : status === "subscribed" ? "Desactivar" : "Activar"}
               </motion.button>
 
               {showTestAction ? (

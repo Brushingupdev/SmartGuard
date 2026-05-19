@@ -12,6 +12,23 @@ export type PushStatus =
 
 const SW_READY_TIMEOUT_MS = 1800;
 
+async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> {
+  const readyRegistration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<ServiceWorkerRegistration | null>((resolve) => {
+      window.setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
+    }),
+  ]);
+
+  if (readyRegistration) return readyRegistration;
+
+  return (
+    (await navigator.serviceWorker.getRegistration("/pwa/")) ??
+    (await navigator.serviceWorker.getRegistration()) ??
+    null
+  );
+}
+
 async function getVapidPublicKey(): Promise<string | null> {
   try {
     const res = await fetch("/api/push/subscribe");
@@ -58,12 +75,7 @@ export function usePushSubscriptionStatus() {
       return { key: null, subscription: null };
     }
 
-    const registration = (await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<ServiceWorkerRegistration | null>((resolve) => {
-        window.setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS);
-      }),
-    ])) ?? (await navigator.serviceWorker.getRegistration("/pwa/")) ?? null;
+    const registration = await getPushRegistration();
 
     if (!registration) {
       setSubscriptionEndpoint(null);
@@ -99,7 +111,10 @@ export function usePushSubscriptionStatus() {
         return { ok: false, error: "El navegador no concedió permiso para notificaciones." };
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getPushRegistration();
+      if (!registration) {
+        return { ok: false, error: "La app aún no terminó de registrar las notificaciones. Cierra y vuelve a abrir el PWA, luego inténtalo otra vez." };
+      }
       const existing = await registration.pushManager.getSubscription();
       const subscription =
         existing ??
@@ -141,7 +156,12 @@ export function usePushSubscriptionStatus() {
   const unsubscribe = useCallback(async () => {
     setLoading(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getPushRegistration();
+      if (!registration) {
+        setSubscriptionEndpoint(null);
+        setStatus("unsubscribed");
+        return { ok: true };
+      }
       const subscription = await registration.pushManager.getSubscription();
 
       if (subscription) {
