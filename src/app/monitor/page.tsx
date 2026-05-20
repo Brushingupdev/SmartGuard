@@ -1,7 +1,7 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
-import { getPlatformStats } from "@/app/actions";
+import { getPlatformStats, retryAlertQueue } from "@/app/actions";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
@@ -56,6 +56,8 @@ export default function MonitorPage() {
   const [stats,     setStats]     = useState<Stats>(null);
   const [loading,   setLoading]   = useState(true);
   const [refreshing,setRefreshing]= useState(false);
+  const [retrying,  setRetrying]  = useState(false);
+  const [queueMessage, setQueueMessage] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
@@ -96,6 +98,26 @@ export default function MonitorPage() {
   }, [load]);
 
   const s = stats;
+
+  const handleRetryFailedAlerts = async () => {
+    setRetrying(true);
+    setQueueMessage(null);
+    try {
+      const result = await retryAlertQueue();
+      if (!result.success) {
+        setQueueMessage(result.error ?? "No se pudo reintentar la cola.");
+        return;
+      }
+      setQueueMessage(
+        result.updated > 0
+          ? `Se reencolaron ${result.updated} alerta${result.updated === 1 ? "" : "s"} fallida${result.updated === 1 ? "" : "s"}.`
+          : "No había alertas fallidas para reintentar.",
+      );
+      await load(true);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -221,6 +243,67 @@ export default function MonitorPage() {
             {s.infraIssues.map((issue) => (
               <div key={issue} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-3 text-[12px] text-[var(--sg-copy)]">
                 {issue}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && s && (s.queueIssues?.length ?? 0) > 0 && (
+        <div className="mb-8 sg-panel p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-[var(--sg-warn)]" />
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                Cola con problemas
+              </span>
+            </div>
+            <button
+              onClick={handleRetryFailedAlerts}
+              disabled={retrying}
+              className="flex items-center gap-2 px-3 py-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] text-[11px] text-[var(--sg-copy)] disabled:opacity-60"
+            >
+              <motion.span
+                animate={retrying ? { rotate: 360 } : { rotate: 0 }}
+                transition={retrying ? { repeat: Infinity, duration: 0.8, ease: "linear" } : {}}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </motion.span>
+              Reintentar fallidas
+            </button>
+          </div>
+
+          {queueMessage ? (
+            <div className="mb-4 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-3 text-[12px] text-[var(--sg-copy)]">
+              {queueMessage}
+            </div>
+          ) : null}
+
+          <div className="grid gap-3">
+            {s.queueIssues.map((item) => (
+              <div key={item.id} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className={`sg-font-mono text-[10px] uppercase tracking-widest ${item.status === "failed" ? "text-[var(--sg-danger)]" : "text-[var(--sg-warn)]"}`}>
+                    {item.status}
+                  </span>
+                  <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    {item.companyName}
+                  </span>
+                  <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    {item.planta}
+                  </span>
+                </div>
+                <div className="text-[13px] font-semibold text-[var(--sg-ink)]">
+                  {item.razonSocial}
+                </div>
+                <div className="text-[12px] text-[var(--sg-muted)] mt-1">
+                  {item.empresa} · intento {item.attempts}/{item.maxAttempts}
+                </div>
+                {item.lastError ? (
+                  <div className="mt-3 border-l-2 border-[var(--sg-line)] pl-3 text-[12px] text-[var(--sg-copy)] break-words">
+                    {item.lastError}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

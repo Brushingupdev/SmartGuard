@@ -322,6 +322,7 @@ export async function getPlatformStats() {
     { data: activityMonth },
     { data: pushSubscriptions },
     { data: queueRows },
+    { data: queueIssuesRaw },
     users,
   ] = await Promise.all([
     admin.from("companies").select("id, name, logo_url, notification_emails, notification_phones, plantas").is("deleted_at", null),
@@ -331,6 +332,7 @@ export async function getPlatformStats() {
     admin.from("atenciones").select("company_id, fecha").gte("fecha", thirtyAgo),
     admin.from("push_subscriptions").select("company_id, plant"),
     admin.from("alert_queue").select("company_id, status"),
+    admin.from("alert_queue").select("id, company_id, razon_social, empresa, planta, status, attempts, max_attempts, last_error, created_at").in("status", ["pending", "failed"]).order("created_at", { ascending: false }).limit(12),
     fetchAllAuthUsers(),
   ]);
 
@@ -405,6 +407,20 @@ export async function getPlatformStats() {
     companyName: l.company_id ? (compMap[l.company_id] ?? "—") : "—",
   }));
 
+  const queueIssues = (queueIssuesRaw ?? []).map((row) => ({
+    id: row.id as string,
+    companyId: row.company_id as string | null,
+    companyName: row.company_id ? (compMap[row.company_id as string] ?? "—") : "—",
+    razonSocial: (row.razon_social as string | null) ?? "—",
+    empresa: (row.empresa as string | null) ?? "—",
+    planta: (row.planta as string | null) ?? "—",
+    status: row.status as "pending" | "failed",
+    attempts: Number(row.attempts ?? 0),
+    maxAttempts: Number(row.max_attempts ?? 0),
+    lastError: (row.last_error as string | null) ?? null,
+    createdAt: row.created_at as string,
+  }));
+
   return {
     sentToday, successToday, deliveryRate,
     activeThisWeek,
@@ -416,7 +432,34 @@ export async function getPlatformStats() {
     infraIssues,
     companyStats,
     recentLogs,
+    queueIssues,
   };
+}
+
+export async function retryAlertQueue(ids?: string[]): Promise<{ success: boolean; updated: number; error?: string }> {
+  if (!(await requireAdmin())) return { success: false, updated: 0, error: "No autorizado" };
+
+  const { createAdminClient } = await import("@/utils/supabase/admin");
+  const admin = createAdminClient();
+
+  let query = admin
+    .from("alert_queue")
+    .update({
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+      processed_at: null,
+      processing_started_at: null,
+    })
+    .eq("status", "failed");
+
+  if (ids && ids.length > 0) {
+    query = query.in("id", ids);
+  }
+
+  const { data, error } = await query.select("id");
+  if (error) return { success: false, updated: 0, error: error.message };
+  return { success: true, updated: (data ?? []).length };
 }
 
 export async function getBillingStatus() {
