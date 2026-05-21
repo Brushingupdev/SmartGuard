@@ -14,6 +14,14 @@ const SW_READY_TIMEOUT_MS = 1800;
 const SW_URL = "/sw.js";
 const PWA_SCOPE = "/pwa/";
 
+function isPWAScope(scope: string): boolean {
+  try {
+    return new URL(scope).pathname.startsWith(PWA_SCOPE);
+  } catch {
+    return scope.startsWith(PWA_SCOPE);
+  }
+}
+
 function waitForActiveWorker(
   registration: ServiceWorkerRegistration,
   timeoutMs = 4000,
@@ -57,21 +65,39 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> 
 
   if (readyRegistration) return readyRegistration;
 
+  const registrations = await navigator.serviceWorker.getRegistrations();
   const scoped =
+    registrations.find((registration) => isPWAScope(registration.scope)) ??
     (await navigator.serviceWorker.getRegistration(PWA_SCOPE)) ??
     (await navigator.serviceWorker.getRegistration()) ??
     null;
 
   if (scoped) {
+    try {
+      await scoped.update();
+    } catch {
+      // silent — usamos el registro existente si ya estaba instalado
+    }
     const activated = await waitForActiveWorker(scoped);
     if (activated) return activated;
+    return scoped;
   }
 
   try {
     const registered = await navigator.serviceWorker.register(SW_URL, { scope: PWA_SCOPE });
-    return await waitForActiveWorker(registered);
-  } catch {
-    return scoped;
+    try {
+      await registered.update();
+    } catch {
+      // silent
+    }
+    const activated = await waitForActiveWorker(registered);
+    return activated ?? registered;
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `No se pudo registrar el service worker: ${error.message}`
+        : "No se pudo registrar el service worker del PWA.",
+    );
   }
 }
 
