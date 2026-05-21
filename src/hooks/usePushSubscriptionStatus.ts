@@ -13,6 +13,17 @@ export type PushStatus =
 const SW_READY_TIMEOUT_MS = 1800;
 const SW_URL = "/sw.js";
 const PWA_SCOPE = "/pwa/";
+const FETCH_TIMEOUT_MS = 4000;
+const SW_UPDATE_TIMEOUT_MS = 2500;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      window.setTimeout(() => resolve(fallback), timeoutMs);
+    }),
+  ]);
+}
 
 function isPWAScope(scope: string): boolean {
   try {
@@ -74,7 +85,7 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> 
 
   if (scoped) {
     try {
-      await scoped.update();
+      await withTimeout(scoped.update(), SW_UPDATE_TIMEOUT_MS, undefined);
     } catch {
       // silent — usamos el registro existente si ya estaba instalado
     }
@@ -84,9 +95,14 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> 
   }
 
   try {
-    const registered = await navigator.serviceWorker.register(SW_URL, { scope: PWA_SCOPE });
+    const registered = await withTimeout(
+      navigator.serviceWorker.register(SW_URL, { scope: PWA_SCOPE }),
+      SW_UPDATE_TIMEOUT_MS,
+      null,
+    );
+    if (!registered) return scoped;
     try {
-      await registered.update();
+      await withTimeout(registered.update(), SW_UPDATE_TIMEOUT_MS, undefined);
     } catch {
       // silent
     }
@@ -103,7 +119,10 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> 
 
 async function getVapidPublicKey(): Promise<string | null> {
   try {
-    const res = await fetch("/api/push/subscribe");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const res = await fetch("/api/push/subscribe", { signal: controller.signal });
+    window.clearTimeout(timer);
     const data = (await res.json()) as { configured: boolean; publicKey: string | null };
     return data.configured ? data.publicKey : null;
   } catch {
@@ -128,37 +147,47 @@ export function usePushSubscriptionStatus() {
   const [subscriptionEndpoint, setSubscriptionEndpoint] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setStatus("unavailable");
-      setSubscriptionEndpoint(null);
-      return { key: null, subscription: null };
-    }
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setStatus("unavailable");
+        setSubscriptionEndpoint(null);
+        return { key: null, subscription: null };
+      }
 
-    if (Notification.permission === "denied") {
-      setStatus("denied");
-      setSubscriptionEndpoint(null);
-      return { key: null, subscription: null };
-    }
+      if (Notification.permission === "denied") {
+        setStatus("denied");
+        setSubscriptionEndpoint(null);
+        return { key: null, subscription: null };
+      }
 
-    const key = await getVapidPublicKey();
-    if (!key) {
-      setStatus("unconfigured");
-      setSubscriptionEndpoint(null);
-      return { key: null, subscription: null };
-    }
+      const key = await getVapidPublicKey();
+      if (!key) {
+        setStatus("unconfigured");
+        setSubscriptionEndpoint(null);
+        return { key: null, subscription: null };
+      }
 
-    const registration = await getPushRegistration();
+      const registration = await getPushRegistration();
 
-    if (!registration) {
+      if (!registration) {
+        setSubscriptionEndpoint(null);
+        setStatus("unsubscribed");
+        return { key, subscription: null };
+      }
+
+      const subscription = await withTimeout(
+        registration.pushManager.getSubscription(),
+        SW_UPDATE_TIMEOUT_MS,
+        null,
+      );
+      setSubscriptionEndpoint(subscription?.endpoint ?? null);
+      setStatus(subscription ? "subscribed" : "unsubscribed");
+      return { key, subscription };
+    } catch {
       setSubscriptionEndpoint(null);
       setStatus("unsubscribed");
-      return { key, subscription: null };
+      return { key: null, subscription: null };
     }
-
-    const subscription = await registration.pushManager.getSubscription();
-    setSubscriptionEndpoint(subscription?.endpoint ?? null);
-    setStatus(subscription ? "subscribed" : "unsubscribed");
-    return { key, subscription };
   }, []);
 
   useEffect(() => {
