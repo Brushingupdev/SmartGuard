@@ -11,6 +11,41 @@ export type PushStatus =
   | "unsubscribed";
 
 const SW_READY_TIMEOUT_MS = 1800;
+const SW_URL = "/sw.js";
+const PWA_SCOPE = "/pwa/";
+
+function waitForActiveWorker(
+  registration: ServiceWorkerRegistration,
+  timeoutMs = 4000,
+): Promise<ServiceWorkerRegistration | null> {
+  if (registration.active) return Promise.resolve(registration);
+
+  return new Promise((resolve) => {
+    const worker = registration.installing ?? registration.waiting;
+    if (!worker) {
+      window.setTimeout(() => resolve(registration.active ? registration : null), timeoutMs);
+      return;
+    }
+
+    let settled = false;
+    const finish = (result: ServiceWorkerRegistration | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const timer = window.setTimeout(() => {
+      finish(registration.active ? registration : null);
+    }, timeoutMs);
+
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "activated") {
+        window.clearTimeout(timer);
+        finish(registration);
+      }
+    });
+  });
+}
 
 async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> {
   const readyRegistration = await Promise.race([
@@ -22,11 +57,22 @@ async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> 
 
   if (readyRegistration) return readyRegistration;
 
-  return (
-    (await navigator.serviceWorker.getRegistration("/pwa/")) ??
+  const scoped =
+    (await navigator.serviceWorker.getRegistration(PWA_SCOPE)) ??
     (await navigator.serviceWorker.getRegistration()) ??
-    null
-  );
+    null;
+
+  if (scoped) {
+    const activated = await waitForActiveWorker(scoped);
+    if (activated) return activated;
+  }
+
+  try {
+    const registered = await navigator.serviceWorker.register(SW_URL, { scope: PWA_SCOPE });
+    return await waitForActiveWorker(registered);
+  } catch {
+    return scoped;
+  }
 }
 
 async function getVapidPublicKey(): Promise<string | null> {
