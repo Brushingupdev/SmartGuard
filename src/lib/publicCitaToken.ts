@@ -9,7 +9,8 @@ export interface PublicCitaTokenData {
 }
 
 function getPublicCitaTokenSecret(): string | null {
-  return process.env.PUBLIC_CITA_TOKEN_SECRET
+  return process.env.CITA_TOKEN_SECRET
+    ?? process.env.PUBLIC_CITA_TOKEN_SECRET
     ?? process.env.IMPERSONATE_COOKIE_SECRET
     ?? null;
 }
@@ -47,7 +48,7 @@ export function createPublicCitaToken(input: {
 }): string {
   const secret = getPublicCitaTokenSecret();
   if (!secret) {
-    throw new Error("PUBLIC_CITA_TOKEN_SECRET no configurado");
+    throw new Error("CITA_TOKEN_SECRET no configurado");
   }
 
   const payload = encodePayload({

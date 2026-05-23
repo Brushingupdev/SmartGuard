@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 describe("publicCitaToken", () => {
   it("crea y valida tokens firmados con expiración", async () => {
-    vi.stubEnv("PUBLIC_CITA_TOKEN_SECRET", "test-secret");
+    vi.stubEnv("CITA_TOKEN_SECRET", "test-secret");
     vi.stubEnv("ALLOW_LEGACY_PUBLIC_CITA_TOKENS", "false");
 
     const { createPublicCitaToken, readPublicCitaToken } = await import("../publicCitaToken");
@@ -21,7 +21,7 @@ describe("publicCitaToken", () => {
   });
 
   it("rechaza tokens expirados", async () => {
-    vi.stubEnv("PUBLIC_CITA_TOKEN_SECRET", "test-secret");
+    vi.stubEnv("CITA_TOKEN_SECRET", "test-secret");
     vi.stubEnv("ALLOW_LEGACY_PUBLIC_CITA_TOKENS", "false");
 
     const { createPublicCitaToken, readPublicCitaToken } = await import("../publicCitaToken");
@@ -36,7 +36,7 @@ describe("publicCitaToken", () => {
   });
 
   it("solo acepta tokens legacy cuando la compatibilidad está habilitada", async () => {
-    vi.stubEnv("PUBLIC_CITA_TOKEN_SECRET", "test-secret");
+    vi.stubEnv("CITA_TOKEN_SECRET", "test-secret");
     vi.stubEnv("ALLOW_LEGACY_PUBLIC_CITA_TOKENS", "true");
 
     const { readPublicCitaToken } = await import("../publicCitaToken");
