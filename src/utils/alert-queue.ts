@@ -25,6 +25,7 @@ export async function enqueueAlert(payload: AlertPayload): Promise<void> {
     const { createAdminClient } = await import("@/utils/supabase/admin");
     const supabase = createAdminClient();
     const { error } = await supabase.from("alert_queue").insert({
+      channel: "delay_alert",
       company_id: payload.companyId,
       atencion_id: payload.atencionId ?? null,
       razon_social: payload.razonSocial,

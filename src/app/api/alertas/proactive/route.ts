@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
     const { data: companies, error } = await supabase
       .from("companies")
       .select("id")
-      .in("status", ["trial", "active"]);
+      .in("plan", ["trial", "active"])
+      .is("deleted_at", null);
 
     if (error) {
       console.error("[proactive-alerts] Error fetching companies:", error.message);

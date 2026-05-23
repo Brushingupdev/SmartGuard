@@ -17,6 +17,16 @@ const RESEND_FROM_EMAIL  = Deno.env.get("RESEND_FROM_EMAIL") ?? "SmartGuard <onb
 
 const BATCH_SIZE = 5;
 
+type QueueChannel = "delay_alert" | "chronic_provider";
+
+interface ChronicProviderPayload {
+  empresa?: string;
+  rate1?: number;
+  rate2?: number;
+  total1?: number;
+  total2?: number;
+}
+
 // Helper para formatear planta → Sede · Puerta
 function formatGateLabelFromPlant(plant: string): string {
   if (!plant || plant === "Todos") return "Todos";
@@ -51,6 +61,9 @@ Deno.serve(async () => {
 
   for (const alert of pending) {
     try {
+      const queueChannel: QueueChannel = alert.channel === "chronic_provider" ? "chronic_provider" : "delay_alert";
+      const chronicPayload = parseChronicProviderPayload(alert.payload);
+
       // 2. Obtener contactos de la empresa
       const { data: company } = await supabase
         .from("companies")
@@ -124,27 +137,60 @@ Deno.serve(async () => {
       // 4. Enviar alertas en paralelo
       const results = await Promise.allSettled([
         ...allEmails.map((email) =>
-          sendEmailAlert({
-            to: email,
-            companyName: company?.name ?? "SmartGuard",
-            razonSocial: alert.razon_social,
-            empresa: alert.empresa,
-            planta: alert.planta,
-            hRegistro: alert.h_registro,
-            esperaMin: alert.espera_min,
-          })
+          queueChannel === "chronic_provider"
+            ? sendChronicProviderEmail({
+                to: email,
+                companyName: company?.name ?? "SmartGuard",
+                empresa: chronicPayload?.empresa ?? alert.empresa ?? "Proveedor",
+                rate1: chronicPayload?.rate1 ?? 0,
+                rate2: chronicPayload?.rate2 ?? 0,
+                total1: chronicPayload?.total1 ?? 0,
+                total2: chronicPayload?.total2 ?? 0,
+              })
+            : sendEmailAlert({
+                to: email,
+                companyName: company?.name ?? "SmartGuard",
+                razonSocial: alert.razon_social,
+                empresa: alert.empresa,
+                planta: alert.planta,
+                hRegistro: alert.h_registro,
+                esperaMin: alert.espera_min,
+              })
         ),
         ...allPhones.map((phone) =>
-          sendWhatsAppAlert({
-            phone,
-            razonSocial: alert.razon_social,
-            empresa: alert.empresa,
-            planta: alert.planta,
-            esperaMin: alert.espera_min,
-            hRegistro: alert.h_registro,
-          })
+          queueChannel === "chronic_provider"
+            ? sendChronicProviderWhatsApp({
+                phone,
+                companyName: company?.name ?? "SmartGuard",
+                empresa: chronicPayload?.empresa ?? alert.empresa ?? "Proveedor",
+                rate1: chronicPayload?.rate1 ?? 0,
+                rate2: chronicPayload?.rate2 ?? 0,
+                total1: chronicPayload?.total1 ?? 0,
+                total2: chronicPayload?.total2 ?? 0,
+              })
+            : sendWhatsAppAlert({
+                phone,
+                razonSocial: alert.razon_social,
+                empresa: alert.empresa,
+                planta: alert.planta,
+                esperaMin: alert.espera_min,
+                hRegistro: alert.h_registro,
+              })
         ),
       ]);
+
+      const logRazonSocial = queueChannel === "chronic_provider"
+        ? (chronicPayload?.empresa ?? alert.empresa ?? "Proveedor crónico")
+        : alert.razon_social;
+      const logEmpresa = queueChannel === "chronic_provider"
+        ? "Proveedor crónico"
+        : alert.empresa;
+      const logPlanta = queueChannel === "chronic_provider"
+        ? "Todas"
+        : alert.planta;
+      const logEsperaMin = queueChannel === "chronic_provider"
+        ? 0
+        : alert.espera_min;
 
       // 5. Log de resultados individuales
       const logPromises: Promise<unknown>[] = [];
@@ -153,10 +199,10 @@ Deno.serve(async () => {
           supabase.from("alert_logs").insert({
             company_id: alert.company_id,
             atencion_id: alert.atencion_id,
-            razon_social: alert.razon_social,
-            empresa: alert.empresa,
-            planta: alert.planta,
-            espera_min: alert.espera_min,
+            razon_social: logRazonSocial,
+            empresa: logEmpresa,
+            planta: logPlanta,
+            espera_min: logEsperaMin,
             channel: "email",
             recipient: allEmails[i],
             success: results[i].status === "fulfilled",
@@ -168,10 +214,10 @@ Deno.serve(async () => {
           supabase.from("alert_logs").insert({
             company_id: alert.company_id,
             atencion_id: alert.atencion_id,
-            razon_social: alert.razon_social,
-            empresa: alert.empresa,
-            planta: alert.planta,
-            espera_min: alert.espera_min,
+            razon_social: logRazonSocial,
+            empresa: logEmpresa,
+            planta: logPlanta,
+            espera_min: logEsperaMin,
             channel: "whatsapp",
             recipient: allPhones[i],
             success: results[allEmails.length + i].status === "fulfilled",
@@ -336,4 +382,101 @@ async function sendWhatsAppAlert(opts: {
   }
 
   console.log(`[WhatsApp] Mensaje enviado a ${opts.phone}`);
+}
+
+function parseChronicProviderPayload(raw: unknown): ChronicProviderPayload | null {
+  if (!raw || typeof raw !== "object") return null;
+  const payload = raw as Record<string, unknown>;
+  return {
+    empresa: typeof payload.empresa === "string" ? payload.empresa : undefined,
+    rate1: typeof payload.rate1 === "number" ? payload.rate1 : undefined,
+    rate2: typeof payload.rate2 === "number" ? payload.rate2 : undefined,
+    total1: typeof payload.total1 === "number" ? payload.total1 : undefined,
+    total2: typeof payload.total2 === "number" ? payload.total2 : undefined,
+  };
+}
+
+async function sendChronicProviderEmail(opts: {
+  to: string;
+  companyName: string;
+  empresa: string;
+  rate1: number;
+  rate2: number;
+  total1: number;
+  total2: number;
+}) {
+  if (!RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY no configurada, no se puede enviar email");
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to: [opts.to],
+      subject: `⚠️ Proveedor con demoras recurrentes — ${opts.empresa}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+          <h2 style="color: #d35c4f;">Proveedor con demoras recurrentes</h2>
+          <p>SmartGuard detectó dos semanas consecutivas con alto nivel de demoras para este proveedor.</p>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Proveedor</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.empresa}</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Semana 1</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.rate1}% de demoras (${opts.total1} visitas)</td></tr>
+            <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Semana 2</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${opts.rate2}% de demoras (${opts.total2} visitas)</td></tr>
+          </table>
+          <p style="margin-top: 24px;">
+            Revisa el histórico operativo en <a href="${SITE_URL}/reporte">SmartGuard</a>.
+          </p>
+          <p style="color: #666; font-size: 12px; margin-top: 24px;">
+            ${opts.companyName} · SmartGuard Control Vehicular
+          </p>
+        </div>
+      `,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Resend error: ${res.status} ${await res.text()}`);
+  }
+}
+
+async function sendChronicProviderWhatsApp(opts: {
+  phone: string;
+  companyName: string;
+  empresa: string;
+  rate1: number;
+  rate2: number;
+  total1: number;
+  total2: number;
+}) {
+  if (!GREEN_API_INSTANCE || !GREEN_API_TOKEN) {
+    throw new Error("GREEN_API_INSTANCE o GREEN_API_TOKEN no configurados, no se puede enviar WhatsApp");
+  }
+
+  const message =
+    `⚠ *SmartGuard — Proveedor con demoras recurrentes*\n\n` +
+    `*${opts.empresa}*\n` +
+    `Semana 1: ${opts.rate1}% de demoras (${opts.total1} visitas)\n` +
+    `Semana 2: ${opts.rate2}% de demoras (${opts.total2} visitas)\n\n` +
+    `Revisa el reporte en ${SITE_URL}/reporte\n` +
+    `${opts.companyName}`;
+
+  const chatId = `${opts.phone.replace(/\D/g, "")}@c.us`;
+
+  const res = await fetch(
+    `https://${GREEN_API_SERVER}.api.greenapi.com/waInstance${GREEN_API_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId, message }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Green API error: ${res.status} ${await res.text()}`);
+  }
 }
