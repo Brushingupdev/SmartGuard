@@ -9,9 +9,8 @@ import {
 import { submitCitaPublica } from "@/app/actions/citas-public";
 
 interface Props {
-  companyId: string;
+  token: string;
   companyName: string;
-  plant: string;
   gateLabel: string;
   responsables: string[];
 }
@@ -19,7 +18,7 @@ interface Props {
 const TIPOS = ["Carga", "Descarga", "Servicio", "Otro"] as const;
 
 export default function CitaPublicaForm({
-  companyId, companyName, plant, gateLabel, responsables,
+  token, companyName, gateLabel, responsables,
 }: Props) {
   const [razonSocial, setRazonSocial] = useState("");
   const [horaCita, setHoraCita]       = useState("");
@@ -38,8 +37,7 @@ export default function CitaPublicaForm({
 
     setSaving(true);
     const result = await submitCitaPublica({
-      companyId,
-      plant,
+      token,
       horaCita,
       fecha: fecha || undefined,
       razonSocial: razonSocial.trim(),

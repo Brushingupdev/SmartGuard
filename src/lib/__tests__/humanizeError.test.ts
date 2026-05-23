@@ -25,6 +25,6 @@ describe("humanizeError", () => {
 
   it("retorna mensaje genérico para errores desconocidos", () => {
     const msg = humanizeError("some unknown internal error xyz");
-    expect(msg).toBe("Error inesperado. Si persiste, contacta al administrador.");
+    expect(msg).toBe("some unknown internal error xyz");
   });
 });

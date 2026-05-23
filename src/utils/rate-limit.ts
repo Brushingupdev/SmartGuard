@@ -44,6 +44,16 @@ export const onboardingLimiter = redis
     })
   : null;
 
+// Portal público de citas: 12 envíos por hora por IP
+export const publicCitaLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(12, "1 h"),
+      analytics: true,
+      prefix: "sg:public-cita",
+    })
+  : null;
+
 /**
  * Verifica rate limit para una IP.
  * Retorna { success: true } si está dentro del límite,

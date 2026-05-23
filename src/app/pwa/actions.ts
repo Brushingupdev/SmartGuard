@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { headers } from "next/headers";
+import { createPublicCitaToken } from "@/lib/publicCitaToken";
 import { createHash } from "crypto";
 
 export type GuardSession = {
@@ -83,5 +85,43 @@ export async function getDeviceCompanyInfo(): Promise<{
     companyId: data.id,
     companyName: data.name,
     plantas: data.plantas ?? [],
+  };
+}
+
+export async function createPublicCitaLink(
+  plant: string,
+  expectedCompanyId: string
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "No autenticado" };
+
+  const companyId = user.user_metadata?.company_id as string | undefined;
+  if (!companyId || companyId !== expectedCompanyId) {
+    return { success: false, error: "Empresa inválida" };
+  }
+  if (!plant) return { success: false, error: "Selecciona una planta" };
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("plantas")
+    .eq("id", companyId)
+    .single();
+
+  const plants = (company?.plantas as string[] | null) ?? [];
+  if (!plants.includes(plant)) {
+    return { success: false, error: "Planta inválida" };
+  }
+
+  const token = createPublicCitaToken({ companyId, plant });
+  const hdrs = await headers();
+  const forwardedProto = hdrs.get("x-forwarded-proto");
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000";
+  const proto = forwardedProto ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? `${proto}://${host}`;
+
+  return {
+    success: true,
+    url: `${baseUrl.replace(/\/$/, "")}/cita/${encodeURIComponent(token)}`,
   };
 }

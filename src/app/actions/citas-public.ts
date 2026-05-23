@@ -1,13 +1,15 @@
 "use server";
 
+import { headers } from "next/headers";
+import { readPublicCitaToken } from "@/lib/publicCitaToken";
+import { checkRateLimit, publicCitaLimiter } from "@/utils/rate-limit";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 // ── Acción pública: no requiere auth — usa admin client (bypass RLS) ──────────
 // Llamada desde /cita/[token] (portal para proveedores)
 
 export interface CitaPublicaInput {
-  companyId: string;
-  plant: string;
+  token: string;
   horaCita: string;       // HH:MM
   fecha?: string;         // YYYY-MM-DD, si vacío = hoy en Lima
   razonSocial: string;
@@ -25,8 +27,17 @@ function nowLimaDate(): string {
 export async function submitCitaPublica(
   input: CitaPublicaInput
 ): Promise<{ success: boolean; error?: string }> {
+  const hdrs = await headers();
+  const ip = hdrs.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const rl = await checkRateLimit(publicCitaLimiter, ip);
+  if (!rl.success) {
+    return { success: false, error: `Demasiados intentos. Intenta de nuevo en ${rl.retryAfter} segundos.` };
+  }
+
+  const tokenData = readPublicCitaToken(input.token);
+
   // Validaciones básicas
-  if (!input.companyId || !input.plant) return { success: false, error: "Enlace inválido" };
+  if (!tokenData) return { success: false, error: "Enlace inválido o vencido" };
   if (!/^\d{2}:\d{2}$/.test(input.horaCita)) return { success: false, error: "Hora inválida" };
   if (!input.razonSocial?.trim()) return { success: false, error: "Ingresa tu razón social" };
 
@@ -36,7 +47,7 @@ export async function submitCitaPublica(
   const { data: company, error: companyErr } = await admin
     .from("companies")
     .select("id, plan, trial_ends_at")
-    .eq("id", input.companyId)
+    .eq("id", tokenData.companyId)
     .is("deleted_at", null)
     .single();
 
@@ -53,8 +64,8 @@ export async function submitCitaPublica(
   const { data: existingCita } = await admin
     .from("atenciones")
     .select("id, hora_cita, estado")
-    .eq("company_id", input.companyId)
-    .eq("planta", input.plant)
+    .eq("company_id", tokenData.companyId)
+    .eq("planta", tokenData.plant)
     .eq("fecha", fechaStr)
     .eq("razon_social", input.razonSocial.trim().toUpperCase())
     .not("hora_cita", "is", null)
@@ -72,7 +83,7 @@ export async function submitCitaPublica(
     h_registro: null,
     razon_social: input.razonSocial.trim().toUpperCase(),
     empresa: input.razonSocial.trim().toUpperCase(),
-    planta: input.plant,
+    planta: tokenData.plant,
     tipo: "Proveedor",
     tipo_operacion: input.tipoOperacion || null,
     responsable: input.responsable || null,
@@ -84,7 +95,7 @@ export async function submitCitaPublica(
     segmento_orden: 0,
     anio: year,
     mes_num: month,
-    company_id: input.companyId,
+    company_id: tokenData.companyId,
   });
 
   if (error) return { success: false, error: "No se pudo registrar la cita. Intenta de nuevo." };

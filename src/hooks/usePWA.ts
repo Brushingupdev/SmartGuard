@@ -1,22 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+function detectStandaloneMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
 
 /**
  * Detecta si la app se está ejecutando como PWA instalada (standalone mode).
  * Funciona en Android (Chrome) y iOS (Safari).
  */
 export function usePWA(): boolean {
-  const [isPWA, setIsPWA] = useState(false);
-
-  useEffect(() => {
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      // iOS Safari
-      (navigator as Navigator & { standalone?: boolean }).standalone === true;
-
-    setIsPWA(standalone);
-  }, []);
-
-  return isPWA;
+  return useState(detectStandaloneMode)[0];
 }

@@ -39,9 +39,13 @@ function rememberDismiss() {
   window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
 }
 
+function getInitialPromptVisibility(isStandalone: boolean): boolean {
+  return !isStandalone && isMobileDevice() && isIosSafari() && !wasDismissedRecently();
+}
+
 export default function PWAInstallPrompt() {
   const isStandalone = usePWA();
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(() => getInitialPromptVisibility(isStandalone));
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
 
@@ -50,11 +54,6 @@ export default function PWAInstallPrompt() {
 
   useEffect(() => {
     if (typeof window === "undefined" || isStandalone || !mobile || wasDismissedRecently()) {
-      return;
-    }
-
-    if (ios) {
-      setVisible(true);
       return;
     }
 

@@ -411,7 +411,6 @@ export default function PWARegistroWizard({
 
   const activeGate = gateOptions.find((item) => item.plant === data.plant) ?? gateFromPlant(data.plant);
   const plantLabel = formatGateLabelFromPlant(data.plant, gateOptions);
-  const filledFields = [data.razonSocial, data.empresa, data.responsable, data.agente].filter((value) => value.trim()).length;
   const duplicateWarning = useMemo(() => {
     const term = data.razonSocial.trim().toUpperCase();
     if (term.length < 3) return null;
