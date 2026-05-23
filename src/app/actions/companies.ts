@@ -1,6 +1,5 @@
 "use server";
 
-import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { cookies } from "next/headers";
 import {
@@ -11,35 +10,30 @@ import {
 import { normalizeGateAssignments, type GateAssignment } from "@/lib/gates";
 import { nowLima, daysAgoLima, requireAdmin, checkWriteAccess } from "./_helpers";
 import { signValue } from "@/utils/cookie-signing";
-
-// Helper: fetch all auth users with pagination (max 10 páginas × 100 = 1000 usuarios)
-async function fetchAllAuthUsers(): Promise<{ email?: string; user_metadata?: Record<string, unknown> }[]> {
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-  const all = [] as { email?: string; user_metadata?: Record<string, unknown> }[];
-  let page = 1;
-  const perPage = 100;
-  let hasMore = true;
-  while (hasMore && page <= 10) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error || !data?.users?.length) { hasMore = false; break; }
-    all.push(...data.users);
-    if (data.users.length < perPage) hasMore = false;
-    page++;
-  }
-  return all;
-}
+import { buildAdminOverview, buildPlatformStats } from "./_companyAdminMetrics";
+import {
+  buildCompanySettingsUpdate,
+  fetchActiveCompanies,
+  fetchCompanyNameMap,
+  fetchCompanyPlants,
+  fetchDeletedCompaniesRows,
+  resolveUserPlants,
+} from "./_companiesShared";
+import {
+  fetchAdminOverviewData,
+  fetchCompanyBillingById,
+  fetchCompanySettingsById,
+  fetchPlatformStatsData,
+  markCompanyDeleted,
+  persistCompanyPlan,
+  persistCompanySettings,
+  retryFailedAlertQueueRows,
+} from "./_companiesAdmin";
 
 export async function getCompanySettings() {
   const ctx = await getUserContext();
   if (!ctx?.companyId) return null;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("companies")
-    .select("id, name, sector, contact_name, notification_emails, notification_phones, plantas, logo_url, alerta_minutos")
-    .eq("id", ctx.companyId)
-    .single();
-  return data ?? null;
+  return fetchCompanySettingsById(ctx.companyId, false);
 }
 
 export async function updateCompanySettings(rawSettings: unknown) {
@@ -52,18 +46,8 @@ export async function updateCompanySettings(rawSettings: unknown) {
   if (writeError) return { success: false, error: writeError };
 
   if (!ctx?.companyId) return { success: false, error: "No autorizado" };
-  const supabase = await createClient();
-
-  const update: Record<string, unknown> = {};
-  if (settings.notificationEmails !== undefined) update.notification_emails = settings.notificationEmails.filter(Boolean);
-  if (settings.notificationPhones !== undefined) update.notification_phones = settings.notificationPhones.filter(Boolean);
-  if (settings.contactName        !== undefined) update.contact_name        = settings.contactName;
-  if (settings.alertaMinutos      !== undefined) update.alerta_minutos      = settings.alertaMinutos;
-  if (settings.plantas            !== undefined) {
-    update.plantas = settings.plantas.split(",").map(p => p.trim()).filter(Boolean);
-  }
-
-  const { error } = await supabase.from("companies").update(update).eq("id", ctx.companyId);
+  const update = buildCompanySettingsUpdate(settings);
+  const error = await persistCompanySettings(ctx.companyId, update, false);
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
@@ -80,19 +64,8 @@ export async function adminUpdateCompanySettings(
   const settings = v.data;
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return { success: false, error: "No autorizado" };
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-
-  const update: Record<string, unknown> = {};
-  if (settings.notificationEmails !== undefined) update.notification_emails = settings.notificationEmails.filter(Boolean);
-  if (settings.notificationPhones !== undefined) update.notification_phones = settings.notificationPhones.filter(Boolean);
-  if (settings.contactName        !== undefined) update.contact_name        = settings.contactName;
-  if (settings.alertaMinutos      !== undefined) update.alerta_minutos      = settings.alertaMinutos;
-  if (settings.plantas            !== undefined) {
-    update.plantas = settings.plantas.split(",").map(p => p.trim()).filter(Boolean);
-  }
-
-  const { error } = await admin.from("companies").update(update).eq("id", companyId);
+  const update = buildCompanySettingsUpdate(settings);
+  const error = await persistCompanySettings(companyId, update, true);
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
@@ -103,52 +76,22 @@ export async function adminUpdatePlan(rawData: unknown) {
   const { companyId, plan, trialEndsAt } = v.data;
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return { success: false };
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
   const update: Record<string, unknown> = { plan };
   if (plan === "trial" && trialEndsAt) update.trial_ends_at = trialEndsAt;
   if (plan === "active" || plan === "suspended") update.trial_ends_at = null;
-  const { error } = await admin.from("companies").update(update).eq("id", companyId);
+  const error = await persistCompanyPlan(companyId, update);
   return error ? { success: false } : { success: true };
 }
 
 export async function getCompanies() {
   if (!(await requireAdmin())) return [];
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-  const { data } = await admin.from("companies").select("id, name").is("deleted_at", null).order("name");
-  return (data ?? []) as { id: string; name: string }[];
+  return fetchActiveCompanies();
 }
 
 export async function getCompanyPlants(companyId: string): Promise<string[]> {
   if (!companyId) return [];
   const ctx = await getUserContext();
-  const supabase = await createClient();
-
-  let company:
-    | { plantas: string[] | null }
-    | null = null;
-
-  if (ctx?.isAdmin) {
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("companies")
-      .select("plantas")
-      .eq("id", companyId)
-      .single();
-    company = data;
-  } else {
-    const { data } = await supabase
-      .from("companies")
-      .select("plantas")
-      .eq("id", companyId)
-      .single();
-    company = data;
-  }
-
-  if (company?.plantas?.length) return company.plantas as string[];
-  return [];
+  return fetchCompanyPlants(companyId, Boolean(ctx?.isAdmin));
 }
 
 export async function getCompanyGateOptions(companyId: string): Promise<GateAssignment[]> {
@@ -159,58 +102,12 @@ export async function getCompanyGateOptions(companyId: string): Promise<GateAssi
 export async function getCompaniesMap(): Promise<Record<string, string>> {
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return {};
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-  const { data } = await admin.from("companies").select("id, name").is("deleted_at", null);
-  const map: Record<string, string> = {};
-  (data ?? []).forEach((c: { id: string; name: string }) => { map[c.id] = c.name; });
-  return map;
+  return fetchCompanyNameMap();
 }
 
 export async function getUserPlants(): Promise<string[]> {
   const ctx = await getUserContext();
-  const supabase = await createClient();
-
-  if (ctx?.role === "guardia" && ctx.plants.length > 0) {
-    return ctx.plants;
-  }
-
-  if (ctx?.isAdmin) {
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("atenciones")
-      .select("planta")
-      .not("company_id", "is", null)
-      .not("planta", "is", null)
-      .order("planta")
-      .limit(5000);
-    if (!data) return [];
-    return [...new Set(data.map((r: { planta: string }) => r.planta).filter(Boolean))] as string[];
-  }
-
-  // Company user: return their company's configured plants from companies table
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    const { data: company } = await supabase
-      .from("companies")
-      .select("plantas")
-      .eq("id", ctx.companyId)
-      .single();
-    if (company?.plantas?.length) return company.plantas as string[];
-  }
-
-  // Fallback: distinct via SQL para usuario empresa
-  try {
-    const { data } = await supabase.rpc("get_user_plants", { p_company_id: ctx?.companyId ?? null });
-    if (data) return (data as { planta: string }[]).map(r => r.planta);
-  } catch {
-    // fallback below
-  }
-
-  // Last-resort: query directa
-  const { data } = await supabase.from("atenciones").select("planta").not("planta", "is", null).order("planta").limit(5000);
-  if (!data) return [];
-  return [...new Set(data.map((r: { planta: string }) => r.planta).filter(Boolean))] as string[];
+  return resolveUserPlants(ctx);
 }
 
 export async function getUserGateOptions(): Promise<GateAssignment[]> {
@@ -225,239 +122,66 @@ export async function getUserGateOptions(): Promise<GateAssignment[]> {
 export async function getAdminOverview() {
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return null;
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
+  const { allCompanies, users, records } = await fetchAdminOverviewData();
+  const { date: today } = nowLima();
+  const thirtyDaysAgo = daysAgoLima(30);
 
-  const [{ data: allCompanies }, usersData, { data: records }] = await Promise.all([
-    admin.from("companies").select("id, name, sector, logo_url, notification_emails, notification_phones, plantas, created_at, deleted_at, plan, trial_ends_at").order("created_at", { ascending: false }),
-    fetchAllAuthUsers(),
-    admin.from("atenciones").select("company_id, fecha").not("company_id", "is", null),
-  ]);
-
-  const companies = (allCompanies ?? []).filter(c => c.deleted_at === null || c.deleted_at === undefined);
-  const deletedCompanies = (allCompanies ?? []).filter(c => c.deleted_at !== null && c.deleted_at !== undefined);
-
-  if (!companies) return null;
-
-  const today = new Date();
-  const thirtyDaysAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30).toISOString().split("T")[0];
-
-  const overview = companies.map(company => {
-    const compUsers = (usersData ?? []).filter(u => u.user_metadata?.company_id === company.id);
-    const compRecords = (records ?? []).filter(r => r.company_id === company.id);
-    const recentRecords = compRecords.filter(r => r.fecha >= thirtyDaysAgo);
-    const lastActivity = compRecords.length > 0
-      ? compRecords.sort((a, b) => b.fecha.localeCompare(a.fecha))[0].fecha
-      : null;
-
-    const hasContacts = ((company.notification_emails as string[] | null)?.length ?? 0) > 0
-                     || ((company.notification_phones as string[] | null)?.length ?? 0) > 0;
-
-    let health: "ok" | "warn" | "issue" = "ok";
-    if (compUsers.length === 0 || compRecords.length === 0) health = "issue";
-    else if (!hasContacts) health = "warn";
-
-    const plan         = (company.plan as string) ?? "trial";
-    const trialEndsAt  = company.trial_ends_at as string | null;
-    const { date: today } = nowLima();
-    let trialDaysLeft: number | null = null;
-    let trialExpired = false;
-    if (plan === "trial" && trialEndsAt) {
-      trialDaysLeft = Math.ceil((new Date(trialEndsAt).getTime() - new Date(today).getTime()) / 86_400_000);
-      if (trialDaysLeft < 0) trialExpired = true;
-    }
-
-    return {
-      id:            company.id as string,
-      name:          company.name as string,
-      sector:        company.sector as string,
-      logoUrl:       company.logo_url as string | null,
-      plantas:       (company.plantas as string[]) ?? [],
-      createdAt:     company.created_at as string,
-      users:         compUsers.length,
-      guardias:      compUsers.filter(u => u.user_metadata?.role === "guardia").length,
-      supervisors:   compUsers.filter(u => u.user_metadata?.role === "supervisor").length,
-      totalRecords:  compRecords.length,
-      recentRecords: recentRecords.length,
-      lastActivity,
-      hasContacts,
-      health,
-      plan,
-      trialEndsAt,
-      trialDaysLeft,
-      trialExpired,
-    };
+  return buildAdminOverview({
+    allCompanies,
+    users,
+    records,
+    today,
+    thirtyDaysAgo,
   });
-
-  const deletedOverview = deletedCompanies.map(company => ({
-    id:            company.id as string,
-    name:          company.name as string,
-    deletedAt:     company.deleted_at as string,
-  }));
-
-  return {
-    companies: overview,
-    deletedCompanies: deletedOverview,
-    totalCompanies: companies.length,
-    totalUsers: (usersData ?? []).filter(u => u.user_metadata?.company_id).length,
-    totalRecords: (records ?? []).length,
-  };
 }
 
 export async function getPlatformStats() {
   const ctx = await getUserContext();
   if (!ctx?.isAdmin) return null;
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
 
   const { date: today } = nowLima();
   const sevenAgo  = daysAgoLima(7);
   const thirtyAgo = daysAgoLima(30);
-
-  const [
-    { data: companies },
-    { data: logsToday },
-    { data: logsRecent },
-    { data: activityWeek },
-    { data: activityMonth },
-    { data: pushSubscriptions },
-    { data: queueRows },
-    { data: queueIssuesRaw },
+  const {
+    companies,
+    logsToday,
+    logsRecent,
+    activityWeek,
+    activityMonth,
+    pushSubscriptions,
+    queueRows,
+    queueIssuesRaw,
     users,
-  ] = await Promise.all([
-    admin.from("companies").select("id, name, logo_url, notification_emails, notification_phones, plantas").is("deleted_at", null),
-    admin.from("alert_logs").select("*").gte("created_at", today + "T00:00:00Z"),
-    admin.from("alert_logs").select("*").order("created_at", { ascending: false }).limit(80),
-    admin.from("atenciones").select("company_id, fecha").gte("fecha", sevenAgo),
-    admin.from("atenciones").select("company_id, fecha").gte("fecha", thirtyAgo),
-    admin.from("push_subscriptions").select("company_id, plant"),
-    admin.from("alert_queue").select("company_id, status"),
-    admin.from("alert_queue").select("id, company_id, razon_social, empresa, planta, status, attempts, max_attempts, last_error, created_at").in("status", ["pending", "failed"]).order("created_at", { ascending: false }).limit(12),
-    fetchAllAuthUsers(),
-  ]);
-
-  // KPIs globales de alertas hoy
-  const sentToday    = (logsToday ?? []).length;
-  const successToday = (logsToday ?? []).filter(l => l.success).length;
-  const deliveryRate = sentToday > 0 ? Math.round((successToday / sentToday) * 100) : null;
-  const pushDevices = (pushSubscriptions ?? []).length;
-  const queuePending = (queueRows ?? []).filter((row) => row.status === "pending" || row.status === "processing").length;
-
-  // Estado por empresa
-  const companyStats = (companies ?? []).map(c => {
-    const compUsers    = users.filter(u => u.user_metadata?.company_id === c.id);
-    const weekActivity = (activityWeek ?? []).filter(r => r.company_id === c.id).length;
-    const monthActivity= (activityMonth ?? []).filter(r => r.company_id === c.id).length;
-    const compPushSubs = (pushSubscriptions ?? []).filter((sub) => sub.company_id === c.id).length;
-    const compQueuePending = (queueRows ?? []).filter((row) => row.company_id === c.id && (row.status === "pending" || row.status === "processing")).length;
-    const hasEmail     = ((c.notification_emails as string[] | null)?.length ?? 0) > 0;
-    const hasPhone     = ((c.notification_phones as string[] | null)?.length ?? 0) > 0;
-    const hasUsers     = compUsers.length > 0;
-    const hasPlants    = ((c.plantas as string[] | null)?.length ?? 0) > 0;
-    const hasPush      = compPushSubs > 0;
-
-    const issues: string[] = [];
-    if (!hasEmail && !hasPhone) issues.push("Sin alertas configuradas");
-    if (!hasUsers)               issues.push("Sin usuarios");
-    if (weekActivity === 0)      issues.push("Sin actividad en 7 días");
-    if (!hasPlants)              issues.push("Sin sedes configuradas");
-    if (!hasPush)                issues.push("Sin dispositivos push");
-    if (compQueuePending > 0)    issues.push("Alertas en cola");
-
-    let status: "ok" | "warn" | "risk" = "ok";
-    if (issues.length >= 2 || (!hasUsers && monthActivity === 0)) status = "risk";
-    else if (issues.length >= 1) status = "warn";
-
-    return {
-      id:            c.id as string,
-      name:          c.name as string,
-      logoUrl:       c.logo_url as string | null,
-      hasEmail, hasPhone, hasUsers, hasPlants, hasPush,
-      weekActivity, monthActivity,
-      pushDevices:   compPushSubs,
-      queuePending:  compQueuePending,
-      users:         compUsers.length,
-      issues, status,
-    };
+  } = await fetchPlatformStatsData({
+    today,
+    sevenAgo,
+    thirtyAgo,
   });
 
-  const activeThisWeek = companyStats.filter(c => c.weekActivity > 0).length;
-  const incompleteConfig = companyStats.filter(c => c.status !== "ok").length;
   const backend = {
     pushConfigured: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_EMAIL),
     resendConfigured: Boolean(process.env.RESEND_API_KEY),
     whatsappConfigured: Boolean(process.env.GREEN_API_INSTANCE && process.env.GREEN_API_TOKEN),
     siteUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
   };
-  const infraIssues: string[] = [];
-  if (queuePending > 0) infraIssues.push(`Hay ${queuePending} alerta${queuePending === 1 ? "" : "s"} pendiente${queuePending === 1 ? "" : "s"} o procesándose.`);
-  if (pushDevices === 0) infraIssues.push("No hay dispositivos push suscritos en la plataforma.");
-  if ((logsToday ?? []).length === 0) infraIssues.push("Hoy no se registran envíos en alert_logs; revisa cron y canales configurados.");
-  if (!backend.pushConfigured) infraIssues.push("Faltan variables VAPID para notificaciones push.");
-  if (!backend.resendConfigured) infraIssues.push("Falta RESEND_API_KEY para alertas por correo.");
-  if (!backend.whatsappConfigured) infraIssues.push("Falta configuración GREEN_API para WhatsApp.");
-  if (!backend.siteUrlConfigured) infraIssues.push("Falta NEXT_PUBLIC_SITE_URL para enlaces consistentes en alertas.");
 
-  // Logs recientes con company_id
-  const compMap: Record<string, string> = {};
-  (companies ?? []).forEach((c: { id: string; name: string }) => { compMap[c.id] = c.name; });
-
-  const recentLogs = (logsRecent ?? []).map(l => ({
-    ...l,
-    companyName: l.company_id ? (compMap[l.company_id] ?? "—") : "—",
-  }));
-
-  const queueIssues = (queueIssuesRaw ?? []).map((row) => ({
-    id: row.id as string,
-    companyId: row.company_id as string | null,
-    companyName: row.company_id ? (compMap[row.company_id as string] ?? "—") : "—",
-    razonSocial: (row.razon_social as string | null) ?? "—",
-    empresa: (row.empresa as string | null) ?? "—",
-    planta: (row.planta as string | null) ?? "—",
-    status: row.status as "pending" | "failed",
-    attempts: Number(row.attempts ?? 0),
-    maxAttempts: Number(row.max_attempts ?? 0),
-    lastError: (row.last_error as string | null) ?? null,
-    createdAt: row.created_at as string,
-  }));
-
-  return {
-    sentToday, successToday, deliveryRate,
-    activeThisWeek,
-    totalCompanies: (companies ?? []).length,
-    incompleteConfig,
-    pushDevices,
-    queuePending,
+  return buildPlatformStats({
+    companies,
+    logsToday,
+    logsRecent,
+    activityWeek,
+    activityMonth,
+    pushSubscriptions,
+    queueRows,
+    queueIssuesRaw,
+    users,
     backend,
-    infraIssues,
-    companyStats,
-    recentLogs,
-    queueIssues,
-  };
+  });
 }
 
 export async function retryAlertQueue(ids?: string[]): Promise<{ success: boolean; updated: number; error?: string }> {
   if (!(await requireAdmin())) return { success: false, updated: 0, error: "No autorizado" };
-
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-
-  let query = admin
-    .from("alert_queue")
-    .update({
-      status: "pending",
-      attempts: 0,
-      last_error: null,
-      processed_at: null,
-      processing_started_at: null,
-    })
-    .eq("status", "failed");
-
-  if (ids && ids.length > 0) {
-    query = query.in("id", ids);
-  }
-
-  const { data, error } = await query.select("id");
+  const { data, error } = await retryFailedAlertQueueRows(ids);
   if (error) return { success: false, updated: 0, error: error.message };
   return { success: true, updated: (data ?? []).length };
 }
@@ -465,12 +189,7 @@ export async function retryAlertQueue(ids?: string[]): Promise<{ success: boolea
 export async function getBillingStatus() {
   const ctx = await getUserContext();
   if (!ctx || ctx.isAdmin || !ctx.companyId) return null;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("companies")
-    .select("plan, trial_ends_at, name")
-    .eq("id", ctx.companyId)
-    .single();
+  const data = await fetchCompanyBillingById(ctx.companyId);
   if (!data) return null;
 
   const plan = (data.plan as string) ?? "trial";
@@ -524,16 +243,7 @@ export async function stopImpersonation(): Promise<{ ok: boolean }> {
 export async function deleteCompany(companyId: string): Promise<{ success: boolean; error?: string }> {
   if (!companyId) return { success: false, error: "ID inválido" };
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
-
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-
-  const { error } = await admin
-    .from("companies")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", companyId)
-    .is("deleted_at", null); // solo si no está ya eliminada
-
+  const error = await markCompanyDeleted(companyId, new Date().toISOString());
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
@@ -541,34 +251,12 @@ export async function deleteCompany(companyId: string): Promise<{ success: boole
 export async function reactivateCompany(companyId: string): Promise<{ success: boolean; error?: string }> {
   if (!companyId) return { success: false, error: "ID inválido" };
   if (!(await requireAdmin())) return { success: false, error: "No autorizado" };
-
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-
-  const { error } = await admin
-    .from("companies")
-    .update({ deleted_at: null })
-    .eq("id", companyId)
-    .not("deleted_at", "is", null); // solo si está eliminada
-
+  const error = await markCompanyDeleted(companyId, null);
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
 
 export async function getDeletedCompanies(): Promise<{ id: string; name: string; deletedAt: string }[]> {
   if (!(await requireAdmin())) return [];
-  const { createAdminClient } = await import("@/utils/supabase/admin");
-  const admin = createAdminClient();
-
-  const { data } = await admin
-    .from("companies")
-    .select("id, name, deleted_at")
-    .not("deleted_at", "is", null)
-    .order("deleted_at", { ascending: false });
-
-  return (data ?? []).map(c => ({
-    id: c.id as string,
-    name: c.name as string,
-    deletedAt: c.deleted_at as string,
-  }));
+  return fetchDeletedCompaniesRows();
 }

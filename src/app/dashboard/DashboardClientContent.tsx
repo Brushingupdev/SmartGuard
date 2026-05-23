@@ -1,0 +1,899 @@
+"use client";
+
+import AppLayout from "@/components/AppLayout";
+import DashboardKPICard from "@/components/DashboardKPICard";
+import CausasTop from "@/components/CausasTop";
+import RankingPlantas from "@/components/RankingPlantas";
+import TimelineDia from "@/components/TimelineDia";
+import HeatmapDemoras from "@/components/HeatmapDemoras";
+import ExportPDFButton from "@/components/ExportPDFButton";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarDays,
+  ChevronDown,
+  Clock3,
+  ListChecks,
+  PieChart as PieChartIcon,
+  TrendingDown,
+  TrendingUp,
+  UsersRound,
+} from "lucide-react";
+import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
+import type {
+  ActivePersonnelRow,
+  DashboardAlert,
+  DashboardEvent,
+  DashboardFlowRow,
+  DashboardKpis,
+  DashboardTopProvider,
+  DashboardZone,
+  HeatmapCell,
+} from "@/types/dashboard";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { DashboardTrendState } from "./dashboardClientTypes";
+import {
+  alertToneClasses,
+  ChartTooltip,
+  formatXLabel,
+} from "./dashboardClientUtils";
+
+export function DashboardClientContent({
+  liveTime,
+  selectedTimeframe,
+  setSelectedTimeframe,
+  lastSelectedYear,
+  setLastSelectedYear,
+  selectedPlant,
+  setSelectedPlant,
+  selectedSite,
+  setSelectedSite,
+  gateOptions,
+  availableYears,
+  kpis,
+  recentEvents,
+  flowData,
+  zones,
+  alerts,
+  delayReasons,
+  topProvider,
+  loading,
+  error,
+  setError,
+  lastRefresh,
+  refreshing,
+  trends,
+  heatmapData,
+  activePersonnel,
+  initialUserRole,
+  puntualidad,
+  sites,
+  currentSiteGates,
+  selectedLabel,
+  encodedPlant,
+  encodedTimeframe,
+  operationalZones,
+  currentGateLoad,
+  personnelSummary,
+  kpiCards,
+}: {
+  liveTime: string;
+  selectedTimeframe: string;
+  setSelectedTimeframe: (value: string) => void;
+  lastSelectedYear: string;
+  setLastSelectedYear: (value: string) => void;
+  selectedPlant: string;
+  setSelectedPlant: (value: string) => void;
+  selectedSite: string;
+  setSelectedSite: (value: string) => void;
+  gateOptions: GateAssignment[];
+  availableYears: string[];
+  kpis: DashboardKpis;
+  recentEvents: DashboardEvent[];
+  flowData: DashboardFlowRow[];
+  zones: DashboardZone[];
+  alerts: DashboardAlert[];
+  delayReasons: { motivo: string; count: number }[];
+  topProvider: DashboardTopProvider | null;
+  loading: boolean;
+  error: string | null;
+  setError: (value: string | null) => void;
+  lastRefresh: Date | null;
+  refreshing: boolean;
+  trends: DashboardTrendState;
+  heatmapData: HeatmapCell[];
+  activePersonnel: ActivePersonnelRow[];
+  initialUserRole: string;
+  puntualidad: number | null;
+  sites: {
+    site: string;
+    gates: { site: string; gate: string; plant: string }[];
+  }[];
+  currentSiteGates: { site: string; gate: string; plant: string }[];
+  selectedLabel: string;
+  encodedPlant: string;
+  encodedTimeframe: string;
+  operationalZones: DashboardZone[];
+  currentGateLoad: number;
+  personnelSummary: ActivePersonnelRow[];
+  kpiCards: {
+    label: string;
+    value: number;
+    accent: string;
+    sub: string;
+    trend?: number | null;
+    trendInverse?: boolean;
+  }[];
+}) {
+  return (
+    <AppLayout>
+      {error ? (
+        <div className="mb-6 flex items-center justify-between border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center bg-[var(--sg-danger)]">
+              <span className="text-[11px] font-bold text-white">!</span>
+            </div>
+            <span className="text-[12px] text-[var(--sg-danger)]">{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+          >
+            Cerrar
+          </button>
+        </div>
+      ) : null}
+
+      <div className="mb-6 flex flex-col gap-3 border-b border-[var(--sg-line)] pb-4 sm:pb-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="sg-kicker">Dashboard</div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/reporte?plant=${encodedPlant}&timeframe=${encodedTimeframe}`}
+              className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Análisis</span>
+            </Link>
+            {lastRefresh ? (
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`}
+                />
+                <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  {refreshing
+                    ? "…"
+                    : lastRefresh.toLocaleTimeString("es-PE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                </span>
+              </div>
+            ) : null}
+            <div className="hidden xl:flex flex-col items-end">
+              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                {new Date().toLocaleDateString("es-PE", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+              <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">
+                {liveTime}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-0.5">
+            {["Todos", ...sites.map((site) => site.site)].map((site) => (
+              <button
+                key={site}
+                onClick={() => {
+                  setSelectedSite(site);
+                  setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
+                }}
+                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  selectedSite === site
+                    ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                {site}
+              </button>
+            ))}
+          </div>
+
+          {currentSiteGates.length > 0 ? (
+            <div className="relative">
+              <select
+                aria-label="Seleccionar puerta"
+                value={selectedPlant}
+                onChange={(event) => setSelectedPlant(event.target.value)}
+                className="h-[30px] cursor-pointer appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pl-2.5 pr-6 text-[10px] font-bold uppercase tracking-widest text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)]"
+              >
+                <option
+                  value={`site:${selectedSite}`}
+                  className="bg-[var(--sg-panel)] text-[var(--sg-ink)]"
+                >
+                  Todas las puertas
+                </option>
+                {currentSiteGates.map((gate) => (
+                  <option
+                    key={gate.plant}
+                    value={gate.plant}
+                    className="bg-[var(--sg-panel)] text-[var(--sg-ink)]"
+                  >
+                    {gate.gate}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+            </div>
+          ) : null}
+
+          <div className="hidden h-4 w-px bg-[var(--sg-line)] sm:block" />
+
+          <div className="flex items-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-0.5">
+            {["Día", "Semana", "Mes"].map((timeframe) => (
+              <button
+                key={timeframe}
+                onClick={() => setSelectedTimeframe(timeframe)}
+                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  selectedTimeframe === timeframe
+                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                }`}
+              >
+                {timeframe}
+              </button>
+            ))}
+            {availableYears.length > 0 ? (
+              <>
+                <div className="mx-0.5 h-4 w-px bg-[var(--sg-line)]" />
+                <div className="relative">
+                  <select
+                    aria-label="Seleccionar año"
+                    value={lastSelectedYear}
+                    onChange={(event) => {
+                      if (event.target.value) {
+                        setLastSelectedYear(event.target.value);
+                        setSelectedTimeframe(event.target.value);
+                      }
+                    }}
+                    className={`h-[26px] cursor-pointer appearance-none border bg-[var(--sg-panel-2)] pl-2.5 pr-6 text-[10px] font-bold uppercase tracking-widest outline-none transition-colors ${
+                      availableYears.includes(selectedTimeframe)
+                        ? "border-[var(--sg-ink)] bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                        : "border-[var(--sg-line)] text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
+                    }`}
+                  >
+                    {availableYears.map((year) => (
+                      <option
+                        key={year}
+                        value={year}
+                        className="bg-[var(--sg-panel)] text-[var(--sg-ink)]"
+                      >
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <span className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+            Resumen global
+          </span>
+          {loading ? (
+            <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-warn)]">
+              Actualizando...
+            </span>
+          ) : (
+            <>
+              <span className="sg-font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--sg-success)]">
+                {puntualidad ?? 0}% A tiempo
+              </span>
+              {trends.total != null ? (
+                <span
+                  className={`flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-[0.16em] ${trends.total > 0 ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}
+                >
+                  {trends.total > 0 ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
+                  {trends.total > 0 ? "+" : ""}
+                  {trends.total}% vs período anterior
+                </span>
+              ) : null}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <ExportPDFButton
+            plant={selectedPlant}
+            timeframe={selectedTimeframe}
+            kpis={kpis}
+            puntualidad={puntualidad}
+          />
+        </div>
+      </div>
+
+      <section
+        className={`grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6 ${loading ? "opacity-80" : ""}`}
+      >
+        {kpiCards.map((card) => (
+          <DashboardKPICard key={card.label} {...card} />
+        ))}
+      </section>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flex flex-col gap-5">
+          <section className="sg-panel p-5">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="sg-font-display text-[16px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
+                    Flujo de acceso — {selectedTimeframe}
+                  </div>
+                </div>
+                <div className="mt-2 text-[12px] text-[var(--sg-muted)]">
+                  {selectedLabel} ·{" "}
+                  {flowData.reduce(
+                    (sum, row) => sum + row.ok + row.warn + row.deny,
+                    0
+                  )}{" "}
+                  registros en el período
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-2 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  Por {selectedTimeframe === "Día" ? "hora" : "segmento"}
+                </div>
+              </div>
+            </div>
+
+            <div className="relative h-[320px]">
+              {loading && flowData.length === 0 ? (
+                <div className="h-full w-full animate-pulse bg-[var(--sg-panel-2)]" />
+              ) : flowData.length === 0 ? (
+                <div className="flex h-full w-full items-center justify-center">
+                  <span className="sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    Sin datos para este período
+                  </span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%" debounce={200}>
+                  <BarChart data={flowData} barCategoryGap={8}>
+                    <CartesianGrid
+                      stroke="rgba(196,192,180,0.06)"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="h"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fill: "#6a706c",
+                        fontSize: 10,
+                        fontFamily: "DM Mono",
+                      }}
+                      tickFormatter={(value) =>
+                        formatXLabel(value, selectedTimeframe)
+                      }
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fill: "#6a706c",
+                        fontSize: 10,
+                        fontFamily: "DM Mono",
+                      }}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      content={(props) => (
+                        <ChartTooltip {...props} timeframe={selectedTimeframe} />
+                      )}
+                      cursor={{ fill: "rgba(196,192,180,0.04)" }}
+                    />
+                    <Bar dataKey="ok" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, index) => (
+                        <Cell
+                          key={index}
+                          fill="var(--sg-success)"
+                          fillOpacity={0.88}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="warn" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, index) => (
+                        <Cell
+                          key={index}
+                          fill="var(--sg-warn)"
+                          fillOpacity={0.9}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="deny" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                      {flowData.map((_, index) => (
+                        <Cell
+                          key={index}
+                          fill="var(--sg-danger)"
+                          fillOpacity={0.88}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {loading && flowData.length > 0 ? (
+                <div className="pointer-events-none absolute inset-0 border border-[var(--sg-line)] bg-[rgba(10,12,11,0.22)]" />
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-5 border-t border-[var(--sg-line)] pt-4">
+              {[
+                { color: "var(--sg-success)", label: "A tiempo (< 30 min)" },
+                { color: "var(--sg-warn)", label: "Revisión (30-45 min)" },
+                { color: "var(--sg-danger)", label: "Con demora (> 45 min)" },
+                {
+                  color: "#4f8df7",
+                  label: `Anticipado - ${kpis.anticipado ?? 0} Atendidos antes de cita`,
+                },
+              ].map((legend) => (
+                <span
+                  key={legend.label}
+                  className="flex items-center gap-2 sg-font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--sg-muted)]"
+                >
+                  <span className="h-2.5 w-2.5" style={{ background: legend.color }} />
+                  {legend.label}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <HeatmapDemoras data={heatmapData} />
+        </div>
+
+        <div className="flex flex-col gap-5">
+          {(initialUserRole !== "guardia" || activePersonnel.length > 0) && (
+            <section className="sg-panel p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <UsersRound className="h-4 w-4 text-[var(--sg-accent)]" />
+                  <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                    Cobertura del turno
+                  </span>
+                </div>
+                <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  {activePersonnel.length} guardia
+                  {activePersonnel.length === 1 ? "" : "s"} activo
+                  {activePersonnel.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Clock3 className="h-4 w-4 text-[var(--sg-accent)]" />
+                    <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Operación visible
+                    </span>
+                  </div>
+                  <div className="text-[26px] font-bold leading-none text-[var(--sg-ink)]">
+                    {currentGateLoad}
+                  </div>
+                  <div className="mt-2 text-[12px] text-[var(--sg-copy)]">
+                    registros en las puertas más activas del período
+                  </div>
+                </div>
+
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-[var(--sg-success)]" />
+                    <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Plantas con movimiento
+                    </span>
+                  </div>
+                  <div className="text-[26px] font-bold leading-none text-[var(--sg-ink)]">
+                    {operationalZones.length}
+                  </div>
+                  <div className="mt-2 text-[12px] text-[var(--sg-copy)]">
+                    {selectedLabel === "Global"
+                      ? "sedes/puertas"
+                      : selectedLabel}{" "}
+                    con actividad reciente
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                  <div className="border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Guardias activos
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--sg-line)]">
+                    {personnelSummary.length === 0 ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          Sin guardias activos visibles
+                        </div>
+                      </div>
+                    ) : (
+                      personnelSummary.map((person) => (
+                        <div
+                          key={`${person.name}-${person.turn}`}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel)] sg-font-mono text-[11px] font-bold text-[var(--sg-accent)]">
+                              {person.initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
+                                {person.name}
+                              </div>
+                              <div className="mt-0.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                {person.turn}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)]">
+                            <span className="h-2 w-2 rounded-full bg-[var(--sg-success)]" />
+                            activo
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                  <div className="border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Carga por puerta
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--sg-line)]">
+                    {operationalZones.length === 0 ? (
+                      <div className="px-4 py-6 text-center">
+                        <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          Sin movimiento en este período
+                        </div>
+                      </div>
+                    ) : (
+                      operationalZones.map((zone) => (
+                        <div key={zone.name} className="px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
+                                {formatGateLabelFromPlant(zone.name, gateOptions)}
+                              </div>
+                              <div className="mt-0.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                {zone.count} registros
+                              </div>
+                            </div>
+                            <span
+                              className={`sg-font-mono text-[10px] uppercase tracking-widest ${zone.tone === "ok" ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}
+                            >
+                              {zone.pct}% a tiempo
+                            </span>
+                          </div>
+                          <div className="mt-3 h-2 overflow-hidden bg-[rgba(196,192,180,0.08)]">
+                            <div
+                              className={`h-full ${zone.tone === "ok" ? "bg-[var(--sg-success)]" : "bg-[var(--sg-danger)]"}`}
+                              style={{ width: `${Math.max(8, zone.pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="sg-panel p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[var(--sg-danger)]" />
+                <span className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                  Alertas activas
+                </span>
+                {alerts.length > 0 ? (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full border border-[var(--sg-danger)] px-1.5 sg-font-mono text-[10px] text-[var(--sg-danger)]">
+                    {alerts.length}
+                  </span>
+                ) : null}
+              </div>
+              <Link
+                href="/alertas"
+                className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] hover:text-[var(--sg-accent)]"
+              >
+                Ver todas →
+              </Link>
+            </div>
+
+            {alerts.length === 0 ? (
+              <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-8 text-center">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--sg-line)] text-[var(--sg-success)]">
+                  <ListChecks className="h-5 w-5" />
+                </div>
+                <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                  Sin alertas críticas
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {alerts.map((alert, index) => {
+                  const tone = alertToneClasses(alert.tone);
+                  return (
+                    <div
+                      key={`${alert.title}-${index}`}
+                      className="border border-[var(--sg-line)] border-l-2 bg-[var(--sg-panel-2)] p-4"
+                      style={{
+                        borderLeftColor: tone.border,
+                        background: tone.soft,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div
+                            className="sg-font-mono text-[9px] uppercase tracking-widest"
+                            style={{ color: tone.text }}
+                          >
+                            {alert.title}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-5 text-[var(--sg-copy)]">
+                            {alert.sub}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <TimelineDia events={recentEvents} />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <section className="sg-panel flex flex-col p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <PieChartIcon className="h-4 w-4 text-[var(--sg-accent)]" />
+            <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+              Estado Actual
+            </div>
+          </div>
+
+          {(() => {
+            const chartData = [
+              { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
+              { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
+              { name: "Con demora", value: kpis.deny, fill: "var(--sg-danger)" },
+              { name: "En proceso", value: kpis.pending, fill: "var(--sg-accent)" },
+            ].filter((item) => item.value > 0);
+
+            const total = chartData.reduce((sum, item) => sum + item.value, 0);
+            const currentPuntualidad =
+              total > 0 ? Math.round((kpis.ok / total) * 100) : 0;
+
+            return (
+              <>
+                <div className="relative h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={56}
+                        outerRadius={82}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                        isAnimationActive={false}
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                        <LabelList
+                          dataKey="value"
+                          position="outside"
+                          offset={10}
+                          formatter={(value) => (Number(value) > 0 ? value : "")}
+                          className="sg-font-mono text-[11px] font-bold"
+                          fill="var(--sg-ink)"
+                        />
+                      </Pie>
+                      <Tooltip
+                        formatter={(value, name) => [
+                          `${value} registros`,
+                          String(name),
+                        ]}
+                        contentStyle={{
+                          backgroundColor: "var(--sg-panel)",
+                          border: "1px solid var(--sg-line)",
+                          borderRadius: "0",
+                          fontSize: "12px",
+                        }}
+                        itemStyle={{ color: "var(--sg-ink)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="sg-font-mono text-[26px] font-bold leading-none text-[var(--sg-ink)]">
+                      {currentPuntualidad}%
+                    </span>
+                    <span className="sg-font-mono mt-1 text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      A tiempo
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {chartData.map((item) => {
+                    const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                    return (
+                      <div
+                        key={item.name}
+                        className="flex items-center gap-2 bg-[var(--sg-panel-2)] px-3 py-2"
+                      >
+                        <span
+                          className="h-2.5 w-2.5 shrink-0"
+                          style={{ background: item.fill }}
+                        />
+                        <div className="min-w-0 flex flex-col">
+                          <span className="truncate text-[11px] text-[var(--sg-copy)]">
+                            {item.name}
+                          </span>
+                          <span className="sg-font-mono text-[10px] text-[var(--sg-muted)]">
+                            {item.value} ({pct}%)
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </section>
+
+        <CausasTop
+          causas={delayReasons}
+          totalDemoras={kpis.warn + kpis.deny}
+          topProvider={topProvider}
+        />
+
+        <RankingPlantas
+          plantas={zones
+            .filter((zone) => zone.name !== "Sin planta")
+            .map((zone) => ({
+              name: formatGateLabelFromPlant(zone.name, gateOptions),
+              count: zone.count,
+              pct: zone.pct,
+              tone: zone.tone,
+            }))}
+        />
+      </div>
+
+      <div className="mt-5">
+        <section className="sg-panel overflow-hidden">
+          <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
+            <div>
+              <div className="sg-font-display text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                Últimos eventos
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--sg-muted)]">
+                Registros recientes con su estado operativo actual
+              </div>
+            </div>
+            <Link
+              href="/historial"
+              className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-accent)]"
+            >
+              Ver historial completo →
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px]">
+              <thead>
+                <tr className="border-b border-[var(--sg-line)] sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
+                  <th className="px-4 py-3 text-left font-normal">Razón Social</th>
+                  <th className="px-4 py-3 text-left font-normal">Estado</th>
+                  <th className="hidden px-4 py-3 text-left font-normal sm:table-cell">
+                    Empresa
+                  </th>
+                  <th className="hidden px-4 py-3 text-left font-normal md:table-cell">
+                    Puerta
+                  </th>
+                  <th className="px-4 py-3 text-right font-normal">Hora</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--sg-line)]">
+                {loading && recentEvents.length === 0 ? (
+                  [...Array(5)].map((_, index) => (
+                    <tr key={`skel-${index}`}>
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="h-6 w-full animate-pulse bg-[var(--sg-panel-2)]" />
+                      </td>
+                    </tr>
+                  ))
+                ) : recentEvents.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="py-8 text-center sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]"
+                    >
+                      No hay eventos recientes
+                    </td>
+                  </tr>
+                ) : (
+                  recentEvents.map((event, index) => (
+                    <tr
+                      key={`${event.time}-${index}`}
+                      className="transition-colors hover:bg-[var(--sg-panel-2)]"
+                    >
+                      <td className="px-4 py-3 text-[12px] font-bold text-[var(--sg-ink)]">
+                        {event.plate}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`border border-[var(--sg-line)] px-2 py-0.5 sg-font-mono text-[9px] uppercase tracking-[0.16em] ${event.status === "ok" ? "text-[var(--sg-success)]" : event.status === "warn" ? "text-[var(--sg-warn)]" : "text-[var(--sg-muted)]"}`}
+                        >
+                          {event.label}
+                        </span>
+                      </td>
+                      <td className="hidden px-4 py-3 text-[11px] uppercase tracking-wider text-[var(--sg-copy)] sm:table-cell">
+                        {event.info}
+                      </td>
+                      <td className="hidden px-4 py-3 sg-font-mono text-[11px] tracking-widest text-[var(--sg-muted)] md:table-cell">
+                        {formatGateLabelFromPlant(event.gate)}
+                      </td>
+                      <td className="px-4 py-3 text-right sg-font-mono text-[11px] text-[var(--sg-muted)]">
+                        {event.time}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </AppLayout>
+  );
+}

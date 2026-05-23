@@ -65,7 +65,7 @@ export async function getHistorialStatsUncached(): Promise<HistorialStats> {
   const aliases = guardAgentAliases(ctx);
 
   if (aliases.length > 0) {
-    let query = supabase
+    const query = supabase
       .from("atenciones")
       .select("espera_min, demora_cita_min, planta")
       .eq("company_id", ctx.companyId!)

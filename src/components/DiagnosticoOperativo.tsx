@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { X, TrendingUp, TrendingDown, Minus, Clock, AlertTriangle, BarChart2, GitBranch, Truck } from "lucide-react";
+import { X, TrendingUp, TrendingDown, Minus, Clock, BarChart2, GitBranch, Truck } from "lucide-react";
 import type { HeatmapCell, DashboardKpis, DashboardZone, DashboardTopProvider } from "@/types/dashboard";
 
 const DOW = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];

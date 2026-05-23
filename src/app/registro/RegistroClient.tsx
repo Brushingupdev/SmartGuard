@@ -1,1131 +1,127 @@
 "use client";
 
-import AppLayout from "@/components/AppLayout";
-import CitasDelDia from "@/components/CitasDelDia";
-import KioskLayout from "@/components/KioskLayout";
-import RegistroWizard from "@/components/RegistroWizard";
+import { AlertTriangle } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import {
-  activateCita,
-  createAtencion,
-  closeAtencion,
-  closeAtencionDocs,
-  updateAtencion,
-  deleteAtencion,
-  closeAbandonedBatch,
-  getVehicleProfile,
-} from "@/app/actions";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertTriangle,
-  Building2,
-  CheckCircle2,
-  ChevronDown,
-  ClipboardList,
-  Clock,
-  FileCheck2,
-  Monitor,
-  MonitorSmartphone,
-  Package,
-  Save,
-  Timer,
-  Trash2,
-  Truck,
-  User,
-  X,
-} from "lucide-react";
-import { useState, useEffect, useTransition } from "react";
-import { humanizeError } from "@/lib/humanizeError";
-import { usePWA } from "@/hooks/usePWA";
-import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
-import { useRegistroData } from "./useRegistroData";
-import {
-  getArrivalDeltaMinutes,
-  getOperationalDelayMinutes,
-  getScheduleDelayMinutes,
-  getWaitInPlantMinutes,
-  isAbandonedRecord,
-  isDelayedRecord,
-  isEarlyArrival,
-} from "./status";
-import RegistroFormPanel from "./RegistroFormPanel";
-import RegistroHistoryPanel from "./RegistroHistoryPanel";
-import type { CitaRow, RecentRegistration } from "./types";
-type ModalIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  ConfirmActionModal,
+  EditModal,
+  MotivoDemoraModal,
+  RegistroClientContent,
+  Toast,
+} from "./RegistroClientUI";
+import type { RegistroClientProps } from "./registroClientTypes";
+import { useRegistroClientController } from "./useRegistroClientController";
 
-interface RegistroClientProps {
-  initialAgente: string;
-  initialPlant: string;
-  initialPlants: string[];
-  initialGateOptions: GateAssignment[];
-  initialResponsablesList: string[];
-  initialAgentesList: string[];
-  initialRecentRegistrations: RecentRegistration[];
-  initialRecentTotal: number;
-  initialCitas: CitaRow[];
-  initialUserRole: string;
-  initialPlantAssigned: boolean;
-  initialLastRefresh: string;
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function Toast({ show, message }: { show: boolean; message: string }) {
-  const isError = message.toLowerCase().includes("error") || message.toLowerCase().includes("inválid") || message.toLowerCase().includes("permi");
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0, y: 22, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 22, scale: 0.96 }}
-          className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[70] border bg-[var(--sg-panel)] px-5 py-4 shadow-[6px_6px_0_rgba(196,192,180,0.08)] ${isError ? "border-[var(--sg-danger)]" : "border-[var(--sg-success)]"}`}
-        >
-          <div className="flex items-center gap-3 text-sm text-[var(--sg-ink)]">
-            <CheckCircle2 className={`h-5 w-5 ${isError ? "text-[var(--sg-danger)]" : "text-[var(--sg-success)]"}`} />
-            {message}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-const MOTIVOS_DEMORA = [
-  "Documentación incompleta",
-  "Revisión manual requerida",
-  "Falla de sistema",
-  "Exceso de vehículos",
-  "Verificación de carga",
-  "Problema con conductor",
-  "Otro",
-];
-
-// Lista por defecto — se sobreescribe con los datos de Supabase al cargar
-const RESPONSABLES_DEFAULT: string[] = [];
-
-function MotivoDemoraModal({
-  reg,
-  onConfirm,
-  onCancel,
-}: {
-  reg: RecentRegistration;
-  onConfirm: (motivo: string) => void;
-  onCancel: () => void;
-}) {
-  const [motivo, setMotivo] = useState(MOTIVOS_DEMORA[0]);
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,5,4,0.75)] backdrop-blur-sm px-4"
-    >
-      <motion.div
-        initial={{ scale: 0.94, y: 16 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.94, y: 16 }}
-        className="w-full max-w-[420px] border border-[var(--sg-warn)] bg-[var(--sg-panel)] shadow-[8px_8px_0_rgba(196,192,180,0.06)]"
-      >
-        <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-[var(--sg-warn)]" />
-            <span className="sg-font-display text-[15px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-              Demora detectada
-            </span>
-          </div>
-          <button onClick={onCancel} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5">
-          <p className="text-[13px] text-[var(--sg-copy)] mb-4">
-            El vehículo registrado a las{" "}
-            <strong className="text-[var(--sg-ink)]">{reg.time}</strong> tiene demora.
-            Indica el motivo antes de cerrar la atención.
-          </p>
-
-          <div className="sg-field mb-4">
-            <label className="sg-label">Motivo de demora *</label>
-            <div className="relative">
-              <select
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                className="sg-select appearance-none pr-8"
-              >
-                {MOTIVOS_DEMORA.map((m) => (
-                  <option key={m} value={m} className="bg-[var(--sg-panel-2)]">{m}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={onCancel} className="sg-btn sg-btn-ghost flex-1 justify-center">
-              Cancelar
-            </button>
-            <button
-              onClick={() => onConfirm(motivo)}
-              className="sg-btn sg-btn-accent flex-1 justify-center"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Confirmar cierre
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function ConfirmActionModal({
-  title,
-  message,
-  onConfirm,
-  onCancel,
-  icon: Icon = CheckCircle2,
-  accentColor = "var(--sg-accent)",
-  confirmText = "Confirmar",
-}: {
-  title: string;
-  message: React.ReactNode;
-  onConfirm: () => void;
-  onCancel: () => void;
-  icon?: ModalIcon;
-  accentColor?: string;
-  confirmText?: string;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.75)] backdrop-blur-sm px-4"
-    >
-      <motion.div
-        initial={{ scale: 0.94, y: 16 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.94, y: 16 }}
-        className="w-full max-w-[420px] border bg-[var(--sg-panel)] shadow-[8px_8px_0_rgba(196,192,180,0.06)]"
-        style={{ borderColor: accentColor }}
-      >
-        <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Icon className="h-5 w-5" style={{ color: accentColor }} />
-            <span className="sg-font-display text-[15px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-              {title}
-            </span>
-          </div>
-          <button onClick={onCancel} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5">
-          <div className="text-[13px] text-[var(--sg-copy)] mb-6 leading-relaxed">
-            {message}
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={onCancel} className="sg-btn sg-btn-ghost flex-1 justify-center">
-              Cancelar
-            </button>
-            <button
-              onClick={onConfirm}
-              className="sg-btn flex-1 justify-center"
-              style={{ backgroundColor: accentColor, color: "var(--sg-canvas)", borderColor: accentColor }}
-            >
-              <Icon className="h-4 w-4" />
-              {confirmText}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function RegistroSummaryCards({
-  pendingCount,
-  attendedCount,
-  completedCount,
-  criticalOpenCount,
-}: {
-  pendingCount: number;
-  attendedCount: number;
-  completedCount: number;
-  criticalOpenCount: number;
-}) {
-  const cards = [
-    {
-      label: "Pendientes",
-      value: pendingCount,
-      accent: "var(--sg-warn)" as const,
-      sub: criticalOpenCount > 0 ? `${criticalOpenCount} críticos abiertos` : "Esperando atención",
-      icon: ClipboardList,
-    },
-    {
-      label: "En atención",
-      value: attendedCount,
-      accent: "var(--sg-accent)" as const,
-      sub: "Documentos pendientes",
-      icon: User,
-    },
-    {
-      label: "Completados",
-      value: completedCount,
-      accent: "var(--sg-success)" as const,
-      sub: "Flujo cerrado hoy",
-      icon: CheckCircle2,
-    },
-  ];
+export default function RegistroClient(props: RegistroClientProps) {
+  const controller = useRegistroClientController(props);
 
   return (
-    <section className="grid gap-3 sm:grid-cols-3">
-      {cards.map((card) => (
-        <div key={card.label} className="flex items-center gap-4 border border-[var(--sg-line)] bg-[var(--sg-panel)] px-4 py-3.5">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center border"
-            style={{ borderColor: card.accent, background: "var(--sg-panel-2)" }}
-          >
-            <card.icon className="h-5 w-5" style={{ color: card.accent }} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="sg-font-mono text-[9px] uppercase tracking-[0.18em]" style={{ color: card.accent }}>
-              {card.label}
-            </div>
-            <div className="mt-0.5 flex items-end justify-between gap-3">
-              <span className="sg-font-display text-[32px] font-bold leading-none text-[var(--sg-ink)]">
-                {card.value}
-              </span>
-              <span className="flex items-center gap-1.5 text-right text-[10px] leading-4 text-[var(--sg-muted)]">
-                <Clock className="h-3 w-3" />
-                {card.sub}
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function formatMetricMinutes(value: number | null | undefined, empty = "—") {
-  if (value == null) return empty;
-  return `${value} min`;
-}
-
-function formatArrivalDelta(value: number | null) {
-  if (value == null) return "Sin cita";
-  if (value > 0) return `${value} min tarde`;
-  if (value < 0) return `${Math.abs(value)} min antes`;
-  return "A tiempo";
-}
-
-function EditModal({
-  reg,
-  responsablesList,
-  agentesList,
-  onSave,
-  onCancel,
-}: {
-  reg: RecentRegistration;
-  responsablesList: string[];
-  agentesList: string[];
-  onSave: (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => void;
-  onCancel: () => void;
-}) {
-  const [razonSocial, setRazonSocial] = useState(reg.razonSocial || "");
-  const [empresa, setEmpresa] = useState(reg.empresa || "");
-  const [type, setType] = useState(reg.type || "Proveedor");
-  const [tipoOperacion, setTipoOperacion] = useState(reg.tipoOperacion || "Carga");
-  const [responsable, setResponsable] = useState(reg.responsable || responsablesList[0] || "");
-  const [agente, setAgente] = useState(reg.agente || "");
-  const [note, setNote] = useState(reg.observacion || "");
-  const [hAtencion, setHAtencion] = useState<string>(reg.h_atencion || "");
-  const [hDevDocs, setHDevDocs] = useState<string>(reg.h_dev_docs || "");
-  const [horaCita, setHoraCita] = useState<string>(reg.hora_cita || "");
-  const isComplete = !!reg.docsDelivered;
-  const isAttended = !!reg.attended && !reg.docsDelivered;
-  const arrivalDelta = getArrivalDeltaMinutes(reg);
-  const waitInPlant = getWaitInPlantMinutes(reg);
-  const scheduleDelay = getScheduleDelayMinutes(reg);
-  const operationalDelay = getOperationalDelayMinutes(reg);
-  const statusLabel = isComplete ? "Completado" : isAttended ? "En atención" : "Pendiente";
-  const statusTone = isComplete
-    ? "var(--sg-success)"
-    : isAttended
-      ? "var(--sg-accent)"
-      : "var(--sg-warn)";
-  const metricCards = [
-    {
-      label: "Llegada vs cita",
-      value: formatArrivalDelta(arrivalDelta),
-      tone: arrivalDelta == null
-        ? "var(--sg-muted)"
-        : arrivalDelta > 0
-          ? "var(--sg-danger)"
-          : arrivalDelta < 0
-            ? "#6ba7ff"
-            : "var(--sg-success)",
-      sub: reg.hora_cita ? `Cita ${reg.hora_cita}` : "Sin cita",
-    },
-    {
-      label: "Espera en planta",
-      value: formatMetricMinutes(waitInPlant, "0 min"),
-      tone: "var(--sg-ink)",
-      sub: `Ingreso ${reg.time}`,
-    },
-    {
-      label: "Demora total cita",
-      value: scheduleDelay == null ? "Sin cita" : `${scheduleDelay > 0 ? "+" : ""}${scheduleDelay} min`,
-      tone: scheduleDelay && scheduleDelay > 0 ? "var(--sg-danger)" : "var(--sg-success)",
-      sub: "Cumplimiento",
-    },
-    {
-      label: "Demora operativa",
-      value: formatMetricMinutes(operationalDelay, "0 min"),
-      tone: operationalDelay >= 45 ? "var(--sg-danger)" : "var(--sg-success)",
-      sub: "Atribuible a atención",
-    },
-  ];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,5,4,0.75)] backdrop-blur-sm px-4"
-    >
-      <motion.div
-        initial={{ scale: 0.94, y: 16 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.94, y: 16 }}
-        className="w-full max-w-[880px] border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[8px_8px_0_rgba(196,192,180,0.06)] max-h-[90vh] overflow-y-auto"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-5 py-4 sticky top-0 bg-[var(--sg-panel)] z-10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center border border-[var(--sg-accent)] text-[var(--sg-accent)]">
-              <ClipboardList className="h-4 w-4" />
-            </div>
-            <div>
-              <span className="sg-font-display text-[16px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-                Detalle del registro
-              </span>
-              <p className="mt-0.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                Ingreso {reg.time} · {reg.type || "Proveedor"} · {reg.tipoOperacion || "Carga"}
-              </p>
-            </div>
-          </div>
-          <button onClick={onCancel} className="text-[var(--sg-muted)] hover:text-[var(--sg-ink)]">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5 grid gap-4">
-          <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
-            <div className="flex flex-col gap-4 border-b border-[var(--sg-line)] p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="sg-font-display text-[20px] font-bold uppercase tracking-tight text-[var(--sg-ink)]">
-                  {reg.razonSocial || "Sin razón social"}
-                </p>
-                <p className="mt-1 text-[13px] uppercase tracking-[0.03em] text-[var(--sg-copy)]">
-                  {reg.empresa || "Sin empresa"}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[var(--sg-muted)]">
-                  <span className="border border-[var(--sg-line)] px-2 py-1">Resp. {reg.responsable || "—"}</span>
-                  <span className="border border-[var(--sg-line)] px-2 py-1">Agente {reg.agente || "—"}</span>
-                </div>
-              </div>
-              <span
-                className="inline-flex items-center gap-2 self-start border px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest"
-                style={{ borderColor: statusTone, color: statusTone, background: "rgba(255,255,255,0.02)" }}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {statusLabel}
-              </span>
-            </div>
-
-            <div className="grid gap-0 sm:grid-cols-4">
-              {metricCards.map((metric) => (
-                <div key={metric.label} className="border-b border-[var(--sg-line)] px-4 py-3 sm:border-b-0 sm:border-r last:border-r-0">
-                  <div className="sg-font-mono text-[8px] uppercase tracking-[0.2em] text-[var(--sg-muted)]">
-                    {metric.label}
-                  </div>
-                  <div className="mt-2 text-[15px] font-bold" style={{ color: metric.tone }}>
-                    {metric.value}
-                  </div>
-                  <div className="mt-1 text-[10px] text-[var(--sg-muted)]">
-                    {metric.sub}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-            Datos editables
-          </div>
-
-          {/* Razón Social */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sg-field">
-              <label className="sg-label">Razón Social / Vehículo *</label>
-              <div className="relative">
-                <Truck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                <input
-                  type="text"
-                  value={razonSocial}
-                  onChange={(e) => setRazonSocial(e.target.value.toUpperCase())}
-                  className="sg-input pl-10 uppercase"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="sg-field">
-              <label className="sg-label">Empresa Destino / Cliente *</label>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                <input
-                  type="text"
-                  value={empresa}
-                  onChange={(e) => setEmpresa(e.target.value.toUpperCase())}
-                  className="sg-input pl-10 uppercase"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Tipo + Operación */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sg-field">
-              <label className="sg-label">Tipo</label>
-              <div className="relative">
-                <select value={type} onChange={(e) => setType(e.target.value)} className="sg-select appearance-none pr-10">
-                  <option value="Proveedor">Proveedor</option>
-                  <option value="Propio">Propio</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              </div>
-            </div>
-            <div className="sg-field">
-              <label className="sg-label">Tipo de Operación</label>
-              <div className="relative">
-                <select value={tipoOperacion} onChange={(e) => setTipoOperacion(e.target.value)} className="sg-select appearance-none pr-10">
-                  {["Carga","Descarga","Visita","Mantenimiento","Traslado entre plantas","Otro"].map(o => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sg-field">
-              <label className="sg-label">Responsable de Almacén</label>
-              <div className="relative">
-                <Package className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                {responsablesList.length > 0 ? (
-                  <>
-                    <select value={responsable} onChange={(e) => setResponsable(e.target.value)} className="sg-select appearance-none pl-10 pr-10">
-                      {responsablesList.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  </>
-                ) : (
-                  <input
-                    type="text"
-                    value={responsable}
-                    onChange={(e) => setResponsable(e.target.value.toUpperCase())}
-                    placeholder="Nombre del responsable"
-                    className="sg-input pl-10 uppercase"
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="sg-field">
-              <label className="sg-label">Agente Responsable</label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                {agentesList.length > 0 ? (
-                  <>
-                    <select
-                      value={agente}
-                      onChange={(e) => setAgente(e.target.value)}
-                      className="sg-select appearance-none pl-10 pr-10"
-                    >
-                      {agentesList.map((a) => (
-                        <option key={a} value={a}>{a}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--sg-muted)]" />
-                  </>
-                ) : (
-                  <input
-                    type="text"
-                    value={agente}
-                    onChange={(e) => setAgente(e.target.value.toUpperCase())}
-                    className="sg-input pl-10 uppercase"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Observación */}
-          <div className="sg-field">
-            <label className="sg-label">Observación</label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="sg-textarea min-h-[60px]"
-              placeholder="Detalles adicionales..."
-            />
-          </div>
-
-          {/* Horas editables */}
-          <div className="border-t border-[var(--sg-line)] pt-4 grid gap-3">
-            <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] mb-1">
-              Horas — la hora de registro no se puede cambiar
-            </div>
-
-            {/* Hora de registro (solo lectura) */}
-            <div className="grid gap-3 sm:grid-cols-4">
-              <div className="sg-field">
-                <label className="sg-label text-[var(--sg-muted)]">Ingreso fijo</label>
-                <input
-                  type="time"
-                  value={reg.time || ""}
-                  disabled
-                  className="sg-input opacity-50 cursor-not-allowed bg-[var(--sg-panel-3)]"
-                />
-              </div>
-
-              <div className="sg-field">
-                <label className="sg-label">Hora de Cita</label>
-                <input
-                  type="time"
-                  value={horaCita}
-                  onChange={(e) => setHoraCita(e.target.value)}
-                  className="sg-input"
-                />
-              </div>
-
-              <div className="sg-field">
-                <label className="sg-label">H. Atención</label>
-                <input
-                  type="time"
-                  value={hAtencion}
-                  onChange={(e) => setHAtencion(e.target.value)}
-                  className="sg-input"
-                />
-              </div>
-
-              <div className="sg-field">
-                <label className="sg-label">H. Documentos</label>
-                <input
-                  type="time"
-                  value={hDevDocs}
-                  onChange={(e) => setHDevDocs(e.target.value)}
-                  className="sg-input"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Botones */}
-          <div className="flex gap-3 pt-1">
-            <button onClick={onCancel} className="sg-btn sg-btn-ghost flex-1 justify-center">
-              Cancelar
-            </button>
-            <button
-              onClick={() => onSave({
-                razonSocial, empresa, type, tipoOperacion, responsable, agente, note,
-                hAtencion: hAtencion || null,
-                hDevDocs: hDevDocs || null,
-                horaCita: horaCita || null,
-              })}
-              disabled={!razonSocial || !empresa}
-              className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save className="h-4 w-4" />
-              Guardar cambios
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ─── Page ────────────────────────────────────────────────────────────────────
-
-export default function RegistroClient({
-  initialAgente,
-  initialPlant,
-  initialPlants,
-  initialGateOptions,
-  initialResponsablesList,
-  initialAgentesList,
-  initialRecentRegistrations,
-  initialRecentTotal,
-  initialCitas,
-  initialUserRole,
-  initialPlantAssigned,
-  initialLastRefresh,
-}: RegistroClientProps) {
-  const bootstrapResponsablesList =
-    initialResponsablesList.length > 0 ? initialResponsablesList : RESPONSABLES_DEFAULT;
-  const bootstrapAgentesList =
-    initialAgentesList.length > 0 ? initialAgentesList : [initialAgente];
-
-  const [razonSocial, setRazonSocial] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [type, setType] = useState("Proveedor");
-  const [tipoOperacion, setTipoOperacion] = useState("Carga");
-  const [responsable, setResponsable] = useState<string>(bootstrapResponsablesList[0] ?? "");
-  const [agente, setAgente] = useState(initialAgente);
-  const [plant, setPlant] = useState(initialPlant);
-  const gateLabel = formatGateLabelFromPlant(plant, initialGateOptions);
-  const [plants] = useState<string[]>(initialPlants);
-  const [note, setNote] = useState("");
-  const [horaCita, setHoraCita] = useState("");
-
-  const [showToast, setShowToast] = useState(false);
-  const [toastMsg, setToastMsg] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
-  const [docsIds, setDocsIds] = useState<Set<number>>(new Set());
-  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
-  const [pendingClose, setPendingClose] = useState<RecentRegistration | null>(null);
-  const [pendingDuplicateConfirm, setPendingDuplicateConfirm] = useState<RecentRegistration | null>(null);
-  const [editingReg, setEditingReg] = useState<RecentRegistration | null>(null);
-  const [pendingConfirm, setPendingConfirm] = useState<{
-    title: string;
-    message: React.ReactNode;
-    icon: ModalIcon;
-    color: string;
-    btnText: string;
-    action: () => void;
-  } | null>(null);
-  const [userRole] = useState<string | null>(initialUserRole);
-  const [plantAssigned] = useState(initialPlantAssigned);
-  const [userReady] = useState(true);
-  const [responsablesList] = useState<string[]>(bootstrapResponsablesList);
-  const [agentesList] = useState<string[]>(bootstrapAgentesList);
-  const [isKiosk, setIsKiosk] = useState(false);
-  const isPWA = usePWA();
-
-  // Auto-activar modo garita cuando se abre como PWA instalada
-  useEffect(() => {
-    if (isPWA) setIsKiosk(true);
-  }, [isPWA]);
-  const LOAD_LIMIT = 200;
-
-  const {
-    citas,
-    lastRefresh,
-    liveTime,
-    recentRegistrations,
-    recentTotal,
-    refreshCitas,
-    refreshRecent,
-  } = useRegistroData({
-    plant,
-    initialRecentRegistrations,
-    initialRecentTotal,
-    initialCitas,
-    initialLastRefresh,
-    loadLimit: LOAD_LIMIT,
-    userReady,
-  });
-
-  const showTemporaryToast = (message: string, durationMs = 3200) => {
-    setToastMsg(message);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), durationMs);
-  };
-
-  const refreshRegistroPanels = () => {
-    void refreshRecent(plant);
-    void refreshCitas(plant);
-  };
-
-  const handleVehicleSelect = async (value: string) => {
-    const profile = await getVehicleProfile(value);
-    if (!profile) return;
-    if (profile.empresa) setEmpresa(profile.empresa);
-    if (profile.tipo) setType(profile.tipo);
-    if (profile.tipoOperacion) setTipoOperacion(profile.tipoOperacion);
-  };
-
-  const submitRegistro = (forceDuplicate = false) => {
-    startTransition(async () => {
-      const result = await createAtencion({
-        razonSocial,
-        empresa,
-        plant,
-        type,
-        tipoOperacion,
-        responsable,
-        agente,
-        note,
-        forceDuplicate,
-        horaCita: horaCita || null,
-      });
-      if (result.success) {
-        setPendingDuplicateConfirm(null);
-        setRazonSocial("");
-        setEmpresa("");
-        setType("Proveedor");
-        setTipoOperacion("Carga");
-        setNote("");
-        setHoraCita("");
-        showTemporaryToast(`Ingreso registrado · ${gateLabel} · ${result.time?.substring(0, 5) ?? liveTime.substring(0, 5)}`);
-        refreshRegistroPanels();
-      } else {
-        showTemporaryToast(humanizeError(result.error), 4000);
-      }
-    });
-  };
-
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (duplicateWarning) {
-      setPendingDuplicateConfirm(duplicateWarning);
-      return;
-    }
-    submitRegistro(false);
-  };
-
-  const handleClear = () => {
-    setRazonSocial("");
-    setEmpresa("");
-    setType("Proveedor");
-    setTipoOperacion("Carga");
-    setNote("");
-    setHoraCita("");
-    setResponsable(bootstrapResponsablesList[0] ?? "");
-    setAgente(bootstrapAgentesList[0] ?? initialAgente);
-  };
-
-  const handleClose = (reg: RecentRegistration) => {
-    const [hh, mm] = reg.time.split(":").map(Number);
-    const startMin = hh * 60 + mm;
-    const now = new Date();
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const diff = nowMin - startMin < 0 ? nowMin - startMin + 1440 : nowMin - startMin;
-    if (diff >= 30) {
-      setPendingClose(reg);
-    } else {
-      setPendingConfirm({
-        title: "Confirmar Atención",
-        message: (
-          <>
-            ¿Estás seguro de iniciar la atención para <strong className="text-[var(--sg-ink)]">{reg.razonSocial}</strong>?
-          </>
-        ),
-        icon: Timer,
-        color: "var(--sg-accent)",
-        btnText: "Iniciar atención",
-        action: () => doClose(reg.id, undefined),
-      });
-    }
-  };
-
-  const handleActivateScheduled = async (reg: RecentRegistration) => {
-    const result = await activateCita({ id: reg.id });
-    if (result.success) {
-      showTemporaryToast("Vehículo registrado. Llegada confirmada.");
-      refreshRegistroPanels();
-    } else {
-      showTemporaryToast(humanizeError(result.error), 4000);
-    }
-  };
-
-  const doClose = async (id: number, motivo: string | undefined) => {
-    setPendingClose(null);
-    setClosingIds((prev) => new Set(prev).add(id));
-    const result = await closeAtencion(id, motivo);
-    setClosingIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
-    if (result.success) {
-      showTemporaryToast(`Atención cerrada · ${result.espera_min} min de espera`);
-      void refreshRecent(plant);
-    } else {
-      showTemporaryToast(humanizeError(result.error), 4000);
-    }
-  };
-
-  const handleDocs = (reg: RecentRegistration) => {
-    setPendingConfirm({
-      title: "Confirmar Entrega de Docs",
-      message: (
-        <>
-          ¿Confirmar que se entregaron los documentos y dar salida a <strong className="text-[var(--sg-ink)]">{reg.razonSocial}</strong>?
-        </>
-      ),
-      icon: FileCheck2,
-      color: "var(--sg-success)",
-      btnText: "Finalizar flujo",
-      action: async () => {
-        setDocsIds((prev) => new Set(prev).add(reg.id));
-        const result = await closeAtencionDocs(reg.id);
-        setDocsIds((prev) => { const s = new Set(prev); s.delete(reg.id); return s; });
-        if (result.success) {
-          showTemporaryToast(`Documentos entregados · Tiempo total: ${result.tiempo_total_min} min`);
-          void refreshRecent(plant);
-        } else {
-          showTemporaryToast(humanizeError(result.error), 4000);
-        }
-      },
-    });
-  };
-
-  const handleDelete = (id: number, razonSocial: string) => {
-    setPendingConfirm({
-      title: "Eliminar Registro",
-      message: (
-        <>
-          ¿Estás seguro de eliminar el registro de <strong className="text-[var(--sg-ink)]">{razonSocial}</strong>?
-          Esta acción no se puede deshacer.
-        </>
-      ),
-      icon: Trash2,
-      color: "var(--sg-danger)",
-      btnText: "Eliminar",
-      action: async () => {
-        setDeletingIds((prev) => new Set(prev).add(id));
-        const result = await deleteAtencion(id);
-        setDeletingIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
-        if (result.success) {
-          showTemporaryToast("Registro eliminado.");
-          void refreshRecent(plant);
-        } else {
-          showTemporaryToast(humanizeError(result.error), 4000);
-        }
-      },
-    });
-  };
-
-  const handleEditSave = async (data: { razonSocial: string; empresa: string; type: string; tipoOperacion: string; responsable: string; agente: string; note: string; hAtencion?: string | null; hDevDocs?: string | null; horaCita?: string | null }) => {
-    if (!editingReg) return;
-    const result = await updateAtencion(editingReg.id, data);
-    if (result.success) {
-      setEditingReg(null);
-      showTemporaryToast("Registro actualizado correctamente.");
-      void refreshRecent(plant);
-    } else {
-      showTemporaryToast(humanizeError(result.error), 4000);
-    }
-  };
-
-  // Detección de duplicados — cliente, sin llamada extra
-  const duplicateWarning = (() => {
-    if (razonSocial.trim().length < 3) return null;
-    const term = razonSocial.trim().toUpperCase();
-    return recentRegistrations.find(r => !r.attended && r.razonSocial.toUpperCase().includes(term)) ?? null;
-  })();
-
-  // Detección de abandonados (pendientes con +4h)
-  const abandonedRecords = (() => {
-    const now = new Date();
-    return recentRegistrations.filter((record) => isAbandonedRecord(record, now));
-  })();
-
-  const handleCloseAbandoned = async () => {
-    const ids = abandonedRecords.map((r) => r.id);
-    const result = await closeAbandonedBatch(ids);
-    showTemporaryToast(`${result.count} registro${result.count !== 1 ? "s" : ""} cerrado${result.count !== 1 ? "s" : ""} como abandonado${result.count !== 1 ? "s" : ""}.`);
-    void refreshRecent(plant);
-  };
-
-  const plantLocked = plantAssigned;
-
-  const pendingCount = recentRegistrations.filter((r) => !r.attended).length;
-  const attendedCount = recentRegistrations.filter((r) => r.attended && !r.docsDelivered).length;
-  const completedCount = recentRegistrations.filter((r) => r.docsDelivered).length;
-  const delayedCount = recentRegistrations.filter((r) => {
-    return isDelayedRecord(r) && !isAbandonedRecord(r);
-  }).length;
-
-  const content = (
     <>
-      {/* Topbar */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sg-line)] pb-5">
-        <div className="flex items-center gap-4">
-          <div className="sg-kicker">Registro Operativo</div>
-          <span className="sg-live-pill">
-            <span className="sg-live-dot sg-pulse" />
-            {gateLabel || `Garita ${plant}`}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsKiosk(v => !v)}
-            className="flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] transition-colors"
-            title={isKiosk ? "Modo escritorio" : "Modo garita (pantalla completa)"}
-          >
-            {isKiosk ? <Monitor className="h-3.5 w-3.5" /> : <MonitorSmartphone className="h-3.5 w-3.5" />}
-            {isKiosk ? "Escritorio" : "Garita"}
-          </button>
-          <div className="sg-mono text-[11px] text-[var(--sg-muted)] tracking-[0.12em]" suppressHydrationWarning>
-            {new Date().toLocaleDateString("es-PE", { weekday: "short", day: "2-digit", month: "short" })} · {liveTime}
-          </div>
-        </div>
-      </div>
-
-      <RegistroSummaryCards
-        pendingCount={pendingCount}
-        attendedCount={attendedCount}
-        completedCount={completedCount}
-        criticalOpenCount={abandonedRecords.length + delayedCount}
+      <RegistroClientContent
+        gateLabel={controller.gateLabel}
+        plant={controller.plant}
+        plants={controller.plants}
+        gateOptions={controller.gateOptions}
+        plantLocked={controller.plantLocked}
+        citas={controller.citas}
+        liveTime={controller.liveTime}
+        responsablesList={controller.responsablesList}
+        agentesList={controller.agentesList}
+        values={controller.values}
+        duplicateWarning={controller.duplicateWarning}
+        isPending={controller.isPending}
+        pendingCount={controller.pendingCount}
+        attendedCount={controller.attendedCount}
+        completedCount={controller.completedCount}
+        abandonedRecords={controller.abandonedRecords}
+        delayedCount={controller.delayedCount}
+        recentRegistrations={controller.recentRegistrations}
+        closingIds={controller.closingIds}
+        docsIds={controller.docsIds}
+        deletingIds={controller.deletingIds}
+        userRole={controller.userRole}
+        isKiosk={controller.isKiosk}
+        onToggleKiosk={controller.onToggleKiosk}
+        onSubmit={controller.onSubmit}
+        onPlantChange={controller.onPlantChange}
+        onRazonSocialChange={controller.onRazonSocialChange}
+        onEmpresaChange={controller.onEmpresaChange}
+        onTypeChange={controller.onTypeChange}
+        onTipoOperacionChange={controller.onTipoOperacionChange}
+        onResponsableChange={controller.onResponsableChange}
+        onAgenteChange={controller.onAgenteChange}
+        onNoteChange={controller.onNoteChange}
+        onVehicleSelect={controller.onVehicleSelect}
+        onToast={controller.onToast}
+        onRefresh={controller.onRefresh}
+        onClear={controller.onClear}
+        onRefreshHistory={controller.onRefreshHistory}
+        onClose={controller.onClose}
+        onActivate={controller.onActivate}
+        onDocs={controller.onDocs}
+        onEdit={controller.onEdit}
+        onDelete={controller.onDelete}
+        onCloseAbandoned={controller.onCloseAbandoned}
       />
 
-      <div className="mt-3">
-        <RegistroWizard pendingCount={pendingCount} attendedCount={attendedCount} completedCount={completedCount} />
-      </div>
-
-      <div className={`mt-4 grid gap-4 xl:items-stretch ${isKiosk ? "grid-cols-[400px_minmax(0,1fr)]" : "xl:grid-cols-[420px_minmax(0,1fr)] 2xl:grid-cols-[460px_minmax(0,1fr)]"}`}>
-        <div className="flex flex-col gap-5 xl:sticky xl:top-5">
-          <CitasDelDia
-            plant={plant}
-            citas={citas}
-            onToast={showTemporaryToast}
-            onRefresh={refreshRegistroPanels}
-          />
-          <RegistroFormPanel
-            plant={plant}
-            plants={plants}
-            gateOptions={initialGateOptions}
-            plantLocked={plantLocked}
-            citas={citas}
-            liveTime={liveTime}
-            responsablesList={responsablesList}
-            agentesList={agentesList}
-            values={{
-              razonSocial,
-              empresa,
-              type,
-              tipoOperacion,
-              responsable,
-              agente,
-              note,
-              horaCita,
-            }}
-            duplicateWarning={duplicateWarning}
-            isPending={isPending}
-            onSubmit={handleSubmit}
-            onPlantChange={setPlant}
-            onRazonSocialChange={setRazonSocial}
-            onEmpresaChange={setEmpresa}
-            onTypeChange={setType}
-            onTipoOperacionChange={setTipoOperacion}
-            onResponsableChange={setResponsable}
-            onAgenteChange={setAgente}
-            onNoteChange={setNote}
-            onVehicleSelect={handleVehicleSelect}
-            onToast={showTemporaryToast}
-            onRefresh={refreshRegistroPanels}
-            onClear={handleClear}
-            showCitasPanel={false}
-          />
-        </div>
-
-        <div className="min-w-0">
-          <RegistroHistoryPanel
-            recentRegistrations={recentRegistrations}
-            recentTotal={recentTotal}
-            abandonedRecords={abandonedRecords}
-            closingIds={closingIds}
-            docsIds={docsIds}
-            deletingIds={deletingIds}
-            userRole={userRole}
-            compact={isKiosk}
-            onRefresh={() => void refreshRecent(plant)}
-            onClose={handleClose}
-            onActivate={handleActivateScheduled}
-            onDocs={handleDocs}
-            onEdit={setEditingReg}
-            onDelete={handleDelete}
-            onCloseAbandoned={handleCloseAbandoned}
-          />
-        </div>
-
-      </div>
-
       <AnimatePresence>
-        {pendingClose && (
+        {controller.pendingClose && (
           <MotivoDemoraModal
-            reg={pendingClose}
-            onConfirm={(motivo) => doClose(pendingClose.id, motivo)}
-            onCancel={() => setPendingClose(null)}
+            reg={controller.pendingClose}
+            onConfirm={controller.onConfirmPendingClose}
+            onCancel={controller.onCancelPendingClose}
           />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {pendingDuplicateConfirm && (
+        {controller.pendingDuplicateConfirm && (
           <ConfirmActionModal
             title="Posible duplicado"
-            message={(
+            message={
               <>
-                Ya existe un ingreso pendiente de <strong className="text-[var(--sg-ink)]">{pendingDuplicateConfirm.razonSocial}</strong> a las{" "}
-                <strong className="text-[var(--sg-ink)]">{pendingDuplicateConfirm.time}</strong>. Si confirmas, registraremos un segundo ingreso para la misma puerta.
+                Ya existe un ingreso pendiente de{" "}
+                <strong className="text-[var(--sg-ink)]">
+                  {controller.pendingDuplicateConfirm.razonSocial}
+                </strong>{" "}
+                a las{" "}
+                <strong className="text-[var(--sg-ink)]">
+                  {controller.pendingDuplicateConfirm.time}
+                </strong>
+                . Si confirmas, registraremos un segundo ingreso para la misma
+                puerta.
               </>
-            )}
+            }
             icon={AlertTriangle}
             accentColor="var(--sg-warn)"
             confirmText="Registrar de todos modos"
-            onCancel={() => setPendingDuplicateConfirm(null)}
-            onConfirm={() => submitRegistro(true)}
+            onCancel={controller.onCancelDuplicate}
+            onConfirm={controller.onConfirmDuplicate}
           />
         )}
-        {editingReg && (
+        {controller.editingReg && (
           <EditModal
-            reg={editingReg}
-            responsablesList={responsablesList}
-            agentesList={agentesList}
-            onSave={handleEditSave}
-            onCancel={() => setEditingReg(null)}
+            reg={controller.editingReg}
+            responsablesList={controller.responsablesList}
+            agentesList={controller.agentesList}
+            onSave={controller.onSaveEdit}
+            onCancel={controller.onCancelEdit}
           />
         )}
-        {pendingConfirm && (
+        {controller.pendingConfirm && (
           <ConfirmActionModal
-            title={pendingConfirm.title}
-            message={pendingConfirm.message}
-            icon={pendingConfirm.icon}
-            accentColor={pendingConfirm.color}
-            confirmText={pendingConfirm.btnText}
-            onCancel={() => setPendingConfirm(null)}
-            onConfirm={() => {
-              pendingConfirm.action();
-              setPendingConfirm(null);
-            }}
+            title={controller.pendingConfirm.title}
+            message={controller.pendingConfirm.message}
+            icon={controller.pendingConfirm.icon}
+            accentColor={controller.pendingConfirm.color}
+            confirmText={controller.pendingConfirm.btnText}
+            onCancel={controller.onCancelPendingConfirm}
+            onConfirm={controller.onConfirmPendingAction}
           />
         )}
       </AnimatePresence>
 
-      <Toast show={showToast} message={toastMsg} />
+      <Toast show={controller.showToast} message={controller.toastMsg} />
     </>
-  );
-
-  return (
-    isKiosk ? (
-      <KioskLayout plant={plant} onExit={() => setIsKiosk(false)}>
-        <div className="max-w-[1280px] mx-auto w-full px-4 py-4 sm:px-6 sm:py-6">
-          {content}
-        </div>
-      </KioskLayout>
-    ) : (
-      <AppLayout>
-        {content}
-      </AppLayout>
-    )
   );
 }

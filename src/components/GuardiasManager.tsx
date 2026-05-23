@@ -17,8 +17,6 @@ import {
 } from "@/app/actions";
 
 const TURNOS = ["Día", "Tarde", "Noche"];
-const AVATAR_COLORS = ["#c8a84b", "#6bbd8a", "#6ba7ff", "#d4864a", "#b07fff", "#d35c4f"];
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function initials(nombre: string): string {
@@ -289,7 +287,12 @@ export default function GuardiasManager({ plantas, onToast }: Props) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [load]);
 
   const handleUpdateField = async (id: number, field: "planta" | "turno" | "activo", value: string | boolean | null) => {
     setSavingId(id);

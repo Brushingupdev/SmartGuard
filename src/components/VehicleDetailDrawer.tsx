@@ -122,16 +122,16 @@ export default function VehicleDetailDrawer({
   reg, waitSeconds, onClose, onMarkAttended, onMarkDocs,
 }: Props) {
   const [history, setHistory]   = useState<VehicleVisit[]>([]);
-  const [loadingH, setLoadingH] = useState(false);
+  const [historyKey, setHistoryKey] = useState<string | null>(null);
+  const loadingH = !!reg && historyKey !== reg.razonSocial;
 
   useEffect(() => {
-    if (!reg) return;
-    setLoadingH(true);
-    getVehicleHistory(reg.razonSocial, 5).then(h => {
+    if (!reg?.razonSocial) return;
+    void getVehicleHistory(reg.razonSocial, 5).then((h) => {
       setHistory(h);
-      setLoadingH(false);
+      setHistoryKey(reg.razonSocial);
     });
-  }, [reg?.id, reg?.razonSocial]);
+  }, [reg?.razonSocial]);
 
   return (
     <AnimatePresence>

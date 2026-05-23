@@ -15,7 +15,6 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 
 export default function PINNumpad({ onComplete, error, loading, onClearError }: Props) {
   const [pin, setPin] = useState("");
-  const [shake, setShake] = useState(false);
 
   // Auto-submit cuando llega a 4 dígitos
   useEffect(() => {
@@ -27,15 +26,6 @@ export default function PINNumpad({ onComplete, error, loading, onClearError }: 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin]);
-
-  // Sacudir los dots cuando hay error
-  useEffect(() => {
-    if (error) {
-      setShake(true);
-      const t = setTimeout(() => setShake(false), 500);
-      return () => clearTimeout(t);
-    }
-  }, [error]);
 
   const handleKey = (key: string) => {
     if (loading) return;
@@ -63,7 +53,7 @@ export default function PINNumpad({ onComplete, error, loading, onClearError }: 
 
       {/* Dots indicadores */}
       <motion.div
-        animate={shake ? { x: [-8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
+        animate={error ? { x: [-8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
         transition={{ duration: 0.4 }}
         className="flex items-center gap-4"
       >

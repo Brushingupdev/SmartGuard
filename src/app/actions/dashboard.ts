@@ -32,8 +32,6 @@ function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "esper
   return row.demora_cita_min ?? row.espera_min ?? null;
 }
 
-const DAYS_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
 function flowBucketKey(row: DashboardMetricRow, timeframe: string): string {
   if (timeframe === "Día") return row.h_registro ? row.h_registro.substring(0, 2) : "00";
   if (!row.fecha) return "1";

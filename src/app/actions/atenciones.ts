@@ -1,8 +1,6 @@
 "use server";
 
-import { differenceInMinutes } from "date-fns";
 import { createClient } from "@/utils/supabase/server";
-import { getUserPlants } from "./companies";
 import { getUserContext } from "@/utils/supabase/user";
 import {
   createAtencionSchema,
@@ -11,62 +9,55 @@ import {
   atencionPaginationSchema,
   validated,
 } from "@/lib/validations";
-import { nowLima, calcSegmento, logError, checkWriteAccess, isMissingColumnError } from "./_helpers";
+import { nowLima, calcSegmento, logError, checkWriteAccess } from "./_helpers";
 import { sanitizeSearchTerm } from "@/lib/sanitize";
-import { getCompanyPlants } from "./companies";
-import { upsertResponsables, upsertAgentes } from "./responsables";
-
-const MANUAL_LONG_DURATION_LIMIT_MINUTES = 16 * 60;
-const DAY_MS = 24 * 60 * 60 * 1000;
+import {
+  MANUAL_LONG_DURATION_LIMIT_MINUTES,
+  applyAtencionFilters,
+  calculateCloseAtencionFields,
+  calculateManualAtencionFields,
+  diffMinByDateTime,
+  inferManualEndDate,
+} from "./_atencionesShared";
+import {
+  importAtenciones as importAtencionesAction,
+  previewImportAtenciones as previewImportAtencionesAction,
+  type ImportPreview,
+} from "./_atencionesImport";
+import {
+  getRecentRegistrations as getRecentRegistrationsQuery,
+  getSupervisorHoyData as getSupervisorHoyDataQuery,
+} from "./_atencionesQueries";
 
 function guardAgentAliases(ctx: Awaited<ReturnType<typeof getUserContext>>): string[] {
   if (!ctx || ctx.role !== "guardia") return [];
   return [...new Set([ctx.displayName, ctx.email].map((value) => value?.trim()).filter(Boolean) as string[])];
 }
 
-function parseDateTime(date: string | null | undefined, time: string | null | undefined): Date | null {
-  if (!date || !time) return null;
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute, second = 0] = time.split(":").map(Number);
-  if ([year, month, day, hour, minute, second].some((value) => !Number.isFinite(value))) return null;
-  return new Date(year, month - 1, day, hour, minute, second);
+export type { ImportPreview };
+
+export async function previewImportAtenciones(
+  rows: import("@/utils/excel-import").ImportedExcelRow[],
+): Promise<{ preview: ImportPreview | null; error?: string }> {
+  return previewImportAtencionesAction(rows);
 }
 
-function diffMinByDateTime(
-  startDate: string | null | undefined,
-  startTime: string | null | undefined,
-  endDate: string | null | undefined,
-  endTime: string | null | undefined,
-): number | null {
-  const start = parseDateTime(startDate, startTime);
-  const end = parseDateTime(endDate, endTime);
-  if (!start || !end) return null;
-  return Math.max(0, differenceInMinutes(end, start));
+export async function importAtenciones(
+  rows: import("@/utils/excel-import").ImportedExcelRow[],
+): Promise<{ success: boolean; imported: number; error?: string }> {
+  return importAtencionesAction(rows);
 }
 
-function maxDateTime(
-  aDate: string | null | undefined,
-  aTime: string | null | undefined,
-  bDate: string | null | undefined,
-  bTime: string | null | undefined,
-): { date: string; time: string } | null {
-  const a = parseDateTime(aDate, aTime);
-  const b = parseDateTime(bDate, bTime);
-  if (!a && !b) return null;
-  if (!a) return bDate && bTime ? { date: bDate, time: bTime } : null;
-  if (!b) return aDate && aTime ? { date: aDate, time: aTime } : null;
-  return a >= b
-    ? { date: aDate as string, time: aTime as string }
-    : { date: bDate as string, time: bTime as string };
+export async function getRecentRegistrations(
+  plant: string | string[],
+  limit = 20,
+  offset = 0,
+) {
+  return getRecentRegistrationsQuery(plant, limit, offset);
 }
 
-function inferManualEndDate(startDate: string | null, startTime: string | null, endTime: string): string | null {
-  if (!startDate || !startTime) return null;
-  const start = parseDateTime(startDate, startTime);
-  let end = parseDateTime(startDate, endTime);
-  if (!start || !end) return startDate;
-  while (end < start) end = new Date(end.getTime() + DAY_MS);
-  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+export async function getSupervisorHoyData() {
+  return getSupervisorHoyDataQuery();
 }
 
 // ─── Dispatch de alertas (async via queue) ───────────────────────────────────
@@ -259,50 +250,17 @@ export async function updateAtencion(rawId: unknown, rawData: unknown) {
   // Actualizar h_atencion y recalcular espera_min / segmento
   if (data.hAtencion !== undefined) {
     if (data.hAtencion) {
-      const hAtencionFull = data.hAtencion + ":00";
-      const manualBaseTime = hRegistro ?? effectiveHoraCita;
-      const hAtencionDate = inferManualEndDate(fechaRegistro, manualBaseTime, hAtencionFull);
-      const esperaMin = diffMinByDateTime(fechaRegistro, hRegistro, hAtencionDate, hAtencionFull);
-      const demoraCitaMin = effectiveHoraCita
-        ? diffMinByDateTime(fechaRegistro, effectiveHoraCita, hAtencionDate, hAtencionFull)
-        : null;
-      const operationalBase = effectiveHoraCita
-        ? maxDateTime(fechaRegistro, effectiveHoraCita, fechaRegistro, hRegistro)
-        : null;
-      const operationalDelayMin = operationalBase
-        ? diffMinByDateTime(operationalBase.date, operationalBase.time, hAtencionDate, hAtencionFull)
-        : esperaMin;
-      editedOperationalDelay = operationalDelayMin;
-      const atencionDateTime = parseDateTime(hAtencionDate, hAtencionFull);
-      const citaDateTime = parseDateTime(fechaRegistro, effectiveHoraCita);
-      const isAnticipado = !!effectiveHoraCita
-        && !!atencionDateTime
-        && !!citaDateTime
-        && atencionDateTime < citaDateTime
-        && demoraCitaMin === 0;
-
-      if (esperaMin !== null && esperaMin > MANUAL_LONG_DURATION_LIMIT_MINUTES) {
-        return { success: false, error: "La hora de atención parece incorrecta — verifica que sea posterior a la llegada (máx. 16 h de diferencia)" };
+      const manualAtencion = calculateManualAtencionFields({
+        fechaRegistro,
+        hRegistro,
+        horaCita: effectiveHoraCita,
+        hAtencion: data.hAtencion,
+      }, calcSegmento);
+      if (!manualAtencion.ok) {
+        return { success: false, error: manualAtencion.error };
       }
-
-      update.h_atencion = hAtencionFull;
-      update.espera_min = esperaMin;
-      update.demora_cita_min = demoraCitaMin;
-
-      const segmentBase = operationalDelayMin ?? demoraCitaMin ?? esperaMin;
-      if (isAnticipado) {
-        update.segmento_espera = "🔵 Anticipado";
-        update.segmento_orden = 0;
-        update.es_demora = 0;
-      } else if (segmentBase != null) {
-        const seg = calcSegmento(segmentBase);
-        update.segmento_espera = seg.label;
-        update.segmento_orden = seg.orden;
-        update.es_demora = seg.esDemora;
-      } else {
-        // Sin base temporal conocida — solo guardamos la hora
-        update.h_atencion = hAtencionFull;
-      }
+      Object.assign(update, manualAtencion.update);
+      editedOperationalDelay = manualAtencion.operationalDelayMin;
     } else {
       update.h_atencion       = null;
       update.espera_min       = null;
@@ -413,44 +371,15 @@ export async function closeAtencion(rawId: unknown, rawMotivo?: unknown, rawHSal
   const { date: todayStr, time: timeStr } = nowLima();
   const fechaRegistro = record.fecha as string | null;
 
-  const espera_min = diffMinByDateTime(fechaRegistro, record.h_registro as string | null, todayStr, timeStr) ?? 0;
-
-  const horaCita = record.hora_cita as string | null;
-  let demora_cita_min: number | null = null;
-  let isAnticipado = false;
-  let operationalDelayMin: number | null = espera_min;
-  if (horaCita) {
-    const citaDateTime = parseDateTime(fechaRegistro, horaCita);
-    const endDateTime = parseDateTime(todayStr, timeStr);
-    if (citaDateTime && endDateTime && endDateTime < citaDateTime) {
-      demora_cita_min = 0;
-      isAnticipado = true;
-    } else {
-      demora_cita_min = diffMinByDateTime(fechaRegistro, horaCita, todayStr, timeStr) ?? 0;
-    }
-    const operationalBase = maxDateTime(fechaRegistro, horaCita, fechaRegistro, record.h_registro as string | null);
-    operationalDelayMin = operationalBase
-      ? diffMinByDateTime(operationalBase.date, operationalBase.time, todayStr, timeStr)
-      : espera_min;
-  }
-
-  const segmentBase = operationalDelayMin ?? demora_cita_min ?? espera_min;
-  const seg = isAnticipado
-    ? { label: "🔵 Anticipado", orden: 0, esDemora: 0 }
-    : calcSegmento(segmentBase);
-
-  const update: Record<string, unknown> = {
-    h_atencion: timeStr, espera_min, demora_cita_min,
-    segmento_espera: seg.label, segmento_orden: seg.orden, es_demora: seg.esDemora,
-  };
-  if (motivoDemora) {
-    update.motivo_demora = motivoDemora;
-  } else if (isAnticipado) {
-    update.observacion = `Atendido antes de la hora de cita (${horaCita!.substring(0, 5)})`;
-  }
-  if (rawHSalida && typeof rawHSalida === "string" && /^\d{2}:\d{2}$/.test(rawHSalida)) {
-    update.h_salida = rawHSalida + ":00";
-  }
+  const { update, esperaMin, demoraCitaMin, operationalDelayMin } = calculateCloseAtencionFields({
+    fechaRegistro,
+    hRegistro: record.h_registro as string | null,
+    horaCita: record.hora_cita as string | null,
+    endDate: todayStr,
+    endTime: timeStr,
+    motivoDemora,
+    hSalida: typeof rawHSalida === "string" ? rawHSalida : undefined,
+  }, calcSegmento);
 
   let updQuery = supabase.from("atenciones").update(update).eq("id", id);
   if (!ctx?.isAdmin && ctx?.companyId) {
@@ -462,7 +391,7 @@ export async function closeAtencion(rawId: unknown, rawMotivo?: unknown, rawHSal
     return { success: false, error: error.message };
   }
 
-  const alertDelay = operationalDelayMin ?? demora_cita_min ?? espera_min;
+  const alertDelay = operationalDelayMin ?? demoraCitaMin ?? esperaMin;
   if (alertDelay >= 45 && ctx?.companyId) {
     dispatchDelayAlerts(ctx.companyId, {
       atencionId:  id,
@@ -474,7 +403,7 @@ export async function closeAtencion(rawId: unknown, rawMotivo?: unknown, rawHSal
     }).catch(e => logError("dispatchDelayAlerts(close)", e));
   }
 
-  return { success: true, espera_min, demora_cita_min };
+  return { success: true, espera_min: esperaMin, demora_cita_min: demoraCitaMin };
 }
 
 // Registra devolución de documentos: captura h_dev_docs y calcula tiempo_total_min
@@ -567,31 +496,6 @@ export async function closeAbandonedBatch(ids: number[]): Promise<{ count: numbe
   }
 
   return { count };
-}
-
-// ─── Helper compartido para filtros de atenciones ────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyAtencionFilters(query: any, { search, plant, segment, dateFrom, dateTo }: {
-  search: string; plant: string; segment: string; dateFrom: string; dateTo: string;
-}) {
-  if (search) {
-    const safeSearch = sanitizeSearchTerm(search);
-    if (safeSearch) {
-      query = query.or(`razon_social.ilike.%${safeSearch}%,empresa.ilike.%${safeSearch}%`);
-    }
-  }
-  if (plant && plant !== "Todos") query = query.eq("planta", plant);
-  if (dateFrom) query = query.gte("fecha", dateFrom);
-  if (dateTo)   query = query.lte("fecha", dateTo);
-  if (segment && segment !== "Todos") {
-    if (segment === "Normal")        query = query.lt("espera_min", 30).gt("espera_min", 0);
-    else if (segment === "Moderado") query = query.gte("espera_min", 30).lt("espera_min", 45);
-    else if (segment === "Alto")     query = query.gte("espera_min", 45).lt("espera_min", 90);
-    else if (segment === "Crítico")  query = query.gte("espera_min", 90);
-    else if (segment === "Pendiente") query = query.is("espera_min", null);
-  }
-  return query;
 }
 
 export async function getAtenciones(rawParams: unknown) {
@@ -784,382 +688,4 @@ export async function getAvailableYears(): Promise<string[]> {
   if (!minYear || !maxYear) return [];
 
   return Array.from({ length: maxYear - minYear + 1 }, (_, i) => String(minYear + i));
-}
-
-function normalizePlantScope(input: string | string[]): string[] {
-  if (Array.isArray(input)) return [...new Set(input.map((item) => item.trim()).filter(Boolean))];
-  return input.trim() ? [input.trim()] : [];
-}
-
-export async function getRecentRegistrations(plant: string | string[], limit = 20, offset = 0) {
-  const supabase = await createClient();
-  const ctx = await getUserContext();
-  const { date: dateStr, time: timeStr } = nowLima();
-  const plants = normalizePlantScope(plant);
-
-  if (plants.length === 0) {
-    return { records: [], total: 0 };
-  }
-
-  const buildQueries = (includeDemoraCitaMin: boolean) => {
-    const demoraField = includeDemoraCitaMin ? ", demora_cita_min" : "";
-    let activeQuery = supabase
-      .from("atenciones")
-      .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
-      .in("planta", plants)
-      .eq("fecha", dateStr)
-      .not("h_registro", "is", null)
-      .order("id", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    let overdueExpectedQuery = supabase
-      .from("atenciones")
-      .select(`id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min${demoraField}, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado`, { count: "exact" })
-      .in("planta", plants)
-      .eq("fecha", dateStr)
-      .eq("estado", "esperado")
-      .not("hora_cita", "is", null)
-      .lt("hora_cita", timeStr)
-      .order("hora_cita", { ascending: true });
-
-    if (!ctx?.isAdmin && ctx?.companyId) {
-      activeQuery = activeQuery.eq("company_id", ctx.companyId);
-      overdueExpectedQuery = overdueExpectedQuery.eq("company_id", ctx.companyId);
-    }
-
-    return Promise.all([activeQuery, overdueExpectedQuery]);
-  };
-
-  let [
-    { data: activeData, error: activeError, count: activeCount },
-    { data: overdueExpectedData, error: overdueExpectedError, count: overdueExpectedCount },
-  ] = await buildQueries(true);
-
-  if ((activeError && isMissingColumnError(activeError, "demora_cita_min")) || (overdueExpectedError && isMissingColumnError(overdueExpectedError, "demora_cita_min"))) {
-    [
-      { data: activeData, error: activeError, count: activeCount },
-      { data: overdueExpectedData, error: overdueExpectedError, count: overdueExpectedCount },
-    ] = await buildQueries(false);
-  }
-
-  if (activeError || overdueExpectedError) {
-    logError("getRecentRegistrations", activeError || overdueExpectedError, { plants });
-    return { records: [], total: 0 };
-  }
-
-  const merged = ([...(activeData ?? []), ...(overdueExpectedData ?? [])] as unknown) as Array<Record<string, unknown>>;
-  const records = merged.map((d) => {
-    const row = d as {
-      id: number;
-      razon_social?: string | null;
-      empresa?: string | null;
-      planta?: string | null;
-      tipo?: string | null;
-      h_registro?: string | null;
-      hora_cita?: string | null;
-      tipo_operacion?: string | null;
-      motivo_demora?: string | null;
-      responsable?: string | null;
-      agente?: string | null;
-      observacion?: string | null;
-      h_atencion?: string | null;
-      espera_min?: number | null;
-      demora_cita_min?: number | null;
-      h_dev_docs?: string | null;
-      tiempo_total_min?: number | null;
-      estado?: "esperado" | "activo" | "atendido" | null;
-    };
-
-    return {
-      id: row.id,
-      razonSocial: row.razon_social || "",
-      empresa: row.empresa || "",
-      planta: row.planta || "",
-      type: row.tipo || "Proveedor",
-      time: row.h_registro ? row.h_registro.substring(0, 5) : (row.hora_cita ? row.hora_cita.substring(0, 5) : "--:--"),
-      reason: row.h_registro ? (row.tipo_operacion || row.motivo_demora || "Ingreso") : "Cita pendiente",
-      tipoOperacion: row.tipo_operacion || null,
-      responsable: row.responsable || "",
-      agente: row.agente || "",
-      observacion: row.observacion || "",
-      attended: !!row.h_atencion,
-      h_atencion: row.h_atencion ? row.h_atencion.substring(0, 5) : null,
-      espera_min: row.espera_min ?? null,
-      demora_cita_min: row.demora_cita_min ?? null,
-      docsDelivered: !!row.h_dev_docs,
-      h_dev_docs: row.h_dev_docs ? row.h_dev_docs.substring(0, 5) : null,
-      tiempo_total_min: row.tiempo_total_min ?? null,
-      hora_cita: row.hora_cita ? row.hora_cita.substring(0, 5) : null,
-      estado: row.estado ?? "activo",
-      hasArrived: !!row.h_registro,
-      scheduledOnly: !row.h_registro && row.estado === "esperado",
-    };
-  });
-
-  records.sort((a, b) => b.id - a.id);
-
-  return { records, total: (activeCount ?? 0) + (overdueExpectedCount ?? 0) };
-}
-
-// ─── Supervisor: todos los vehículos y citas del día (todas las plantas) ──────
-
-export async function getSupervisorHoyData() {
-  const supabase = await createClient();
-  const ctx = await getUserContext();
-  const { date: dateStr, time: timeStr } = nowLima();
-  const configuredPlants = await getUserPlants();
-
-  const sel = "id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado";
-
-  let activeQ = supabase
-    .from("atenciones")
-    .select(sel)
-    .eq("fecha", dateStr)
-    .not("h_registro", "is", null)
-    .order("id", { ascending: false })
-    .limit(500);
-
-  let overdueQ = supabase
-    .from("atenciones")
-    .select(sel)
-    .eq("fecha", dateStr)
-    .eq("estado", "esperado")
-    .not("hora_cita", "is", null)
-    .lt("hora_cita", timeStr)
-    .order("hora_cita", { ascending: true });
-
-  let citasQ = supabase
-    .from("atenciones")
-    .select("id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min")
-    .eq("fecha", dateStr)
-    .not("hora_cita", "is", null)
-    .in("estado", ["esperado", "activo"])
-    .order("hora_cita", { ascending: true });
-
-  if (!ctx?.isAdmin && ctx?.companyId) {
-    activeQ   = activeQ.eq("company_id", ctx.companyId);
-    overdueQ  = overdueQ.eq("company_id", ctx.companyId);
-    citasQ    = citasQ.eq("company_id", ctx.companyId);
-  }
-
-  const [{ data: aD }, { data: oD }, { data: cD }] = await Promise.all([activeQ, overdueQ, citasQ]);
-
-  const merged = ([...(aD ?? []), ...(oD ?? [])]) as Array<Record<string, unknown>>;
-  const seen = new Set<number>();
-  const records = merged
-    .filter(d => { const id = d.id as number; if (seen.has(id)) return false; seen.add(id); return true; })
-    .map(d => ({
-      id: d.id as number,
-      razonSocial: (d.razon_social as string) || "",
-      empresa: (d.empresa as string) || "",
-      planta: (d.planta as string) || "",
-      type: (d.tipo as string) || "Proveedor",
-      time: d.h_registro ? (d.h_registro as string).substring(0, 5) : (d.hora_cita ? (d.hora_cita as string).substring(0, 5) : "--:--"),
-      reason: d.h_registro ? ((d.tipo_operacion as string) || "Ingreso") : "Cita pendiente",
-      tipoOperacion: (d.tipo_operacion as string) || null,
-      responsable: (d.responsable as string) || "",
-      agente: (d.agente as string) || "",
-      observacion: (d.observacion as string) || "",
-      attended: !!(d.h_atencion),
-      h_atencion: d.h_atencion ? (d.h_atencion as string).substring(0, 5) : null,
-      espera_min: (d.espera_min as number) ?? null,
-      demora_cita_min: null as number | null,
-      docsDelivered: !!(d.h_dev_docs),
-      h_dev_docs: d.h_dev_docs ? (d.h_dev_docs as string).substring(0, 5) : null,
-      tiempo_total_min: (d.tiempo_total_min as number) ?? null,
-      hora_cita: d.hora_cita ? (d.hora_cita as string).substring(0, 5) : null,
-      estado: ((d.estado as string) ?? "activo") as "esperado" | "activo" | "atendido",
-      hasArrived: !!(d.h_registro),
-      scheduledOnly: !d.h_registro && d.estado === "esperado",
-    }));
-
-  records.sort((a, b) => b.id - a.id);
-
-  const citas = (cD ?? []).map(c => ({
-    id: c.id as number,
-    razonSocial: (c.razon_social as string) || "—",
-    empresa: (c.empresa as string) || "—",
-    planta: (c.planta as string) || "",
-    fecha: (c.fecha as string) || "",
-    horaCita: c.hora_cita ? (c.hora_cita as string).substring(0, 5) : "—",
-    hRegistro: c.h_registro ? (c.h_registro as string).substring(0, 5) : null,
-    hAtencion: c.h_atencion ? (c.h_atencion as string).substring(0, 5) : null,
-    tipo: (c.tipo as string) || "Proveedor",
-    tipoOperacion: (c.tipo_operacion as string) || null,
-    responsable: (c.responsable as string) || null,
-    agente: (c.agente as string) || null,
-    observacion: (c.observacion as string) || null,
-    estado: c.estado as "esperado" | "activo" | "atendido",
-    esperaMin: (c.espera_min as number) ?? null,
-  }));
-
-  const plantas = [...new Set([
-    ...configuredPlants,
-    ...records.map(r => r.planta).filter(Boolean),
-    ...citas.map(c => c.planta).filter(Boolean),
-  ])].sort();
-
-  return { records, citas, plantas };
-}
-
-// ─── Importación histórica desde Excel ───────────────────────────────────────
-
-export interface ImportPreview {
-  validCount: number;
-  duplicateCount: number;
-  invalidPlants: string[];
-  newResponsables: string[];
-  newAgentes: string[];
-  existingResponsables: string[];
-  existingAgentes: string[];
-  companyPlants: string[];
-}
-
-export async function previewImportAtenciones(
-  rows: import("@/utils/excel-import").ImportedExcelRow[]
-): Promise<{ preview: ImportPreview | null; error?: string }> {
-  const ctx = await getUserContext();
-  if (!ctx?.companyId) return { preview: null, error: "Sin empresa asociada" };
-
-  if (!rows || rows.length === 0) return { preview: null, error: "Sin filas válidas" };
-
-  try {
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-
-    // 1. Plantas de la empresa
-    const companyPlants = await getCompanyPlants(ctx.companyId);
-    const plantSet = new Set(companyPlants.map(p => p.trim().toLowerCase()));
-
-    // 2. Detectar plantas inválidas
-    const invalidPlants = Array.from(
-      new Set(
-        rows
-          .filter(r => r.planta && !plantSet.has(r.planta.trim().toLowerCase()))
-          .map(r => r.planta as string)
-      )
-    );
-
-    // 3. Extraer responsables/agentes únicos del Excel
-    const excelResponsables = Array.from(new Set(rows.map(r => r.responsable).filter(Boolean) as string[]));
-    const excelAgentes = Array.from(new Set(rows.map(r => r.agente).filter(Boolean) as string[]));
-
-    // 4. Consultar existentes en BD
-    const { data: existingRespData } = await admin
-      .from("responsables")
-      .select("nombre")
-      .eq("company_id", ctx.companyId)
-      .in("nombre", excelResponsables);
-
-    const { data: existingAgentData } = await admin
-      .from("agentes")
-      .select("nombre")
-      .eq("company_id", ctx.companyId)
-      .in("nombre", excelAgentes);
-
-    const existingRespSet = new Set((existingRespData ?? []).map(r => r.nombre));
-    const existingAgentSet = new Set((existingAgentData ?? []).map(r => r.nombre));
-
-    const newResponsables = excelResponsables.filter(r => !existingRespSet.has(r));
-    const newAgentes = excelAgentes.filter(a => !existingAgentSet.has(a));
-    const existingResponsables = excelResponsables.filter(r => existingRespSet.has(r));
-    const existingAgentes = excelAgentes.filter(a => existingAgentSet.has(a));
-
-    // 5. Detectar duplicados (misma fecha + razon_social + h_registro)
-    const dateRazonTimePairs = rows
-      .filter(r => r.fecha && r.razon_social)
-      .map(r => ({ fecha: r.fecha, razon_social: r.razon_social, h_registro: r.h_registro }));
-
-    let duplicateCount = 0;
-    if (dateRazonTimePairs.length > 0) {
-      // Agrupar para no hacer una query enorme
-      const batches = [];
-      for (let i = 0; i < dateRazonTimePairs.length; i += 100) {
-        batches.push(dateRazonTimePairs.slice(i, i + 100));
-      }
-
-      for (const batch of batches) {
-        const fechas = Array.from(new Set(batch.map(b => b.fecha)));
-        let query = admin
-          .from("atenciones")
-          .select("fecha, razon_social, h_registro")
-          .eq("company_id", ctx.companyId)
-          .in("fecha", fechas);
-
-        const { data: existing } = await query;
-        if (existing && existing.length > 0) {
-          const existingSet = new Set(
-            existing.map(e => `${e.fecha}|${e.razon_social}|${e.h_registro ?? ""}`)
-          );
-          for (const b of batch) {
-            const key = `${b.fecha}|${b.razon_social}|${b.h_registro ?? ""}`;
-            if (existingSet.has(key)) duplicateCount++;
-          }
-        }
-      }
-    }
-
-    return {
-      preview: {
-        validCount: rows.length,
-        duplicateCount,
-        invalidPlants,
-        newResponsables,
-        newAgentes,
-        existingResponsables,
-        existingAgentes,
-        companyPlants,
-      },
-    };
-  } catch (err) {
-    logError("previewImportAtenciones", err);
-    return { preview: null, error: "Error al generar vista previa" };
-  }
-}
-
-export async function importAtenciones(
-  rows: import("@/utils/excel-import").ImportedExcelRow[]
-): Promise<{ success: boolean; imported: number; error?: string }> {
-  const ctx = await getUserContext();
-  if (!ctx?.companyId) return { success: false, imported: 0, error: "Sin empresa asociada" };
-  const writeError = await checkWriteAccess();
-  if (writeError) return { success: false, imported: 0, error: writeError };
-
-  if (!rows || rows.length === 0) return { success: false, imported: 0, error: "Sin filas válidas" };
-  if (rows.length > 10_000) return { success: false, imported: 0, error: "Máximo 10.000 filas por importación" };
-
-  try {
-    const { createAdminClient } = await import("@/utils/supabase/admin");
-    const admin = createAdminClient();
-
-    // 1. Sincronizar responsables y agentes únicos automáticamente
-    const responsables = Array.from(new Set(rows.map(r => r.responsable).filter(Boolean) as string[]));
-    const agentes = Array.from(new Set(rows.map(r => r.agente).filter(Boolean) as string[]));
-
-    if (responsables.length > 0) {
-      await upsertResponsables(responsables, ctx.companyId);
-    }
-    if (agentes.length > 0) {
-      await upsertAgentes(agentes, ctx.companyId);
-    }
-
-    // 2. Insertar atenciones
-    const mapped = rows.map(r => ({ ...r, company_id: ctx.companyId, estado: "atendido" }));
-    let imported = 0;
-
-    for (let i = 0; i < mapped.length; i += 500) {
-      const batch = mapped.slice(i, i + 500);
-      const { error } = await admin.from("atenciones").insert(batch);
-      if (error) {
-        logError("importAtenciones", error, { batch: i });
-        return { success: false, imported, error: "Error al insertar filas. Verifica el formato." };
-      }
-      imported += batch.length;
-    }
-
-    return { success: true, imported };
-  } catch (err) {
-    logError("importAtenciones", err);
-    return { success: false, imported: 0, error: "Error inesperado al importar" };
-  }
 }

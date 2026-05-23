@@ -22,16 +22,18 @@ const ThemeContext = createContext<ThemeContextValue>({
   themes: THEMES,
 });
 
+function getStoredTheme(): PWATheme {
+  if (typeof window === "undefined") return "dark";
+  const stored = localStorage.getItem("sg-pwa-theme") as PWATheme | null;
+  return stored && THEMES.some((t) => t.key === stored) ? stored : "dark";
+}
+
 export function PWAThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<PWATheme>("dark");
+  const [theme, setThemeState] = useState<PWATheme>(getStoredTheme);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sg-pwa-theme") as PWATheme | null;
-    if (stored && THEMES.some((t) => t.key === stored)) {
-      setThemeState(stored);
-      document.documentElement.setAttribute("data-pwa-theme", stored);
-    }
-  }, []);
+    document.documentElement.setAttribute("data-pwa-theme", theme);
+  }, [theme]);
 
   const setTheme = (t: PWATheme) => {
     setThemeState(t);

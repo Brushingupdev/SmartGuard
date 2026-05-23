@@ -24,7 +24,6 @@ type FilterKey = "todos" | "pendientes" | "atendidos" | "completados" | "demoras
 interface RegistroHistoryPanelProps {
   compact?: boolean;
   recentRegistrations: RecentRegistration[];
-  recentTotal: number;
   abandonedRecords: RecentRegistration[];
   closingIds: Set<number>;
   docsIds: Set<number>;
@@ -41,7 +40,6 @@ interface RegistroHistoryPanelProps {
 
 export default function RegistroHistoryPanel({
   recentRegistrations,
-  recentTotal,
   abandonedRecords,
   closingIds,
   docsIds,

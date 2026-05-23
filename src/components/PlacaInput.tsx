@@ -88,8 +88,6 @@ export default function PlacaInput({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const isValid = value.trim().length >= 4;
-
   return (
     <div className={hideLabel ? "" : "sg-field"}>
       {!hideLabel ? (
