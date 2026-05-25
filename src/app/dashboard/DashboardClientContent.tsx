@@ -348,7 +348,7 @@ export function DashboardClientContent({
         ))}
       </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-5 grid gap-5 xl:items-start xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="flex flex-col gap-5">
           <section className="sg-panel p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
@@ -497,7 +497,7 @@ export function DashboardClientContent({
                 </span>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Clock3 className="h-4 w-4 text-[var(--sg-accent)]" />
@@ -532,7 +532,7 @@ export function DashboardClientContent({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="mt-4 grid gap-3 xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
                   <div className="border-b border-[var(--sg-line)] px-4 py-3">
                     <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
@@ -550,7 +550,7 @@ export function DashboardClientContent({
                       personnelSummary.map((person) => (
                         <div
                           key={`${person.name}-${person.turn}`}
-                          className="flex items-center justify-between gap-3 px-4 py-3"
+                          className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--sg-line)] bg-[var(--sg-panel)] sg-font-mono text-[11px] font-bold text-[var(--sg-accent)]">
@@ -565,7 +565,7 @@ export function DashboardClientContent({
                               </div>
                             </div>
                           </div>
-                          <span className="flex items-center gap-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)]">
+                          <span className="flex items-center gap-1.5 self-start sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-success)] sm:self-auto">
                             <span className="h-2 w-2 rounded-full bg-[var(--sg-success)]" />
                             activo
                           </span>
@@ -591,7 +591,7 @@ export function DashboardClientContent({
                     ) : (
                       operationalZones.map((zone) => (
                         <div key={zone.name} className="px-4 py-3">
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <div className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
                                 {formatGateLabelFromPlant(zone.name, gateOptions)}
@@ -601,7 +601,7 @@ export function DashboardClientContent({
                               </div>
                             </div>
                             <span
-                              className={`sg-font-mono text-[10px] uppercase tracking-widest ${zone.tone === "ok" ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}
+                              className={`sg-font-mono text-[10px] uppercase tracking-widest sm:shrink-0 ${zone.tone === "ok" ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}
                             >
                               {zone.pct}% a tiempo
                             </span>
@@ -683,12 +683,10 @@ export function DashboardClientContent({
               </div>
             )}
           </section>
-
-          <TimelineDia events={recentEvents} />
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
+      <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-4">
         <section className="sg-panel flex flex-col p-5">
           <div className="mb-4 flex items-center gap-2">
             <PieChartIcon className="h-4 w-4 text-[var(--sg-accent)]" />
@@ -807,6 +805,8 @@ export function DashboardClientContent({
               tone: zone.tone,
             }))}
         />
+
+        <TimelineDia events={recentEvents} />
       </div>
 
       <div className="mt-5">
