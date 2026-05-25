@@ -34,6 +34,57 @@ export function daysAgoLima(days: number): string {
   return format(zonedDate, "yyyy-MM-dd", { timeZone: TZ });
 }
 
+function zonedLimaDateWithOffset(daysOffset = 0): Date {
+  const zonedDate = toZonedTime(new Date(), TZ);
+  zonedDate.setHours(12, 0, 0, 0);
+  zonedDate.setDate(zonedDate.getDate() + daysOffset);
+  return zonedDate;
+}
+
+function formatLimaDate(date: Date): string {
+  return format(date, "yyyy-MM-dd", { timeZone: TZ });
+}
+
+export type SupervisorPeriod = "today" | "week-1" | "week-2" | "week-3";
+
+export function getSupervisorPeriodRange(period: SupervisorPeriod): {
+  from: string;
+  to: string;
+  label: string;
+  isToday: boolean;
+} {
+  const today = zonedLimaDateWithOffset();
+  const todayStr = formatLimaDate(today);
+
+  if (period === "today") {
+    return {
+      from: todayStr,
+      to: todayStr,
+      label: "Hoy",
+      isToday: true,
+    };
+  }
+
+  const dayOfWeek = today.getDay();
+  const mondayOffset = (dayOfWeek + 6) % 7;
+  const currentMonday = new Date(today);
+  currentMonday.setDate(today.getDate() - mondayOffset);
+
+  const weekIndex = period === "week-1" ? 0 : period === "week-2" ? 1 : 2;
+  const start = new Date(currentMonday);
+  start.setDate(currentMonday.getDate() - weekIndex * 7);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return {
+    from: formatLimaDate(start),
+    to: weekIndex === 0 ? todayStr : formatLimaDate(end),
+    label: `Semana ${weekIndex + 1}`,
+    isToday: false,
+  };
+}
+
 export async function requireAdmin(): Promise<boolean> {
   const ctx = await getUserContext();
   return ctx?.isAdmin ?? false;

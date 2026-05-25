@@ -3,7 +3,13 @@
 import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { getUserPlants } from "./companies";
-import { isMissingColumnError, logError, nowLima } from "./_helpers";
+import {
+  getSupervisorPeriodRange,
+  isMissingColumnError,
+  logError,
+  nowLima,
+  type SupervisorPeriod,
+} from "./_helpers";
 import {
   mapRecentRegistrationRow,
   mapSupervisorCitaRow,
@@ -79,25 +85,32 @@ export async function getRecentRegistrations(
 }
 
 export async function getSupervisorHoyData() {
+  return getSupervisorDataByPeriod("today");
+}
+
+export async function getSupervisorDataByPeriod(period: SupervisorPeriod = "today") {
   const supabase = await createClient();
   const ctx = await getUserContext();
-  const { date: dateStr, time: timeStr } = nowLima();
+  const { time: timeStr } = nowLima();
+  const periodRange = getSupervisorPeriodRange(period);
   const configuredPlants = await getUserPlants();
 
-  const selectFields = "id, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado";
+  const selectFields = "id, fecha, razon_social, empresa, planta, h_registro, h_atencion, h_dev_docs, espera_min, tiempo_total_min, tipo_operacion, motivo_demora, responsable, agente, observacion, tipo, hora_cita, estado";
 
   let activeQuery = supabase
     .from("atenciones")
     .select(selectFields)
-    .eq("fecha", dateStr)
+    .gte("fecha", periodRange.from)
+    .lte("fecha", periodRange.to)
     .not("h_registro", "is", null)
+    .order("fecha", { ascending: false })
     .order("id", { ascending: false })
     .limit(500);
 
   let overdueQuery = supabase
     .from("atenciones")
     .select(selectFields)
-    .eq("fecha", dateStr)
+    .eq("fecha", periodRange.to)
     .eq("estado", "esperado")
     .not("hora_cita", "is", null)
     .lt("hora_cita", timeStr)
@@ -106,7 +119,7 @@ export async function getSupervisorHoyData() {
   let citasQuery = supabase
     .from("atenciones")
     .select("id, razon_social, empresa, planta, fecha, hora_cita, h_registro, h_atencion, tipo, tipo_operacion, responsable, agente, observacion, estado, espera_min")
-    .eq("fecha", dateStr)
+    .eq("fecha", periodRange.to)
     .not("hora_cita", "is", null)
     .in("estado", ["esperado", "activo"])
     .order("hora_cita", { ascending: true });
@@ -119,7 +132,7 @@ export async function getSupervisorHoyData() {
 
   const [{ data: activeData }, { data: overdueData }, { data: citasData }] = await Promise.all([
     activeQuery,
-    overdueQuery,
+    periodRange.isToday ? overdueQuery : Promise.resolve({ data: [] }),
     citasQuery,
   ]);
 
@@ -134,6 +147,7 @@ export async function getSupervisorHoyData() {
     })
     .map((row) => mapRecentRegistrationRow({
       id: row.id as number,
+      fecha: (row.fecha as string | null | undefined) ?? null,
       razon_social: (row.razon_social as string | null | undefined) ?? null,
       empresa: (row.empresa as string | null | undefined) ?? null,
       planta: (row.planta as string | null | undefined) ?? null,
@@ -153,7 +167,11 @@ export async function getSupervisorHoyData() {
       estado: ((row.estado as string | null | undefined) ?? "activo") as "esperado" | "activo" | "atendido",
     }));
 
-  records.sort((a, b) => b.id - a.id);
+  records.sort((a, b) => {
+    const dateCompare = (b.fecha ?? "").localeCompare(a.fecha ?? "");
+    if (dateCompare !== 0) return dateCompare;
+    return b.id - a.id;
+  });
 
   const citas = (citasData ?? []).map((row) => mapSupervisorCitaRow({
     id: row.id as number,
@@ -179,5 +197,10 @@ export async function getSupervisorHoyData() {
     ...citas.map((cita) => cita.planta).filter(Boolean),
   ])].sort();
 
-  return { records, citas, plantas };
+  return {
+    records,
+    citas,
+    plantas,
+    period: periodRange,
+  };
 }

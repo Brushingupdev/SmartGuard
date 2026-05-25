@@ -91,6 +91,7 @@ export function applyAtencionFilters(query: any, { search, plant, segment, dateF
 
 type RecentRegistrationRow = {
   id: number;
+  fecha?: string | null;
   razon_social?: string | null;
   empresa?: string | null;
   planta?: string | null;
@@ -112,6 +113,7 @@ type RecentRegistrationRow = {
 
 export interface RecentRegistrationView {
   id: number;
+  fecha: string | null;
   razonSocial: string;
   empresa: string;
   planta: string;
@@ -138,6 +140,7 @@ export interface RecentRegistrationView {
 export function mapRecentRegistrationRow(row: RecentRegistrationRow): RecentRegistrationView {
   return {
     id: row.id,
+    fecha: row.fecha ?? null,
     razonSocial: row.razon_social || "",
     empresa: row.empresa || "",
     planta: row.planta || "",

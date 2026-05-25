@@ -35,10 +35,16 @@ export function fmtLiveWait(totalSeconds: number): string {
 /**
  * Calcula segundos de espera desde h_registro hasta ahora.
  */
-export function getWaitSeconds(time: string | null | undefined, now: Date): number {
+export function getWaitSeconds(
+  time: string | null | undefined,
+  now: Date,
+  date?: string | null,
+): number {
   if (!time) return 0;
   const [h, m] = time.split(":").map(Number);
-  const arrival = new Date(now);
-  arrival.setHours(h, m, 0, 0);
+  const arrival = date ? new Date(`${date}T${time}:00`) : new Date(now);
+  if (!date) {
+    arrival.setHours(h, m, 0, 0);
+  }
   return Math.max(0, Math.floor((now.getTime() - arrival.getTime()) / 1000));
 }

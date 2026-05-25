@@ -1,6 +1,14 @@
 import { isAbandonedRecord, isDelayedRecord } from "@/app/registro/status";
 import type { RecentRegistration } from "@/app/registro/types";
 
+export function fmtShortDate(date: string | null): string {
+  if (!date) return "—";
+  return new Date(`${date}T12:00:00`).toLocaleDateString("es-PE", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 export function fmtTime(t: string | null): string {
   if (!t) return "—";
   const [h, m] = t.split(":").map(Number);

@@ -26,8 +26,10 @@ import {
 } from "./_atencionesImport";
 import {
   getRecentRegistrations as getRecentRegistrationsQuery,
+  getSupervisorDataByPeriod as getSupervisorDataByPeriodQuery,
   getSupervisorHoyData as getSupervisorHoyDataQuery,
 } from "./_atencionesQueries";
+import type { SupervisorPeriod } from "./_helpers";
 
 function guardAgentAliases(ctx: Awaited<ReturnType<typeof getUserContext>>): string[] {
   if (!ctx || ctx.role !== "guardia") return [];
@@ -58,6 +60,10 @@ export async function getRecentRegistrations(
 
 export async function getSupervisorHoyData() {
   return getSupervisorHoyDataQuery();
+}
+
+export async function getSupervisorDataByPeriod(period: SupervisorPeriod = "today") {
+  return getSupervisorDataByPeriodQuery(period);
 }
 
 // ─── Dispatch de alertas (async via queue) ───────────────────────────────────

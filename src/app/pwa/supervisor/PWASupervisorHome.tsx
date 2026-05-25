@@ -18,8 +18,8 @@ import {
   cancelarCita,
   closeAtencion,
   closeAtencionDocs,
+  getSupervisorDataByPeriod,
   getGuardiaEventosHoy,
-  getSupervisorHoyData,
   type GuardiaEvento,
 } from "@/app/actions";
 import { isAbandonedRecord } from "@/app/registro/status";
@@ -38,6 +38,12 @@ interface Props {
   initialCitas: (CitaRow & { planta: string })[];
   initialPlantas: string[];
   initialEventos: GuardiaEvento[];
+  initialPeriod: {
+    from: string;
+    to: string;
+    label: string;
+    isToday: boolean;
+  };
   responsables: string[];
 }
 
@@ -48,6 +54,7 @@ export default function PWASupervisorHome({
   initialCitas,
   initialPlantas,
   initialEventos,
+  initialPeriod,
   responsables,
 }: Props) {
   const router = useRouter();
@@ -56,6 +63,8 @@ export default function PWASupervisorHome({
   const [citas, setCitas] = useState(initialCitas);
   const [plantas, setPlantas] = useState(initialPlantas);
   const [eventos, setEventos] = useState(initialEventos);
+  const [activePeriod, setActivePeriod] = useState<"today" | "week-1" | "week-2" | "week-3">("today");
+  const [periodMeta, setPeriodMeta] = useState(initialPeriod);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReg, setSelectedReg] = useState<RecentRegistration | null>(
     null
@@ -71,16 +80,20 @@ export default function PWASupervisorHome({
     }, duration);
   }, []);
 
-  const refresh = useCallback(async (silent = false) => {
+  const refresh = useCallback(async (
+    silent = false,
+    period: "today" | "week-1" | "week-2" | "week-3" = activePeriod,
+  ) => {
     if (!silent) setRefreshing(true);
-    const data = await getSupervisorHoyData();
+    const data = await getSupervisorDataByPeriod(period);
     const nuevosEventos = await getGuardiaEventosHoy(data.plantas);
     setRecords(data.records as RecentRegistration[]);
     setCitas(data.citas as (CitaRow & { planta: string })[]);
     setPlantas(data.plantas);
     setEventos(nuevosEventos);
+    setPeriodMeta(data.period);
     if (!silent) setRefreshing(false);
-  }, []);
+  }, [activePeriod]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -355,7 +368,14 @@ export default function PWASupervisorHome({
               <TabVehiculos
                 records={records}
                 filterPlant={filterPlant}
+                activePeriod={activePeriod}
+                periodMeta={periodMeta}
                 onFilterChange={setFilterPlant}
+                onPeriodChange={(period) => {
+                  setSelectedReg(null);
+                  setActivePeriod(period);
+                  void refresh(false, period);
+                }}
                 onTap={setSelectedReg}
                 onAction={(reg) => {
                   void handleClose(reg);
@@ -413,7 +433,11 @@ export default function PWASupervisorHome({
 
       <VehicleDetailDrawer
         reg={selectedReg}
-        waitSeconds={selectedReg ? getWaitSeconds(selectedReg.time, liveNow) : 0}
+        waitSeconds={
+          selectedReg
+            ? getWaitSeconds(selectedReg.time, liveNow, selectedReg.fecha)
+            : 0
+        }
         onClose={() => setSelectedReg(null)}
         onMarkAttended={() => {
           if (selectedReg) void handleClose(selectedReg);

@@ -474,8 +474,12 @@ export default function PWARegistroWizard({
 
       if (result.success) {
         const createdTime = result.time ?? "";
+        const createdDate = new Intl.DateTimeFormat("sv-SE", {
+          timeZone: "America/Lima",
+        }).format(new Date());
         const newRecord: RecentRegistration = {
           id: Date.now(),
+          fecha: createdDate,
           razonSocial: data.razonSocial.trim(),
           empresa: data.empresa.trim() || data.razonSocial.trim(),
           planta: data.plant,

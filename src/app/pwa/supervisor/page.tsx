@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import {
-  getSupervisorHoyData,
+  getSupervisorDataByPeriod,
   getGuardiaEventosHoy,
   getResponsables,
 } from "@/app/actions";
@@ -22,7 +22,7 @@ export default async function PWASupervisorPage() {
   const companyId = (user.user_metadata?.company_id as string | undefined) ?? "";
 
   const [supervisorData, responsables] = await Promise.all([
-    getSupervisorHoyData(),
+    getSupervisorDataByPeriod("today"),
     getResponsables(),
   ]);
 
@@ -40,6 +40,7 @@ export default async function PWASupervisorPage() {
       initialCitas={supervisorData.citas}
       initialPlantas={plantas}
       initialEventos={eventosAll}
+      initialPeriod={supervisorData.period}
       responsables={responsables}
     />
   );
