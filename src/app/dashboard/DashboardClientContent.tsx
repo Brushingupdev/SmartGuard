@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import DashboardKPICard from "@/components/DashboardKPICard";
 import CausasTop from "@/components/CausasTop";
@@ -7,6 +8,7 @@ import RankingPlantas from "@/components/RankingPlantas";
 import TimelineDia from "@/components/TimelineDia";
 import HeatmapDemoras from "@/components/HeatmapDemoras";
 import ExportPDFButton from "@/components/ExportPDFButton";
+import { getDashboardFlowSegmentDetail } from "@/app/actions";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -19,12 +21,14 @@ import {
   TrendingDown,
   TrendingUp,
   UsersRound,
+  X,
 } from "lucide-react";
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import type {
   ActivePersonnelRow,
   DashboardAlert,
   DashboardEvent,
+  DashboardFlowDetail,
   DashboardFlowRow,
   DashboardKpis,
   DashboardTopProvider,
@@ -138,6 +142,41 @@ export function DashboardClientContent({
     trendInverse?: boolean;
   }[];
 }) {
+  const [flowDetail, setFlowDetail] = useState<DashboardFlowDetail | null>(null);
+  const [flowDetailLoading, setFlowDetailLoading] = useState(false);
+  const [flowDetailError, setFlowDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFlowDetail(null);
+        setFlowDetailLoading(false);
+        setFlowDetailError(null);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleFlowBarClick = async (bucket?: string) => {
+    if (selectedTimeframe !== "Mes" || !bucket) return;
+    setFlowDetail(null);
+    setFlowDetailError(null);
+    setFlowDetailLoading(true);
+    try {
+      const detail = await getDashboardFlowSegmentDetail(selectedPlant, selectedTimeframe, bucket);
+      if (!detail) {
+        setFlowDetailError("No se pudo cargar el detalle de esta semana.");
+        return;
+      }
+      setFlowDetail(detail);
+    } catch {
+      setFlowDetailError("No se pudo cargar el detalle de esta semana.");
+    } finally {
+      setFlowDetailLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       {error ? (
@@ -421,7 +460,14 @@ export function DashboardClientContent({
                       )}
                       cursor={{ fill: "rgba(196,192,180,0.04)" }}
                     />
-                    <Bar dataKey="ok" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                  <Bar
+                    dataKey="ok"
+                    stackId="a"
+                    radius={[0, 0, 0, 0]}
+                    maxBarSize={34}
+                    onClick={(data) => handleFlowBarClick(data?.payload?.h)}
+                    cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                  >
                       {flowData.map((_, index) => (
                         <Cell
                           key={index}
@@ -430,7 +476,14 @@ export function DashboardClientContent({
                         />
                       ))}
                     </Bar>
-                    <Bar dataKey="warn" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                    <Bar
+                      dataKey="warn"
+                      stackId="a"
+                      radius={[0, 0, 0, 0]}
+                      maxBarSize={34}
+                      onClick={(data) => handleFlowBarClick(data?.payload?.h)}
+                      cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                    >
                       {flowData.map((_, index) => (
                         <Cell
                           key={index}
@@ -439,7 +492,14 @@ export function DashboardClientContent({
                         />
                       ))}
                     </Bar>
-                    <Bar dataKey="deny" stackId="a" radius={[0, 0, 0, 0]} maxBarSize={34}>
+                    <Bar
+                      dataKey="deny"
+                      stackId="a"
+                      radius={[0, 0, 0, 0]}
+                      maxBarSize={34}
+                      onClick={(data) => handleFlowBarClick(data?.payload?.h)}
+                      cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                    >
                       {flowData.map((_, index) => (
                         <Cell
                           key={index}
@@ -497,7 +557,7 @@ export function DashboardClientContent({
                 </span>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <Clock3 className="h-4 w-4 text-[var(--sg-accent)]" />
@@ -532,7 +592,7 @@ export function DashboardClientContent({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
                   <div className="border-b border-[var(--sg-line)] px-4 py-3">
                     <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
@@ -894,6 +954,208 @@ export function DashboardClientContent({
           </div>
         </section>
       </div>
+
+      {(flowDetailLoading || flowDetail || flowDetailError) ? (
+        <FlowDetailModal
+          detail={flowDetail}
+          error={flowDetailError}
+          loading={flowDetailLoading}
+          gateOptions={gateOptions}
+          onClose={() => {
+            setFlowDetail(null);
+            setFlowDetailLoading(false);
+            setFlowDetailError(null);
+          }}
+        />
+      ) : null}
     </AppLayout>
+  );
+}
+
+function FlowDetailModal({
+  detail,
+  error,
+  loading,
+  gateOptions,
+  onClose,
+}: {
+  detail: DashboardFlowDetail | null;
+  error: string | null;
+  loading: boolean;
+  gateOptions: GateAssignment[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.78)] px-4 py-8 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-[820px] overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--sg-line)] bg-[var(--sg-panel)] px-5 py-4">
+          <div>
+            <div className="sg-font-display text-[15px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
+              {detail ? detail.label : "Detalle de semana"}
+            </div>
+            <div className="mt-1 text-[12px] text-[var(--sg-muted)]">
+              {detail?.subtitle ?? "Cargando detalle operativo del segmento seleccionado."}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)]"
+            aria-label="Cerrar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-5 p-5">
+          {loading ? (
+            <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-10 text-center">
+              <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                Cargando detalle...
+              </div>
+            </div>
+          ) : error ? (
+            <div className="border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] px-4 py-6 text-center text-[13px] text-[var(--sg-danger)]">
+              {error}
+            </div>
+          ) : detail ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: "Registros", value: detail.total, tone: "text-[var(--sg-ink)]" },
+                  { label: "A tiempo", value: detail.kpis.ok, tone: "text-[var(--sg-success)]" },
+                  { label: "Revisión", value: detail.kpis.warn, tone: "text-[var(--sg-warn)]" },
+                  { label: "Con demora", value: detail.kpis.deny, tone: "text-[var(--sg-danger)]" },
+                ].map((item) => (
+                  <div key={item.label} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      {item.label}
+                    </div>
+                    <div className={`mt-2 text-[24px] font-bold leading-none ${item.tone}`}>
+                      {item.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div className="sg-font-display text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                    Puertas más cargadas
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {detail.topGates.length === 0 ? (
+                      <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                        Sin puertas con movimiento
+                      </div>
+                    ) : (
+                      detail.topGates.map((zone) => (
+                        <div key={zone.name}>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-[13px] font-semibold text-[var(--sg-ink)]">
+                              {formatGateLabelFromPlant(zone.name, gateOptions)}
+                            </span>
+                            <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                              {zone.count}
+                            </span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden bg-[rgba(196,192,180,0.1)]">
+                            <div
+                              className={zone.tone === "ok" ? "h-full bg-[var(--sg-success)]" : "h-full bg-[var(--sg-danger)]"}
+                              style={{ width: `${Math.max(zone.pct, 8)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                  <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="sg-font-display text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                      Registros recientes del segmento
+                    </div>
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                      Top 12
+                    </div>
+                  </div>
+                  <div className="divide-y divide-[var(--sg-line)]">
+                    {detail.records.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                          Sin registros para este tramo
+                        </div>
+                      </div>
+                    ) : (
+                      detail.records.map((record) => (
+                        <div key={`${record.id ?? record.razon_social}-${record.time}-${record.fecha}`} className="px-4 py-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="sg-font-mono text-[11px] font-bold text-[var(--sg-ink)]">
+                                  {record.time}
+                                </span>
+                                <span className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
+                                  {record.razon_social}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--sg-copy)]">
+                                <span>{record.empresa}</span>
+                                <span className="text-[var(--sg-muted)]">·</span>
+                                <span>{formatGateLabelFromPlant(record.gate, gateOptions)}</span>
+                                {record.tipo_operacion ? (
+                                  <>
+                                    <span className="text-[var(--sg-muted)]">·</span>
+                                    <span>{record.tipo_operacion}</span>
+                                  </>
+                                ) : null}
+                              </div>
+                              {record.motivo_demora ? (
+                                <div className="mt-1 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                  {record.motivo_demora}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-3 sm:shrink-0">
+                              <span
+                                className={`sg-font-mono text-[10px] uppercase tracking-widest ${
+                                  record.status === "deny"
+                                    ? "text-[var(--sg-danger)]"
+                                    : record.status === "warn"
+                                      ? "text-[var(--sg-warn)]"
+                                      : record.status === "pending"
+                                        ? "text-[var(--sg-info)]"
+                                        : "text-[var(--sg-success)]"
+                                }`}
+                              >
+                                {record.delay != null ? `${record.delay} min` : "En proceso"}
+                              </span>
+                              {record.id ? (
+                                <Link
+                                  href={`/historial?id=${record.id}`}
+                                  className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] hover:underline"
+                                >
+                                  Ver →
+                                </Link>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }

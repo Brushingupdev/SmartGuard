@@ -18,6 +18,30 @@ export interface DashboardFlowRow {
   deny: number;
 }
 
+export interface DashboardFlowDetailRecord {
+  id: number | null;
+  fecha: string;
+  time: string;
+  razon_social: string;
+  empresa: string;
+  gate: string;
+  delay: number | null;
+  status: "ok" | "warn" | "deny" | "pending";
+  motivo_demora: string | null;
+  tipo_operacion: string | null;
+}
+
+export interface DashboardFlowDetail {
+  timeframe: string;
+  bucket: string;
+  label: string;
+  subtitle: string;
+  total: number;
+  kpis: DashboardKpis;
+  topGates: DashboardZone[];
+  records: DashboardFlowDetailRecord[];
+}
+
 // ─── Event rows ────────────────────────────────────────────────────────────────
 
 export interface DashboardEvent {

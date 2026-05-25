@@ -6,6 +6,8 @@ import { normalizeGateAssignments, plantsForSite, formatGateLabelFromPlant } fro
 import { nowLima, daysAgoLima, logError, dateRange } from "./_helpers";
 import type {
   DashboardKpis,
+  DashboardFlowDetail,
+  DashboardFlowDetailRecord,
   DashboardFlowRow,
   DashboardEvent,
   DashboardAlert,
@@ -16,6 +18,7 @@ import type {
 } from "@/types/dashboard";
 
 type DashboardMetricRow = {
+  id?: number | null;
   fecha: string | null;
   razon_social: string | null;
   empresa: string | null;
@@ -26,6 +29,7 @@ type DashboardMetricRow = {
   espera_min: number | null;
   demora_cita_min: number | null;
   motivo_demora: string | null;
+  tipo_operacion?: string | null;
 };
 
 function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "espera_min">): number | null {
@@ -40,6 +44,43 @@ function flowBucketKey(row: DashboardMetricRow, timeframe: string): string {
   if (timeframe === "Mes") return String(Math.min(4, Math.ceil(d.getDate() / 7)));
   if (/^\d{4}$/.test(timeframe)) return String(d.getMonth() + 1).padStart(2, "0");
   return row.h_registro ? row.h_registro.substring(0, 2) : "00";
+}
+
+function classifyDashboardStatus(delay: number | null): DashboardEvent["status"] {
+  if (delay == null) return "pending";
+  if (delay >= 45) return "deny";
+  if (delay >= 30) return "warn";
+  return "ok";
+}
+
+function formatFlowBucketLabel(bucket: string, timeframe: string): string {
+  if (timeframe === "Día") return `${bucket}:00 - ${bucket}:59`;
+  if (timeframe === "Semana") {
+    const DAYS_LONG = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    return DAYS_LONG[Number(bucket)] ?? bucket;
+  }
+  if (timeframe === "Mes") return `Semana ${bucket}`;
+  if (/^\d{4}$/.test(timeframe)) {
+    const MONTHS = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+    ];
+    return MONTHS[Number(bucket) - 1] ?? bucket;
+  }
+  return bucket;
+}
+
+function formatFlowBucketSubtitle(bucket: string, timeframe: string): string {
+  if (timeframe === "Mes") {
+    const week = Number(bucket);
+    const startDay = (week - 1) * 7 + 1;
+    const endDay = Math.min(week * 7, 31);
+    return `Detalle operativo del tramo ${startDay} al ${endDay} del período.`;
+  }
+  if (timeframe === "Semana") return "Detalle operativo del día dentro del período semanal.";
+  if (timeframe === "Día") return "Detalle operativo de la franja horaria seleccionada.";
+  if (/^\d{4}$/.test(timeframe)) return "Detalle operativo del mes seleccionado.";
+  return "Detalle operativo del segmento seleccionado.";
 }
 
 function padFlowData(
@@ -183,6 +224,45 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
     delayReasons: Object.entries(reasonMap)
       .map(([motivo, count]) => ({ motivo, count }))
       .sort((a, b) => b.count - a.count),
+  };
+}
+
+function buildFlowSegmentDetail(rows: DashboardMetricRow[], timeframe: string, bucket: string): DashboardFlowDetail {
+  const scopedRows = rows.filter((row) => flowBucketKey(row, timeframe) === bucket);
+  const stats = buildDashboardStatsFromRows(scopedRows, timeframe);
+  const records: DashboardFlowDetailRecord[] = scopedRows
+    .slice()
+    .sort((a, b) => {
+      const dateCompare = (b.fecha ?? "").localeCompare(a.fecha ?? "");
+      if (dateCompare !== 0) return dateCompare;
+      return (b.h_registro ?? "").localeCompare(a.h_registro ?? "");
+    })
+    .slice(0, 12)
+    .map((row) => {
+      const delay = effectiveDelay(row);
+      return {
+        id: row.id ?? null,
+        fecha: row.fecha ?? "",
+        time: row.h_registro ? row.h_registro.substring(0, 5) : "--:--",
+        razon_social: row.razon_social ?? "N/A",
+        empresa: row.empresa ?? "Sin empresa",
+        gate: row.planta ?? "Sin planta",
+        delay,
+        status: classifyDashboardStatus(delay),
+        motivo_demora: row.motivo_demora ?? null,
+        tipo_operacion: row.tipo_operacion ?? null,
+      };
+    });
+
+  return {
+    timeframe,
+    bucket,
+    label: formatFlowBucketLabel(bucket, timeframe),
+    subtitle: formatFlowBucketSubtitle(bucket, timeframe),
+    total: scopedRows.length,
+    kpis: stats.kpis,
+    topGates: stats.zones.slice(0, 3),
+    records,
   };
 }
 
@@ -337,6 +417,70 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
   } catch (err) {
     logError("getDashboardStats", err);
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
+  }
+}
+
+export async function getDashboardFlowSegmentDetail(
+  plant: string = "Todos",
+  timeframe: string = "Mes",
+  bucket: string,
+): Promise<DashboardFlowDetail | null> {
+  const ctx = await getUserContext();
+  if (!ctx) return null;
+
+  const { from, to } = dateRange(timeframe);
+
+  try {
+    if (ctx.isAdmin && !ctx.companyId) {
+      const { createAdminClient } = await import("@/utils/supabase/admin");
+      const admin = createAdminClient();
+      const supabase = await createClient();
+      const sitePlants = await resolveSitePlants(supabase, ctx, plant);
+      let query = admin
+        .from("atenciones")
+        .select("id, fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora, tipo_operacion")
+        .gte("fecha", from)
+        .lte("fecha", to)
+        .limit(5000);
+      if (sitePlants) {
+        if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
+        query = query.in("planta", sitePlants);
+      } else if (plant !== "Todos") {
+        query = query.eq("planta", plant);
+      }
+      const { data, error } = await query;
+      if (error || !data) throw error ?? new Error("Sin detalle disponible");
+      return buildFlowSegmentDetail(data as DashboardMetricRow[], timeframe, bucket);
+    }
+
+    const supabase = await createClient();
+    const companyId = ctx.companyId!;
+    const sitePlants = await resolveSitePlants(supabase, ctx, plant);
+
+    let query = supabase
+      .from("atenciones")
+      .select("id, fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora, tipo_operacion")
+      .eq("company_id", companyId)
+      .gte("fecha", from)
+      .lte("fecha", to)
+      .limit(5000);
+
+    if (sitePlants) {
+      if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
+      query = query.in("planta", sitePlants);
+    } else if (plant !== "Todos") {
+      query = query.eq("planta", plant);
+    }
+
+    const aliases = guardAgentAliases(ctx);
+    if (aliases.length > 0) query = query.in("agente", aliases);
+
+    const { data, error } = await query;
+    if (error || !data) throw error ?? new Error("Sin detalle disponible");
+    return buildFlowSegmentDetail(data as DashboardMetricRow[], timeframe, bucket);
+  } catch (err) {
+    logError("getDashboardFlowSegmentDetail", err, { plant, timeframe, bucket });
+    return null;
   }
 }
 
