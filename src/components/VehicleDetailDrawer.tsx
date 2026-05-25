@@ -9,6 +9,7 @@ import {
 import { getVehicleHistory, type VehicleVisit } from "@/app/actions";
 import { fmtLiveWait } from "@/hooks/useLiveTimer";
 import type { RecentRegistration } from "@/app/registro/types";
+import { formatGateLabelFromPlant } from "@/lib/gates";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -289,7 +290,7 @@ export default function VehicleDetailDrawer({
                           <span style={{ fontFamily: "var(--sg-font-mono)", fontSize: 9,
                             color: "var(--pwa-muted)", letterSpacing: "0.1em",
                             textTransform: "uppercase" }}>
-                            {visit.planta ?? ""}
+                            {visit.planta ? formatGateLabelFromPlant(visit.planta) : ""}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
