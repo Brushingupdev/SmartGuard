@@ -23,13 +23,17 @@ type DashboardMetricRow = {
   razon_social: string | null;
   empresa: string | null;
   planta: string | null;
+  tipo?: string | null;
   h_registro: string | null;
   h_atencion: string | null;
+  h_dev_docs?: string | null;
   hora_cita: string | null;
   espera_min: number | null;
   demora_cita_min: number | null;
+  tiempo_total_min?: number | null;
   motivo_demora: string | null;
   tipo_operacion?: string | null;
+  observacion?: string | null;
 };
 
 function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "espera_min">): number | null {
@@ -244,13 +248,21 @@ function buildFlowSegmentDetail(rows: DashboardMetricRow[], timeframe: string, b
         id: row.id ?? null,
         fecha: row.fecha ?? "",
         time: row.h_registro ? row.h_registro.substring(0, 5) : "--:--",
+        h_registro: row.h_registro ?? null,
+        h_atencion: row.h_atencion ?? null,
+        h_dev_docs: row.h_dev_docs ?? null,
+        hora_cita: row.hora_cita ?? null,
         razon_social: row.razon_social ?? "N/A",
         empresa: row.empresa ?? "Sin empresa",
         gate: row.planta ?? "Sin planta",
+        tipo: row.tipo ?? null,
         delay,
+        demora_cita_min: row.demora_cita_min ?? null,
+        tiempo_total_min: row.tiempo_total_min ?? null,
         status: classifyDashboardStatus(delay),
         motivo_demora: row.motivo_demora ?? null,
         tipo_operacion: row.tipo_operacion ?? null,
+        observacion: row.observacion ?? null,
       };
     });
 
@@ -438,7 +450,7 @@ export async function getDashboardFlowSegmentDetail(
       const sitePlants = await resolveSitePlants(supabase, ctx, plant);
       let query = admin
         .from("atenciones")
-        .select("id, fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora, tipo_operacion")
+        .select("id, fecha, razon_social, empresa, planta, tipo, h_registro, h_atencion, h_dev_docs, hora_cita, espera_min, demora_cita_min, tiempo_total_min, motivo_demora, tipo_operacion, observacion")
         .gte("fecha", from)
         .lte("fecha", to)
         .limit(5000);
@@ -459,7 +471,7 @@ export async function getDashboardFlowSegmentDetail(
 
     let query = supabase
       .from("atenciones")
-      .select("id, fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora, tipo_operacion")
+      .select("id, fecha, razon_social, empresa, planta, tipo, h_registro, h_atencion, h_dev_docs, hora_cita, espera_min, demora_cita_min, tiempo_total_min, motivo_demora, tipo_operacion, observacion")
       .eq("company_id", companyId)
       .gte("fecha", from)
       .lte("fecha", to)

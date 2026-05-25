@@ -22,13 +22,21 @@ export interface DashboardFlowDetailRecord {
   id: number | null;
   fecha: string;
   time: string;
+  h_registro: string | null;
+  h_atencion: string | null;
+  h_dev_docs: string | null;
+  hora_cita: string | null;
   razon_social: string;
   empresa: string;
   gate: string;
+  tipo: string | null;
   delay: number | null;
+  demora_cita_min: number | null;
+  tiempo_total_min: number | null;
   status: "ok" | "warn" | "deny" | "pending";
   motivo_demora: string | null;
   tipo_operacion: string | null;
+  observacion: string | null;
 }
 
 export interface DashboardFlowDetail {

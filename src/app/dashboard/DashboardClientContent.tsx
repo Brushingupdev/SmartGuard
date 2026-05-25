@@ -12,8 +12,11 @@ import { getDashboardFlowSegmentDetail } from "@/app/actions";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   Clock3,
   Eye,
@@ -975,6 +978,7 @@ export function DashboardClientContent({
 
       {(flowDetailLoading || flowDetail || flowDetailError) ? (
         <FlowDetailModal
+          key={`${flowDetail?.timeframe ?? "loading"}-${flowDetail?.bucket ?? "none"}`}
           detail={flowDetail}
           error={flowDetailError}
           loading={flowDetailLoading}
@@ -1001,6 +1005,32 @@ function FlowDetailModal({
 }) {
   const punctualidad =
     detail && detail.total > 0 ? Math.round((detail.kpis.ok / detail.total) * 100) : 0;
+  const [sortBy, setSortBy] = useState<"recent" | "delay" | "company">("recent");
+  const [page, setPage] = useState(1);
+  const [selectedRecord, setSelectedRecord] = useState<DashboardFlowDetail["records"][number] | null>(null);
+  const PAGE_SIZE = 5;
+
+  const sortedRecords = detail
+    ? [...detail.records].sort((a, b) => {
+        if (sortBy === "delay") return (b.delay ?? -1) - (a.delay ?? -1);
+        if (sortBy === "company") {
+          const byCompany = a.empresa.localeCompare(b.empresa);
+          if (byCompany !== 0) return byCompany;
+        }
+        const byDate = b.fecha.localeCompare(a.fecha);
+        if (byDate !== 0) return byDate;
+        return (b.time ?? "").localeCompare(a.time ?? "");
+      })
+    : [];
+  const totalPages = Math.max(1, Math.ceil(sortedRecords.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRecords = sortedRecords.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const timeValue = (value: string | null | undefined) =>
+    value ? value.substring(0, 5) : "—";
 
   return (
     <div
@@ -1008,7 +1038,7 @@ function FlowDetailModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[92vh] w-full max-w-[920px] overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
+        className="relative max-h-[88vh] w-full max-w-[760px] overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-[var(--sg-line)] bg-[rgba(24,24,27,0.96)] px-5 py-4 backdrop-blur">
@@ -1060,7 +1090,7 @@ function FlowDetailModal({
             </div>
           ) : detail ? (
             <>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
                 {[
                   { label: "Registros", value: detail.total, tone: "text-[var(--sg-ink)]" },
                   { label: "Puntualidad", value: `${punctualidad}%`, tone: "text-[var(--sg-success)]" },
@@ -1079,7 +1109,7 @@ function FlowDetailModal({
                 ))}
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+              <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)]">
                 <section className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-4">
                   <div className="sg-font-display text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
                     Puertas más cargadas
@@ -1123,27 +1153,56 @@ function FlowDetailModal({
                 </section>
 
                 <section className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)]">
-                  <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-4 py-3">
-                    <div>
-                      <div className="sg-font-display text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
-                        Registros recientes del segmento
+                  <div className="border-b border-[var(--sg-line)] px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="sg-font-display text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                          Registros del segmento
+                        </div>
+                      </div>
+                      <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                        {sortedRecords.length} items
                       </div>
                     </div>
-                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                      Top 12
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {[
+                        { key: "recent", label: "Recientes" },
+                        { key: "delay", label: "Más demora" },
+                        { key: "company", label: "Empresa" },
+                      ].map((option) => (
+                        <button
+                          key={option.key}
+                          onClick={() => {
+                            setSortBy(option.key as "recent" | "delay" | "company");
+                            setPage(1);
+                          }}
+                          className={`px-2.5 py-1 sg-font-mono text-[9px] uppercase tracking-widest transition-colors ${
+                            sortBy === option.key
+                              ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
+                              : "border border-[var(--sg-line)] text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                   <div className="divide-y divide-[var(--sg-line)]">
-                    {detail.records.length === 0 ? (
+                    {paginatedRecords.length === 0 ? (
                       <div className="px-4 py-8 text-center">
                         <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
                           Sin registros para este tramo
                         </div>
                       </div>
                     ) : (
-                      detail.records.map((record) => (
-                        <div key={`${record.id ?? record.razon_social}-${record.time}-${record.fecha}`} className="px-4 py-3">
-                          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
+                      paginatedRecords.map((record) => (
+                        <button
+                          key={`${record.id ?? record.razon_social}-${record.time}-${record.fecha}`}
+                          type="button"
+                          onClick={() => setSelectedRecord(record)}
+                          className="w-full px-4 py-3 text-left transition-colors hover:bg-[rgba(255,255,255,0.03)]"
+                        >
+                          <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="sg-font-mono text-[11px] font-bold text-[var(--sg-ink)]">
@@ -1157,24 +1216,18 @@ function FlowDetailModal({
                                 <span>{record.empresa}</span>
                                 <span className="text-[var(--sg-muted)]">·</span>
                                 <span>{formatGateLabelFromPlant(record.gate, gateOptions)}</span>
+                              </div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-[var(--sg-muted)]">
+                                <span>{record.fecha}</span>
                                 {record.tipo_operacion ? (
                                   <>
-                                    <span className="text-[var(--sg-muted)]">·</span>
+                                    <span>·</span>
                                     <span>{record.tipo_operacion}</span>
                                   </>
                                 ) : null}
                               </div>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-[var(--sg-muted)]">
-                                <span>{record.fecha}</span>
-                                {record.motivo_demora ? (
-                                  <>
-                                    <span>·</span>
-                                    <span>{record.motivo_demora}</span>
-                                  </>
-                                ) : null}
-                              </div>
                             </div>
-                            <div className="flex items-center gap-3 lg:shrink-0">
+                            <div className="flex items-center gap-3 pl-2">
                               <span className={`sg-font-mono text-[10px] font-bold uppercase tracking-widest ${
                                 record.status === "deny"
                                   ? "text-[var(--sg-danger)]"
@@ -1186,25 +1239,140 @@ function FlowDetailModal({
                               }`}>
                                 {record.delay != null ? `${record.delay} min` : "—"}
                               </span>
-                              {record.id ? (
-                                <Link
-                                  href={`/historial?id=${record.id}`}
-                                  className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] transition-colors hover:text-[var(--sg-accent-soft)]"
-                                >
-                                  Ver →
-                                </Link>
-                              ) : null}
+                              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)]">
+                                Ver
+                              </span>
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[var(--sg-line)] px-4 py-3">
+                    <div>
+                      <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                        Página {currentPage} de {totalPages}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="flex items-center gap-1 border border-[var(--sg-line)] px-2.5 py-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <ChevronLeft className="h-3 w-3" />
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="flex items-center gap-1 border border-[var(--sg-line)] px-2.5 py-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Siguiente
+                        <ChevronRight className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </section>
               </div>
             </>
           ) : null}
         </div>
+
+        {selectedRecord ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(9,9,11,0.86)] p-4 backdrop-blur-sm">
+            <div className="w-full max-w-[560px] border border-[var(--sg-line)] bg-[var(--sg-panel)]">
+              <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRecord(null)}
+                  className="flex items-center gap-1.5 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] transition-colors hover:text-[var(--sg-accent-soft)]"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Volver
+                </button>
+                <button
+                  onClick={onClose}
+                  className="text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)]"
+                  aria-label="Cerrar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-4">
+                <div>
+                  <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    Registro seleccionado
+                  </div>
+                  <div className="mt-2 text-[16px] font-semibold text-[var(--sg-ink)]">
+                    {selectedRecord.razon_social}
+                  </div>
+                  <div className="mt-1 text-[12px] text-[var(--sg-copy)]">
+                    {selectedRecord.empresa} · {formatGateLabelFromPlant(selectedRecord.gate, gateOptions)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Fecha</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{selectedRecord.fecha}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Espera</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{selectedRecord.delay != null ? `${selectedRecord.delay} min` : "—"}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">H. registro</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{timeValue(selectedRecord.h_registro)}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">H. atención</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{timeValue(selectedRecord.h_atencion)}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">H. cita</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{timeValue(selectedRecord.hora_cita)}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Tiempo total</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{selectedRecord.tiempo_total_min != null ? `${selectedRecord.tiempo_total_min} min` : "—"}</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Tipo / operación</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">
+                      {[selectedRecord.tipo, selectedRecord.tipo_operacion].filter(Boolean).join(" · ") || "—"}
+                    </div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Motivo de demora</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{selectedRecord.motivo_demora || "—"}</div>
+                  </div>
+                  <div className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
+                    <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">Observación</div>
+                    <div className="mt-1 text-[13px] text-[var(--sg-ink)]">{selectedRecord.observacion || "—"}</div>
+                  </div>
+                </div>
+
+                {selectedRecord.id ? (
+                  <div className="flex justify-end">
+                    <Link
+                      href={`/historial?id=${selectedRecord.id}`}
+                      className="border border-[var(--sg-line)] px-3 py-2 sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] transition-colors hover:border-[var(--sg-accent)] hover:bg-[rgba(200,168,75,0.06)]"
+                    >
+                      Abrir en historial
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
