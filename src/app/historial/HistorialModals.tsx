@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Building2,
   Clock,
+  Trash2,
   FileSpreadsheet,
   FileText,
   Pencil,
@@ -238,13 +239,17 @@ export function RecordDetailModal({
 export function EditRecordModal({
   record,
   saving,
+  deleting,
   onCancel,
   onSave,
+  onDelete,
 }: {
   record: HistorialRecord;
   saving: boolean;
+  deleting: boolean;
   onCancel: () => void;
   onSave: (record: HistorialRecord, data: EditRecordPayload) => void;
+  onDelete: (record: HistorialRecord) => void;
 }) {
   const [razonSocial, setRazonSocial] = useState(record.razon_social ?? "");
   const [empresa, setEmpresa] = useState(record.empresa ?? "");
@@ -404,8 +409,21 @@ export function EditRecordModal({
 
         <div className="flex gap-3 border-t border-[var(--sg-line)] px-5 py-4">
           <button
+            onClick={() => onDelete(record)}
+            disabled={saving || deleting}
+            className="sg-btn flex-1 justify-center border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] text-[var(--sg-danger)] disabled:opacity-50"
+          >
+            {deleting ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Eliminar
+          </button>
+          <button
             onClick={onCancel}
-            className="sg-btn sg-btn-ghost flex-1 justify-center"
+            disabled={saving || deleting}
+            className="sg-btn sg-btn-ghost flex-1 justify-center disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -424,7 +442,7 @@ export function EditRecordModal({
                 horaCita: horaCita || null,
               })
             }
-            disabled={saving}
+            disabled={saving || deleting}
             className="sg-btn sg-btn-accent flex-1 justify-center disabled:opacity-50"
           >
             {saving ? (

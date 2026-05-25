@@ -12,6 +12,7 @@ import {
   getUserProfile,
 } from "../actions";
 import {
+  deleteAtencion,
   importAtenciones,
   previewImportAtenciones,
   updateAtencion,
@@ -75,6 +76,7 @@ export default function HistorialPage() {
     null
   );
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState(false);
 
   const [showImport, setShowImport] = useState(false);
   const [importParsing, setImportParsing] = useState(false);
@@ -330,6 +332,26 @@ export default function HistorialPage() {
     void fetchRecords();
   };
 
+  const handleDeleteRecord = async (record: HistorialRecord) => {
+    const confirmed = window.confirm(
+      `¿Eliminar el registro #${record.id} de ${record.razon_social ?? "este vehículo"}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRecord(true);
+    const result = await deleteAtencion(record.id);
+    setDeletingRecord(false);
+
+    if (!result.success) {
+      alert(result.error ?? "No se pudo eliminar el registro");
+      return;
+    }
+
+    setEditingRecord(null);
+    setSelectedRecord(null);
+    void fetchRecords();
+  };
+
   return (
     <AppLayout>
       {selectedRecord ? (
@@ -343,8 +365,10 @@ export default function HistorialPage() {
         <EditRecordModal
           record={editingRecord}
           saving={savingEdit}
+          deleting={deletingRecord}
           onCancel={() => setEditingRecord(null)}
           onSave={handleEditSave}
+          onDelete={handleDeleteRecord}
         />
       ) : null}
 
