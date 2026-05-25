@@ -16,6 +16,7 @@ import {
   CalendarDays,
   ChevronDown,
   Clock3,
+  Eye,
   ListChecks,
   PieChart as PieChartIcon,
   TrendingDown,
@@ -145,13 +146,17 @@ export function DashboardClientContent({
   const [flowDetail, setFlowDetail] = useState<DashboardFlowDetail | null>(null);
   const [flowDetailLoading, setFlowDetailLoading] = useState(false);
   const [flowDetailError, setFlowDetailError] = useState<string | null>(null);
+  const isFlowInteractive = true;
+  const closeFlowDetail = () => {
+    setFlowDetail(null);
+    setFlowDetailLoading(false);
+    setFlowDetailError(null);
+  };
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setFlowDetail(null);
-        setFlowDetailLoading(false);
-        setFlowDetailError(null);
+        closeFlowDetail();
       }
     };
     window.addEventListener("keydown", handler);
@@ -159,19 +164,18 @@ export function DashboardClientContent({
   }, []);
 
   const handleFlowBarClick = async (bucket?: string) => {
-    if (selectedTimeframe !== "Mes" || !bucket) return;
-    setFlowDetail(null);
-    setFlowDetailError(null);
+    if (!bucket) return;
+    closeFlowDetail();
     setFlowDetailLoading(true);
     try {
       const detail = await getDashboardFlowSegmentDetail(selectedPlant, selectedTimeframe, bucket);
       if (!detail) {
-        setFlowDetailError("No se pudo cargar el detalle de esta semana.");
+        setFlowDetailError("No se pudo cargar el detalle de este segmento.");
         return;
       }
       setFlowDetail(detail);
     } catch {
-      setFlowDetailError("No se pudo cargar el detalle de esta semana.");
+      setFlowDetailError("No se pudo cargar el detalle de este segmento.");
     } finally {
       setFlowDetailLoading(false);
     }
@@ -244,6 +248,7 @@ export function DashboardClientContent({
               <button
                 key={site}
                 onClick={() => {
+                  closeFlowDetail();
                   setSelectedSite(site);
                   setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
                 }}
@@ -263,7 +268,10 @@ export function DashboardClientContent({
               <select
                 aria-label="Seleccionar puerta"
                 value={selectedPlant}
-                onChange={(event) => setSelectedPlant(event.target.value)}
+                onChange={(event) => {
+                  closeFlowDetail();
+                  setSelectedPlant(event.target.value);
+                }}
                 className="h-[30px] cursor-pointer appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pl-2.5 pr-6 text-[10px] font-bold uppercase tracking-widest text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)]"
               >
                 <option
@@ -292,7 +300,10 @@ export function DashboardClientContent({
             {["Día", "Semana", "Mes"].map((timeframe) => (
               <button
                 key={timeframe}
-                onClick={() => setSelectedTimeframe(timeframe)}
+                onClick={() => {
+                  closeFlowDetail();
+                  setSelectedTimeframe(timeframe);
+                }}
                 className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
                   selectedTimeframe === timeframe
                     ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
@@ -311,6 +322,7 @@ export function DashboardClientContent({
                     value={lastSelectedYear}
                     onChange={(event) => {
                       if (event.target.value) {
+                        closeFlowDetail();
                         setLastSelectedYear(event.target.value);
                         setSelectedTimeframe(event.target.value);
                       }
@@ -411,6 +423,12 @@ export function DashboardClientContent({
                 <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-2 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
                   Por {selectedTimeframe === "Día" ? "hora" : "segmento"}
                 </div>
+                {isFlowInteractive ? (
+                  <div className="hidden items-center gap-1.5 border border-[var(--sg-line)] bg-[rgba(200,168,75,0.06)] px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--sg-accent)] md:flex">
+                    <Eye className="h-3.5 w-3.5" />
+                    Haz clic en una barra
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -466,7 +484,7 @@ export function DashboardClientContent({
                     radius={[0, 0, 0, 0]}
                     maxBarSize={34}
                     onClick={(data) => handleFlowBarClick(data?.payload?.h)}
-                    cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                    cursor={isFlowInteractive ? "pointer" : "default"}
                   >
                       {flowData.map((_, index) => (
                         <Cell
@@ -482,7 +500,7 @@ export function DashboardClientContent({
                       radius={[0, 0, 0, 0]}
                       maxBarSize={34}
                       onClick={(data) => handleFlowBarClick(data?.payload?.h)}
-                      cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                      cursor={isFlowInteractive ? "pointer" : "default"}
                     >
                       {flowData.map((_, index) => (
                         <Cell
@@ -498,7 +516,7 @@ export function DashboardClientContent({
                       radius={[0, 0, 0, 0]}
                       maxBarSize={34}
                       onClick={(data) => handleFlowBarClick(data?.payload?.h)}
-                      cursor={selectedTimeframe === "Mes" ? "pointer" : "default"}
+                      cursor={isFlowInteractive ? "pointer" : "default"}
                     >
                       {flowData.map((_, index) => (
                         <Cell
@@ -961,11 +979,7 @@ export function DashboardClientContent({
           error={flowDetailError}
           loading={flowDetailLoading}
           gateOptions={gateOptions}
-          onClose={() => {
-            setFlowDetail(null);
-            setFlowDetailLoading(false);
-            setFlowDetailError(null);
-          }}
+          onClose={closeFlowDetail}
         />
       ) : null}
     </AppLayout>
@@ -985,36 +999,57 @@ function FlowDetailModal({
   gateOptions: GateAssignment[];
   onClose: () => void;
 }) {
+  const punctualidad =
+    detail && detail.total > 0 ? Math.round((detail.kpis.ok / detail.total) * 100) : 0;
+
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.78)] px-4 py-8 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-[820px] overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
+        className="max-h-[92vh] w-full max-w-[920px] overflow-y-auto border border-[var(--sg-line)] bg-[var(--sg-panel)] shadow-[12px_12px_0_rgba(196,192,180,0.06)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--sg-line)] bg-[var(--sg-panel)] px-5 py-4">
-          <div>
-            <div className="sg-font-display text-[15px] font-bold uppercase tracking-[0.12em] text-[var(--sg-ink)]">
-              {detail ? detail.label : "Detalle de semana"}
+        <div className="sticky top-0 z-10 border-b border-[var(--sg-line)] bg-[rgba(24,24,27,0.96)] px-5 py-4 backdrop-blur">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="sg-font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--sg-muted)]">
+                {detail?.timeframe ?? "Detalle"} · Flujo de acceso
+              </div>
+              <div className="mt-2 sg-font-display text-[18px] font-bold uppercase tracking-[0.08em] text-[var(--sg-ink)]">
+                {detail ? detail.label : "Cargando segmento"}
+              </div>
+              <div className="mt-1 max-w-[720px] text-[12px] leading-5 text-[var(--sg-muted)]">
+                {detail?.subtitle ?? "Cargando detalle operativo del segmento seleccionado."}
+              </div>
             </div>
-            <div className="mt-1 text-[12px] text-[var(--sg-muted)]">
-              {detail?.subtitle ?? "Cargando detalle operativo del segmento seleccionado."}
+            <div className="flex items-center gap-3">
+              {detail ? (
+                <div className="hidden text-right md:block">
+                  <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
+                    Puntualidad
+                  </div>
+                  <div className="mt-1 sg-font-mono text-[18px] font-bold text-[var(--sg-success)]">
+                    {punctualidad}%
+                  </div>
+                </div>
+              ) : null}
+              <button
+                onClick={onClose}
+                className="text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)]"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-[var(--sg-muted)] transition-colors hover:text-[var(--sg-ink)]"
-            aria-label="Cerrar"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <div className="flex flex-col gap-5 p-5">
           {loading ? (
-            <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-10 text-center">
+            <div className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-4 py-14 text-center">
+              <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[var(--sg-line)] border-t-[var(--sg-accent)]" />
               <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
                 Cargando detalle...
               </div>
@@ -1025,46 +1060,57 @@ function FlowDetailModal({
             </div>
           ) : detail ? (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {[
                   { label: "Registros", value: detail.total, tone: "text-[var(--sg-ink)]" },
+                  { label: "Puntualidad", value: `${punctualidad}%`, tone: "text-[var(--sg-success)]" },
                   { label: "A tiempo", value: detail.kpis.ok, tone: "text-[var(--sg-success)]" },
                   { label: "Revisión", value: detail.kpis.warn, tone: "text-[var(--sg-warn)]" },
                   { label: "Con demora", value: detail.kpis.deny, tone: "text-[var(--sg-danger)]" },
                 ].map((item) => (
-                  <div key={item.label} className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
+                  <div key={item.label} className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-3">
                     <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
                       {item.label}
                     </div>
-                    <div className={`mt-2 text-[24px] font-bold leading-none ${item.tone}`}>
+                    <div className={`mt-1.5 text-[22px] font-bold leading-none ${item.tone}`}>
                       {item.value}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-                <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-4">
-                  <div className="sg-font-display text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+              <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+                <section className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="sg-font-display text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
                     Puertas más cargadas
                   </div>
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-2.5">
                     {detail.topGates.length === 0 ? (
                       <div className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
                         Sin puertas con movimiento
                       </div>
                     ) : (
-                      detail.topGates.map((zone) => (
-                        <div key={zone.name}>
+                      detail.topGates.map((zone, index) => (
+                        <div key={zone.name} className="py-1.5">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="truncate text-[13px] font-semibold text-[var(--sg-ink)]">
-                              {formatGateLabelFromPlant(zone.name, gateOptions)}
-                            </span>
-                            <span className="sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-                              {zone.count}
-                            </span>
+                            <div className="min-w-0">
+                              <div className="sg-font-mono text-[8px] uppercase tracking-widest text-[var(--sg-muted)]">
+                                #{index + 1}
+                              </div>
+                              <span className="mt-1 block truncate text-[12px] font-semibold text-[var(--sg-ink)]">
+                                {formatGateLabelFromPlant(zone.name, gateOptions)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="sg-font-mono text-[10px] font-bold text-[var(--sg-ink)]">
+                                {zone.count}
+                              </div>
+                              <div className={`sg-font-mono text-[8px] uppercase tracking-widest ${zone.tone === "ok" ? "text-[var(--sg-success)]" : "text-[var(--sg-danger)]"}`}>
+                                {zone.pct}% a tiempo
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-2 h-1.5 overflow-hidden bg-[rgba(196,192,180,0.1)]">
+                          <div className="mt-2 h-1 overflow-hidden bg-[rgba(196,192,180,0.1)]">
                             <div
                               className={zone.tone === "ok" ? "h-full bg-[var(--sg-success)]" : "h-full bg-[var(--sg-danger)]"}
                               style={{ width: `${Math.max(zone.pct, 8)}%` }}
@@ -1076,10 +1122,12 @@ function FlowDetailModal({
                   </div>
                 </section>
 
-                <section className="border border-[var(--sg-line)] bg-[var(--sg-panel-2)]">
+                <section className="border border-[var(--sg-line)] bg-[rgba(255,255,255,0.02)]">
                   <div className="flex items-center justify-between border-b border-[var(--sg-line)] px-4 py-3">
-                    <div className="sg-font-display text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
-                      Registros recientes del segmento
+                    <div>
+                      <div className="sg-font-display text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--sg-ink)]">
+                        Registros recientes del segmento
+                      </div>
                     </div>
                     <div className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
                       Top 12
@@ -1095,13 +1143,13 @@ function FlowDetailModal({
                     ) : (
                       detail.records.map((record) => (
                         <div key={`${record.id ?? record.razon_social}-${record.time}-${record.fecha}`} className="px-4 py-3">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="sg-font-mono text-[11px] font-bold text-[var(--sg-ink)]">
                                   {record.time}
                                 </span>
-                                <span className="truncate text-[13px] font-bold text-[var(--sg-ink)]">
+                                <span className="truncate text-[13px] font-semibold text-[var(--sg-ink)]">
                                   {record.razon_social}
                                 </span>
                               </div>
@@ -1116,30 +1164,32 @@ function FlowDetailModal({
                                   </>
                                 ) : null}
                               </div>
-                              {record.motivo_demora ? (
-                                <div className="mt-1 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)]">
-                                  {record.motivo_demora}
-                                </div>
-                              ) : null}
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-[var(--sg-muted)]">
+                                <span>{record.fecha}</span>
+                                {record.motivo_demora ? (
+                                  <>
+                                    <span>·</span>
+                                    <span>{record.motivo_demora}</span>
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 sm:shrink-0">
-                              <span
-                                className={`sg-font-mono text-[10px] uppercase tracking-widest ${
-                                  record.status === "deny"
-                                    ? "text-[var(--sg-danger)]"
-                                    : record.status === "warn"
-                                      ? "text-[var(--sg-warn)]"
-                                      : record.status === "pending"
-                                        ? "text-[var(--sg-info)]"
-                                        : "text-[var(--sg-success)]"
-                                }`}
-                              >
-                                {record.delay != null ? `${record.delay} min` : "En proceso"}
+                            <div className="flex items-center gap-3 lg:shrink-0">
+                              <span className={`sg-font-mono text-[10px] font-bold uppercase tracking-widest ${
+                                record.status === "deny"
+                                  ? "text-[var(--sg-danger)]"
+                                  : record.status === "warn"
+                                    ? "text-[var(--sg-warn)]"
+                                    : record.status === "pending"
+                                      ? "text-[var(--sg-info)]"
+                                      : "text-[var(--sg-success)]"
+                              }`}>
+                                {record.delay != null ? `${record.delay} min` : "—"}
                               </span>
                               {record.id ? (
                                 <Link
                                   href={`/historial?id=${record.id}`}
-                                  className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] hover:underline"
+                                  className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-accent)] transition-colors hover:text-[var(--sg-accent-soft)]"
                                 >
                                   Ver →
                                 </Link>

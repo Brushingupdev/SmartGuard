@@ -75,11 +75,11 @@ function formatFlowBucketSubtitle(bucket: string, timeframe: string): string {
     const week = Number(bucket);
     const startDay = (week - 1) * 7 + 1;
     const endDay = Math.min(week * 7, 31);
-    return `Detalle operativo del tramo ${startDay} al ${endDay} del período.`;
+    return `Vehículos registrados entre los días ${startDay} y ${endDay} del período mensual actual.`;
   }
-  if (timeframe === "Semana") return "Detalle operativo del día dentro del período semanal.";
-  if (timeframe === "Día") return "Detalle operativo de la franja horaria seleccionada.";
-  if (/^\d{4}$/.test(timeframe)) return "Detalle operativo del mes seleccionado.";
+  if (timeframe === "Semana") return `Vehículos registrados durante ${formatFlowBucketLabel(bucket, timeframe).toLowerCase()} dentro de la semana activa.`;
+  if (timeframe === "Día") return `Vehículos registrados durante la franja ${formatFlowBucketLabel(bucket, timeframe)}.`;
+  if (/^\d{4}$/.test(timeframe)) return `Vehículos registrados durante ${formatFlowBucketLabel(bucket, timeframe)} del año ${timeframe}.`;
   return "Detalle operativo del segmento seleccionado.";
 }
 
