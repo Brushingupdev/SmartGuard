@@ -1,6 +1,7 @@
 "use client";
 
 import DiagnosticoOperativo from "@/components/DiagnosticoOperativo";
+import ClientChartFrame from "@/components/ClientChartFrame";
 import { formatGateLabelFromPlant } from "@/lib/gates";
 import { motion } from "framer-motion";
 import {
@@ -360,9 +361,11 @@ export function ReporteSections({
             sub="a tiempo vs. con demora (≥ 30 min)"
           >
             <div className="sg-panel p-5">
-              <div className="h-[220px]">
+              <ClientChartFrame className="h-[220px]">
+                {(chartSize) => (
+                <>
                 {mounted && (
-                  <ResponsiveContainer width="100%" height="100%" debounce={200}>
+                  <ResponsiveContainer width={chartSize.width} height={chartSize.height} minWidth={0} minHeight={1} debounce={200}>
                     <BarChart data={report.trendData} barCategoryGap={4}>
                       <CartesianGrid
                         stroke="rgba(196,192,180,0.06)"
@@ -412,7 +415,9 @@ export function ReporteSections({
                     </BarChart>
                   </ResponsiveContainer>
                 )}
-              </div>
+                </>
+                )}
+              </ClientChartFrame>
               <div className="mt-3 flex gap-5 border-t border-[var(--sg-line)] pt-3">
                 {[
                   { color: "var(--sg-success)", label: "A tiempo" },

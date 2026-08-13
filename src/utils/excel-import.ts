@@ -39,6 +39,11 @@ export interface PreparedExcelImport {
   invalid: number;
 }
 
+export interface ExcelImportDefaults {
+  planta?: string | null;
+  fecha?: string | null;
+}
+
 // ─── Definición de campos ─────────────────────────────────────────────────────
 
 export const PLATFORM_FIELDS: { key: string; label: string; required: boolean }[] = [
@@ -290,7 +295,7 @@ export function transformRow(
   rawRow: ExcelRow,
   headers: string[],
   mapping: ExcelMapping,
-  defaults: { planta?: string | null } = {},
+  defaults: ExcelImportDefaults = {},
 ): ImportedExcelRow | null {
   const colIdx: Record<string, number> = {};
   headers.forEach((h, i) => { colIdx[h] = i; });
@@ -302,7 +307,7 @@ export function transformRow(
     return v === "" ? null : v ?? null;
   };
 
-  const fecha        = parseExcelDate(get("fecha"));
+  const fecha        = parseExcelDate(get("fecha")) ?? defaults.fecha ?? null;
   const razon_social = get("razon_social") ? String(get("razon_social")).toUpperCase().trim() : null;
   if (!fecha || !razon_social) return null;
 
@@ -382,7 +387,7 @@ export function processRows(
   rawRows: ExcelRow[],
   headers: string[],
   mapping: ExcelMapping,
-  defaults: { planta?: string | null } = {},
+  defaults: ExcelImportDefaults = {},
 ) {
   const valid: ImportedExcelRow[] = [];
   let invalid = 0;
@@ -397,13 +402,14 @@ export function processRows(
 export function prepareExcelImport(
   sheets: { name: string; rows: ExcelRow[] }[],
   fileName = "",
+  defaults: ExcelImportDefaults = {},
 ): PreparedExcelImport | null {
   let best: PreparedExcelImport | null = null;
 
   for (const sheet of sheets) {
     const headerRowIndex = sheet.rows.findIndex((row) => {
       const normalized = row.map(normalizeStr);
-      return normalized.some((h) => h.includes("fecha")) &&
+      return (Boolean(defaults.fecha) || normalized.some((h) => h.includes("fecha"))) &&
         normalized.some((h) => h.includes("razon") || h.includes("transportista") || h.includes("vehiculo") || h.includes("unidad"));
     });
     if (headerRowIndex < 0) continue;
@@ -411,11 +417,14 @@ export function prepareExcelImport(
     const headers = normalizeHeaderRow(sheet.rows[headerRowIndex]);
     const rows = sheet.rows.slice(headerRowIndex + 1).filter((r) => r.some((c) => c !== null && c !== ""));
     const mapping = autoDetectMapping(headers);
-    const defaultPlant = inferPlant(`${fileName} ${sheet.name}`);
+    const defaultPlant = defaults.planta ?? inferPlant(`${fileName} ${sheet.name}`);
     const valid: ImportedExcelRow[] = [];
     let invalid = 0;
     for (const row of rows) {
-      const transformed = transformRow(row, headers, mapping, { planta: defaultPlant });
+      const transformed = transformRow(row, headers, mapping, {
+        planta: defaultPlant,
+        fecha: defaults.fecha,
+      });
       if (transformed) valid.push(transformed);
       else invalid++;
     }

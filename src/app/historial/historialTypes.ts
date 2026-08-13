@@ -3,7 +3,7 @@ import type {
   ExcelRow,
   ImportedExcelRow,
 } from "@/utils/excel-import";
-import type { ImportPreview } from "../actions/atenciones";
+import type { ImportPreview } from "../actions/_atencionesImport";
 
 export interface HistorialRecord {
   id: number;

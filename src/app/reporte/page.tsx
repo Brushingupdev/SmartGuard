@@ -35,6 +35,7 @@ function ReporteContent() {
   const [soloDemoras,    setSoloDemoras]    = useState(false);
   const [compareMode,    setCompareMode]    = useState<string>("Todas");
   const [data,           setData]           = useState<ReporteData | null>(null);
+  const [error,          setError]          = useState<string | null>(null);
   const [trends,         setTrends]         = useState<DashboardTrendSummary>({
     ok: null,
     deny: null,
@@ -63,16 +64,24 @@ function ReporteContent() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [report, trendsData] = await Promise.all([
-        getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode),
-        getDashboardTrends(plant, timeframe),
-      ]);
-      setData(report);
-      setTrends(trendsData.trend);
-    } finally {
-      setLoading(false);
+    setError(null);
+    const [reportResult, trendsResult] = await Promise.allSettled([
+      getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode),
+      getDashboardTrends(plant, timeframe),
+    ]);
+
+    if (reportResult.status === "fulfilled" && reportResult.value) {
+      setData(reportResult.value);
+    } else {
+      setData(null);
+      setError("No se pudo cargar el análisis. Intenta actualizar nuevamente.");
     }
+
+    if (trendsResult.status === "fulfilled") {
+      setTrends(trendsResult.value.trend);
+    }
+
+    setLoading(false);
   }, [plant, timeframe, selectedSegments, soloDemoras, compareMode]);
 
   useEffect(() => {
@@ -92,32 +101,11 @@ function ReporteContent() {
     getUserGateOptions().then(setGateOptions);
   }, [timeframe]);
   useEffect(() => {
-    let active = true;
-
     const bootstrap = async () => {
-      try {
-        const [report, trendsData] = await Promise.all([
-          getReporteData(plant, timeframe, selectedSegments, soloDemoras, compareMode),
-          getDashboardTrends(plant, timeframe),
-        ]);
-        if (active) {
-          setData(report);
-          setTrends(trendsData.trend);
-          setLoading(false);
-        }
-      } catch {
-        if (active) {
-          setLoading(false);
-        }
-      }
+      await load();
     };
-
     void bootstrap();
-
-    return () => {
-      active = false;
-    };
-  }, [plant, timeframe, selectedSegments, soloDemoras, compareMode]);
+  }, [load]);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -145,6 +133,21 @@ function ReporteContent() {
 
   return (
     <AppLayout>
+      {error ? (
+        <div
+          role="alert"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--sg-danger)] bg-[rgba(211,92,79,0.08)] px-4 py-3 text-[12px] text-[var(--sg-copy)]"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={load}
+            className="sg-font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--sg-danger)] hover:text-[var(--sg-ink)]"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : null}
       <ReporteTopbar
         sites={sites}
         compareMode={compareMode}

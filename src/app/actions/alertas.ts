@@ -67,6 +67,15 @@ export async function getAlertsData(plant?: string) {
   if (!ctx?.isAdmin && ctx?.companyId) todayAllQuery = todayAllQuery.eq("company_id", ctx.companyId);
   const { data: todayAll } = await todayAllQuery;
 
+  let latestDataQuery = db
+    .from("atenciones")
+    .select("fecha")
+    .order("fecha", { ascending: false })
+    .limit(1);
+  if (!ctx?.isAdmin && ctx?.companyId) latestDataQuery = latestDataQuery.eq("company_id", ctx.companyId);
+  if (plant && plant !== "Todas") latestDataQuery = latestDataQuery.eq("planta", plant);
+  const { data: latestData } = await latestDataQuery;
+
   let historyQuery = db
     .from("atenciones")
     .select("fecha, espera_min, demora_cita_min")
@@ -101,7 +110,7 @@ export async function getAlertsData(plant?: string) {
     moderados: severityWaits.filter(wait => wait >= 30 && wait < 45).length,
   };
 
-  return { alerts, kpis, histChart };
+  return { alerts, kpis, histChart, asOfDate: latestData?.[0]?.fecha ?? null };
 }
 
 export async function getIncidentsByDate(date: string, plant?: string) {

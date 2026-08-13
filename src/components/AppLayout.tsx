@@ -23,7 +23,7 @@ function BillingBanner() {
             Cuenta suspendida
           </h2>
           <p className="text-[13px] text-[var(--sg-muted)] mb-6">
-            El acceso a SmartGuard ha sido suspendido. Contacta al equipo de SmartGuard para reactivar tu cuenta.
+            El acceso a Matritech ha sido suspendido. Contacta al equipo de Matritech para reactivar tu cuenta.
           </p>
           <a href="/upgrade" className="sg-btn sg-btn-danger w-full justify-center">
             Ver opciones de reactivación
@@ -43,7 +43,7 @@ function BillingBanner() {
             Período de prueba finalizado
           </h2>
           <p className="text-[13px] text-[var(--sg-muted)] mb-6">
-            Tu prueba gratuita de SmartGuard ha terminado. Activa tu plan para continuar operando.
+            Tu prueba gratuita de Matritech ha terminado. Activa tu plan para continuar operando.
           </p>
           <a href="/upgrade" className="sg-btn sg-btn-accent w-full justify-center">
             Activar plan →

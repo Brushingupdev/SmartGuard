@@ -141,6 +141,7 @@ export default function AlertasPage() {
         totalLogPages={paginated.totalPages}
         currentLogsPage={paginated.currentPage}
         onLogsPageChange={setLogsPage}
+        asOfDate={data?.asOfDate ?? null}
       />
     </>
   );

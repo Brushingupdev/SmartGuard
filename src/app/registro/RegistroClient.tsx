@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
+import { useState } from "react";
 import {
   ConfirmActionModal,
   EditModal,
@@ -10,10 +11,12 @@ import {
   Toast,
 } from "./RegistroClientUI";
 import type { RegistroClientProps } from "./registroClientTypes";
+import RegistroImportModal from "./RegistroImportModal";
 import { useRegistroClientController } from "./useRegistroClientController";
 
 export default function RegistroClient(props: RegistroClientProps) {
   const controller = useRegistroClientController(props);
+  const [showImport, setShowImport] = useState(false);
 
   return (
     <>
@@ -41,6 +44,7 @@ export default function RegistroClient(props: RegistroClientProps) {
         deletingIds={controller.deletingIds}
         userRole={controller.userRole}
         isKiosk={controller.isKiosk}
+        onOpenImport={() => setShowImport(true)}
         onToggleKiosk={controller.onToggleKiosk}
         onSubmit={controller.onSubmit}
         onPlantChange={controller.onPlantChange}
@@ -63,6 +67,19 @@ export default function RegistroClient(props: RegistroClientProps) {
         onDelete={controller.onDelete}
         onCloseAbandoned={controller.onCloseAbandoned}
       />
+
+      {!controller.isKiosk && controller.userRole !== "guardia" ? (
+        <RegistroImportModal
+          open={showImport}
+          onClose={() => setShowImport(false)}
+          currentPlant={controller.plant}
+          plants={controller.plants}
+          onImported={() => {
+            controller.onRefreshHistory();
+            controller.onRefresh();
+          }}
+        />
+      ) : null}
 
       <AnimatePresence>
         {controller.pendingClose && (

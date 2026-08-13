@@ -23,7 +23,7 @@ import {
   type ImportedExcelRow,
 } from "@/utils/excel-import";
 import { formatGateLabelFromPlant } from "@/lib/gates";
-import type { ImportPreview } from "../actions/atenciones";
+import type { ImportPreview } from "../actions/_atencionesImport";
 import type {
   EditRecordPayload,
   HistorialRecord,

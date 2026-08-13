@@ -8,7 +8,7 @@ import {
   getUserPlants,
 } from "@/app/actions";
 import { getUserContext } from "@/utils/supabase/user";
-import DashboardClient from "./DashboardClient";
+import DashboardClientShell from "./DashboardClientShell";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <DashboardClient
+    <DashboardClientShell
       initialPlant={DEFAULT_PLANT}
       initialTimeframe={defaultTimeframe}
       initialPlants={plants}

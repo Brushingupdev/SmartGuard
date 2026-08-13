@@ -22,8 +22,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "SmartGuard",
-    template: "%s | SmartGuard",
+    default: "Matritech",
+    template: "%s | Matritech",
   },
   description:
     "Control de acceso industrial con registro en tiempo real, trazabilidad y monitoreo operativo.",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SmartGuard",
+    title: "Matritech",
   },
   icons: {
     icon: [

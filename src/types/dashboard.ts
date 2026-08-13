@@ -16,6 +16,10 @@ export interface DashboardFlowRow {
   ok: number;
   warn: number;
   deny: number;
+  pending: number;
+  delayTotal: number;
+  delaySamples: number;
+  avgWait: number;
 }
 
 export interface DashboardFlowDetailRecord {
@@ -61,6 +65,9 @@ export interface DashboardEvent {
   gate: string;
   time: string;
   espera_min?: number | null;
+  date?: string | null;
+  observation?: string | null;
+  detail?: string | null;
 }
 
 export interface DashboardEventFull extends DashboardEvent {

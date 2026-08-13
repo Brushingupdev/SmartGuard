@@ -74,6 +74,44 @@ describe("excel import", () => {
     expect(prepared?.valid[0].espera_min).toBe(60);
   });
 
+  it("applies the selected date to a daily table that has no date column", () => {
+    const prepared = prepareExcelImport(
+      [
+        {
+          name: "Cuadro del día",
+          rows: [
+            ["RAZON SOCIAL", "H. registro de vehiculo", "H. atención almacén"],
+            ["Camion ABC-123", "08:00", "08:40"],
+          ],
+        },
+      ],
+      "cuadro-diario.xlsx",
+      { fecha: "2026-08-13", planta: "Lomas" },
+    );
+
+    expect(prepared?.valid).toHaveLength(1);
+    expect(prepared?.valid[0]).toMatchObject({
+      fecha: "2026-08-13",
+      planta: "Lomas",
+      razon_social: "CAMION ABC-123",
+      espera_min: 40,
+    });
+  });
+
+  it("rejects a table without dates when no daily fallback was selected", () => {
+    const prepared = prepareExcelImport([
+      {
+        name: "Cuadro semanal",
+        rows: [
+          ["RAZON SOCIAL", "H. registro de vehiculo"],
+          ["Camion ABC-123", "08:00"],
+        ],
+      },
+    ]);
+
+    expect(prepared).toBeNull();
+  });
+
   it("does not turn earlier end times into almost 24 hour waits", () => {
     const headers = ["Fecha", "Razon Social", "H. registro de vehiculo", "H. atención almacén", "H. Dev. Documentos"];
     const mapping = autoDetectMapping(headers);

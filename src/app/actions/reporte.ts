@@ -6,6 +6,7 @@ import { dateRange } from "./_helpers";
 import type { ReporteStatsRow } from "@/types/dashboard";
 import { getPlantsForSite, plantsForSite, normalizeGateAssignments } from "@/lib/gates";
 import { getUserPlants } from "./companies";
+import { fetchPagedRows } from "./_pagination";
 
 interface AtencionRaw {
   espera_min: number | null;
@@ -49,7 +50,7 @@ export async function getReporteData(
 
   if (cid) {
     // Skip RPC when filtering by site (RPC only supports single plant or all)
-    if (site && site !== "Todos") {
+    if (site && site !== "Todos" && site !== "Todas") {
       baseStats = null;
     } else {
       const { data: rpcData } = await supabase.rpc("get_reporte_stats", { p_company_id: cid, p_date_from: from, p_date_to: to, p_planta: plant });
@@ -102,12 +103,14 @@ export async function getReporteData(
     query = query.or("demora_cita_min.gte.30,and(demora_cita_min.is.null,espera_min.gte.30)");
   }
   
-  query = query.gte("fecha", from).lte("fecha", to).order("fecha", { ascending: false }).limit(ctx.isAdmin && !cid ? 5000 : 2000);
+  query = query.gte("fecha", from).lte("fecha", to).order("fecha", { ascending: false });
 
-  const { data, error } = await query;
-  if (error || !data) return null;
-
-  const rows = data as ReporteAtencionRow[];
+  let rows: ReporteAtencionRow[];
+  try {
+    rows = await fetchPagedRows<ReporteAtencionRow>(query);
+  } catch {
+    return null;
+  }
   const withTime = rows.map((row) => ({ ...row, metric: metricDelay(row) })).filter((row): row is ReporteAtencionRow & { metric: number } => row.metric != null);
   const esperas = withTime.map((d) => d.metric).sort((a, b) => a - b);
 

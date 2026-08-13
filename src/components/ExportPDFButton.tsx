@@ -52,10 +52,10 @@ export default function ExportPDFButton({ plant, timeframe, kpis, puntualidad }:
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
-        <head><title>SmartGuard — Reporte ${fecha}</title><style>${css}</style></head>
+        <head><title>Matritech — Reporte ${fecha}</title><style>${css}</style></head>
         <body>
           <div class="header">
-            <h1>SmartGuard</h1>
+            <h1>Matritech</h1>
             <p>Reporte Operativo — ${fecha} | Puerta: ${formatGateLabelFromPlant(plant)} | Período: ${timeframe}</p>
           </div>
           <div class="kpis">
@@ -76,7 +76,7 @@ export default function ExportPDFButton({ plant, timeframe, kpis, puntualidad }:
             ${delayReasons.map(r => `<tr><td>${r.motivo}</td><td>${r.count}</td></tr>`).join("") || '<tr><td colspan="2">Sin demoras registradas</td></tr>'}
           </table>
           <div class="footer">
-            <div class="logo">SmartGuard</div>
+            <div class="logo">Matritech</div>
             <p>Generado automáticamente el ${fecha}. Control Vehicular Industrial v1.0</p>
           </div>
           <script>window.onload=function(){window.print();};</script>
@@ -92,19 +92,22 @@ export default function ExportPDFButton({ plant, timeframe, kpis, puntualidad }:
 
   return (
     <motion.button
+      type="button"
+      aria-label="Exportar reporte en PDF"
+      title="Exportar reporte en PDF"
       whileTap={{ scale: 0.97 }}
       onClick={handleExport}
       disabled={generating}
-      className="flex items-center gap-2 border border-[var(--sg-accent)] bg-[var(--sg-panel-2)] px-4 py-2 sg-font-mono text-[11px] uppercase tracking-widest text-[var(--sg-accent)] hover:bg-[var(--sg-accent)] hover:text-[var(--sg-canvas)] transition-colors disabled:opacity-50"
+      className="flex h-9 items-center gap-1.5 border border-[var(--sg-line)] bg-transparent px-3 text-[10px] font-semibold text-[var(--sg-copy)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)] disabled:opacity-50"
     >
       {generating ? (
         <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
-          <Loader2 className="h-4 w-4" />
+          <Loader2 className="h-3.5 w-3.5" />
         </motion.span>
       ) : (
-        <FileDown className="h-4 w-4" />
+        <FileDown className="h-3.5 w-3.5" />
       )}
-      Exportar Reporte
+      Exportar
     </motion.button>
   );
 }

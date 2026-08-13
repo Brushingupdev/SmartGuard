@@ -65,9 +65,17 @@ export async function checkRateLimit(
 ): Promise<{ success: true } | { success: false; retryAfter: number }> {
   if (!limiter) return { success: true };
 
-  const { success, reset } = await limiter.limit(identifier);
-  if (success) return { success: true };
+  try {
+    const { success, reset } = await limiter.limit(identifier);
+    if (success) return { success: true };
 
-  const retryAfter = Math.ceil((reset - Date.now()) / 1000);
-  return { success: false, retryAfter };
+    const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+    return { success: false, retryAfter };
+  } catch {
+    // Availability must not depend on the external rate-limit provider.
+    // Keep the app usable while the provider is unavailable; monitoring can
+    // surface the outage without turning it into a login outage.
+    console.warn("Rate-limit provider unavailable; allowing request.");
+    return { success: true };
+  }
 }

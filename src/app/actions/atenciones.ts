@@ -36,8 +36,6 @@ function guardAgentAliases(ctx: Awaited<ReturnType<typeof getUserContext>>): str
   return [...new Set([ctx.displayName, ctx.email].map((value) => value?.trim()).filter(Boolean) as string[])];
 }
 
-export type { ImportPreview };
-
 export async function previewImportAtenciones(
   rows: import("@/utils/excel-import").ImportedExcelRow[],
 ): Promise<{ preview: ImportPreview | null; error?: string }> {

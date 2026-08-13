@@ -16,8 +16,8 @@ import {
   importAtenciones,
   previewImportAtenciones,
   updateAtencion,
-  type ImportPreview,
 } from "../actions/atenciones";
+import type { ImportPreview } from "../actions/_atencionesImport";
 import {
   prepareExcelImport,
   processRows,

@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Clock3,
   Eye,
+  Filter,
   ListChecks,
   PieChart as PieChartIcon,
   TrendingDown,
@@ -28,6 +29,11 @@ import {
   X,
 } from "lucide-react";
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
+import {
+  countDashboardFilters,
+  type DashboardFilters,
+  type DashboardIntervalFilter,
+} from "@/lib/dashboardFilters";
 import type {
   ActivePersonnelRow,
   DashboardAlert,
@@ -58,6 +64,9 @@ import {
   ChartTooltip,
   formatXLabel,
 } from "./dashboardClientUtils";
+import DashboardAdvancedFilters from "./DashboardAdvancedFilters";
+import DashboardPowerBiOverview from "./DashboardPowerBiOverview";
+import ClientChartFrame from "@/components/ClientChartFrame";
 
 export function DashboardClientContent({
   liveTime,
@@ -97,6 +106,13 @@ export function DashboardClientContent({
   currentGateLoad,
   personnelSummary,
   kpiCards,
+  dashboardFilters,
+  observationOptions,
+  onMonthFilterChange,
+  onWeekFilterChange,
+  onIntervalFilterChange,
+  onObservationFilterChange,
+  clearDashboardFilters,
 }: {
   liveTime: string;
   selectedTimeframe: string;
@@ -140,21 +156,55 @@ export function DashboardClientContent({
   kpiCards: {
     label: string;
     value: number;
+    suffix?: string;
     accent: string;
     sub: string;
     trend?: number | null;
     trendInverse?: boolean;
+    trendSuffix?: string;
+    trendLabel?: string;
   }[];
+  dashboardFilters: DashboardFilters;
+  observationOptions: string[];
+  onMonthFilterChange: (month: number | null) => void;
+  onWeekFilterChange: (week: number | null) => void;
+  onIntervalFilterChange: (interval: DashboardIntervalFilter) => void;
+  onObservationFilterChange: (observation: string | null) => void;
+  clearDashboardFilters: () => void;
 }) {
   const [flowDetail, setFlowDetail] = useState<DashboardFlowDetail | null>(null);
   const [flowDetailLoading, setFlowDetailLoading] = useState(false);
   const [flowDetailError, setFlowDetailError] = useState<string | null>(null);
+  const [chartsReady, setChartsReady] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilterCount = countDashboardFilters(dashboardFilters);
   const isFlowInteractive = true;
   const closeFlowDetail = () => {
     setFlowDetail(null);
     setFlowDetailLoading(false);
     setFlowDetailError(null);
   };
+  const displayRefreshTime = chartsReady && lastRefresh
+    ? lastRefresh.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Lima",
+  })
+    : "—";
+  const displayRefreshDate = chartsReady && lastRefresh
+    ? lastRefresh.toLocaleDateString("es-PE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Lima",
+  })
+    : "—";
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -171,7 +221,12 @@ export function DashboardClientContent({
     closeFlowDetail();
     setFlowDetailLoading(true);
     try {
-      const detail = await getDashboardFlowSegmentDetail(selectedPlant, selectedTimeframe, bucket);
+      const detail = await getDashboardFlowSegmentDetail(
+        selectedPlant,
+        selectedTimeframe,
+        bucket,
+        dashboardFilters
+      );
       if (!detail) {
         setFlowDetailError("No se pudo cargar el detalle de este segmento.");
         return;
@@ -203,67 +258,71 @@ export function DashboardClientContent({
         </div>
       ) : null}
 
-      <div className="mb-6 flex flex-col gap-3 border-b border-[var(--sg-line)] pb-4 sm:pb-5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="sg-kicker">Dashboard</div>
-          <div className="flex items-center gap-2">
+      <div className="sticky top-[64px] z-30 mb-5 flex flex-col gap-3 border-b border-[var(--sg-line)] bg-[rgba(10,12,11,0.96)] pb-4 backdrop-blur lg:top-0 lg:pt-1">
+        <div className="flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <h1 className="sg-font-display text-[22px] font-bold text-[var(--sg-ink)] sm:text-[25px]">
+                Dashboard operativo
+              </h1>
+              {lastRefresh ? (
+                <span className="flex items-center gap-1.5 text-[10px] text-[var(--sg-muted)]" title={`${displayRefreshDate} · ${liveTime}`}>
+                  <span className={`h-2 w-2 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`} />
+                  {refreshing ? "Actualizando" : `Actualizado ${displayRefreshTime}`}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 hidden text-[11px] text-[var(--sg-muted)] sm:block">
+              Lectura consolidada de accesos, puntualidad y situaciones prioritarias
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-expanded={showFilters}
+              aria-controls="dashboard-advanced-filters"
+              onClick={() => setShowFilters((current) => !current)}
+              className={`flex h-9 items-center gap-2 border px-3 text-[10px] font-semibold transition-colors ${showFilters || activeFilterCount > 0 ? "border-[var(--sg-accent)] text-[var(--sg-accent)]" : "border-[var(--sg-line)] text-[var(--sg-copy)] hover:border-[var(--sg-line-strong)]"}`}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filtros
+              {activeFilterCount > 0 ? (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--sg-accent)] px-1.5 sg-font-mono text-[9px] font-bold text-[var(--sg-canvas)]">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </button>
+            <ExportPDFButton plant={selectedPlant} timeframe={selectedTimeframe} kpis={kpis} puntualidad={puntualidad} />
             <Link
               href={`/reporte?plant=${encodedPlant}&timeframe=${encodedTimeframe}`}
-              className="flex items-center gap-1.5 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-2.5 py-1.5 sg-font-mono text-[10px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
+              className="flex h-9 items-center gap-1.5 border border-[var(--sg-line)] px-3 text-[10px] font-semibold text-[var(--sg-copy)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"
             >
               <BarChart3 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Análisis</span>
             </Link>
-            {lastRefresh ? (
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${refreshing ? "bg-[var(--sg-warn)] sg-pulse" : "bg-[var(--sg-success)]"}`}
-                />
-                <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                  {refreshing
-                    ? "…"
-                    : lastRefresh.toLocaleTimeString("es-PE", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                </span>
-              </div>
-            ) : null}
-            <div className="hidden xl:flex flex-col items-end">
-              <span className="sg-font-mono text-[9px] uppercase tracking-widest text-[var(--sg-muted)]">
-                {new Date().toLocaleDateString("es-PE", {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </span>
-              <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">
-                {liveTime}
-              </span>
-            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex border border-[var(--sg-line)] bg-[var(--sg-panel-2)] p-0.5">
-            {["Todos", ...sites.map((site) => site.site)].map((site) => (
-              <button
-                key={site}
-                onClick={() => {
-                  closeFlowDetail();
-                  setSelectedSite(site);
-                  setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
-                }}
-                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  selectedSite === site
-                    ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
-                }`}
-              >
-                {site}
-              </button>
-            ))}
+          <div className="relative min-w-[160px]">
+            <select
+              aria-label="Seleccionar sede"
+              value={selectedSite}
+              onChange={(event) => {
+                const site = event.target.value;
+                closeFlowDetail();
+                setSelectedSite(site);
+                setSelectedPlant(site === "Todos" ? "Todos" : `site:${site}`);
+              }}
+              className="h-9 w-full cursor-pointer appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pl-3 pr-8 text-[10px] font-semibold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-line-strong)] focus:border-[var(--sg-accent)]"
+            >
+              <option value="Todos">Todas las sedes</option>
+              {sites.map((site) => (
+                <option key={site.site} value={site.site}>{site.site}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
           </div>
 
           {currentSiteGates.length > 0 ? (
@@ -275,7 +334,7 @@ export function DashboardClientContent({
                   closeFlowDetail();
                   setSelectedPlant(event.target.value);
                 }}
-                className="h-[30px] cursor-pointer appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pl-2.5 pr-6 text-[10px] font-bold uppercase tracking-widest text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-accent)]"
+                className="h-9 min-w-[160px] cursor-pointer appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel-2)] pl-3 pr-8 text-[10px] font-semibold text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-line-strong)] focus:border-[var(--sg-accent)]"
               >
                 <option
                   value={`site:${selectedSite}`}
@@ -293,9 +352,13 @@ export function DashboardClientContent({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--sg-muted)]" />
             </div>
-          ) : null}
+          ) : (
+            <div className="flex h-9 min-w-[160px] items-center border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 text-[10px] font-semibold text-[var(--sg-muted)]">
+              Todas las puertas
+            </div>
+          )}
 
           <div className="hidden h-4 w-px bg-[var(--sg-line)] sm:block" />
 
@@ -303,14 +366,16 @@ export function DashboardClientContent({
             {["Día", "Semana", "Mes"].map((timeframe) => (
               <button
                 key={timeframe}
+                type="button"
+                aria-pressed={selectedTimeframe === timeframe}
                 onClick={() => {
                   closeFlowDetail();
                   setSelectedTimeframe(timeframe);
                 }}
                 className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
                   selectedTimeframe === timeframe
-                    ? "bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                    : "text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
+                    ? "bg-[var(--sg-accent)] text-[var(--sg-canvas)] shadow-[0_0_0_1px_var(--sg-accent)]"
+                    : "text-[var(--sg-copy)] hover:bg-[var(--sg-panel)] hover:text-[var(--sg-ink)]"
                 }`}
               >
                 {timeframe}
@@ -332,8 +397,8 @@ export function DashboardClientContent({
                     }}
                     className={`h-[26px] cursor-pointer appearance-none border bg-[var(--sg-panel-2)] pl-2.5 pr-6 text-[10px] font-bold uppercase tracking-widest outline-none transition-colors ${
                       availableYears.includes(selectedTimeframe)
-                        ? "border-[var(--sg-ink)] bg-[var(--sg-ink)] text-[var(--sg-canvas)]"
-                        : "border-[var(--sg-line)] text-[var(--sg-ink)] hover:border-[var(--sg-accent)]"
+                        ? "border-[var(--sg-accent)] !bg-[var(--sg-accent)] !text-[var(--sg-canvas)]"
+                        : "border-[var(--sg-line)] text-[var(--sg-copy)] hover:border-[var(--sg-accent)] hover:text-[var(--sg-ink)]"
                     }`}
                   >
                     {availableYears.map((year) => (
@@ -346,7 +411,7 @@ export function DashboardClientContent({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--sg-muted)]" />
+                  <ChevronDown className={`pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 ${availableYears.includes(selectedTimeframe) ? "text-[var(--sg-canvas)]" : "text-[var(--sg-muted)]"}`} />
                 </div>
               </>
             ) : null}
@@ -354,8 +419,49 @@ export function DashboardClientContent({
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
+      <div className="mb-4 space-y-4">
+        {showFilters ? (
+          <div id="dashboard-advanced-filters">
+            <DashboardAdvancedFilters
+          filters={dashboardFilters}
+          selectedYear={lastSelectedYear || "este año"}
+          observations={observationOptions}
+          onMonthChange={(month) => {
+            closeFlowDetail();
+            onMonthFilterChange(month);
+          }}
+          onWeekChange={(week) => {
+            closeFlowDetail();
+            onWeekFilterChange(week);
+          }}
+          onIntervalChange={(interval) => {
+            closeFlowDetail();
+            onIntervalFilterChange(interval);
+          }}
+          onObservationChange={(observation) => {
+            closeFlowDetail();
+            onObservationFilterChange(observation);
+          }}
+          onClear={() => {
+            closeFlowDetail();
+            clearDashboardFilters();
+          }}
+            />
+          </div>
+        ) : null}
+
+        <section
+          aria-label="Indicadores principales"
+          className={`grid grid-cols-2 gap-3 xl:grid-cols-4 ${loading ? "opacity-80" : ""}`}
+        >
+          {kpiCards.map((card) => (
+            <DashboardKPICard key={card.label} {...card} />
+          ))}
+        </section>
+      </div>
+
+      <div className="hidden">
+        <div className="flex flex-wrap items-center gap-4">
           <span className="sg-font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--sg-muted)]">
             Resumen global
           </span>
@@ -366,7 +472,7 @@ export function DashboardClientContent({
           ) : (
             <>
               <span className="sg-font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--sg-success)]">
-                {puntualidad ?? 0}% A tiempo
+                {puntualidad ?? 0}% en plazo
               </span>
               {trends.total != null ? (
                 <span
@@ -384,23 +490,47 @@ export function DashboardClientContent({
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <ExportPDFButton
-            plant={selectedPlant}
-            timeframe={selectedTimeframe}
-            kpis={kpis}
-            puntualidad={puntualidad}
-          />
-        </div>
+        <ExportPDFButton
+          plant={selectedPlant}
+          timeframe={selectedTimeframe}
+          kpis={kpis}
+          puntualidad={puntualidad}
+        />
       </div>
 
-      <section
-        className={`grid grid-cols-2 gap-4 md:grid-cols-3 2xl:grid-cols-6 ${loading ? "opacity-80" : ""}`}
-      >
-        {kpiCards.map((card) => (
-          <DashboardKPICard key={card.label} {...card} />
-        ))}
-      </section>
+      <DashboardPowerBiOverview
+        selectedTimeframe={selectedTimeframe}
+        selectedLabel={selectedLabel}
+        flowData={flowData}
+        kpis={kpis}
+        delayReasons={delayReasons}
+        recentEvents={recentEvents}
+        gateOptions={gateOptions}
+        alerts={alerts}
+        zones={zones}
+        activePersonnel={activePersonnel}
+        heatmapData={heatmapData}
+        loading={loading}
+        onSegmentClick={(bucket) => {
+          void handleFlowBarClick(bucket);
+        }}
+      />
+
+      {false ? (
+      <>
+      <div className="mt-8 border-t border-[var(--sg-line)] pt-6">
+        <div className="sg-kicker">Operación Matritech</div>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="sg-font-display text-[18px] font-bold uppercase tracking-[0.08em] text-[var(--sg-ink)]">
+              Seguimiento operativo
+            </h2>
+            <p className="mt-1 text-[12px] text-[var(--sg-muted)]">
+              Drill-down, cobertura, alertas y actividad en tiempo real
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div className="mt-5 grid gap-5 xl:items-start xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="flex flex-col gap-5">
@@ -435,8 +565,10 @@ export function DashboardClientContent({
               </div>
             </div>
 
-            <div className="relative h-[320px]">
-              {loading && flowData.length === 0 ? (
+            <ClientChartFrame className="relative h-[320px]">
+              {(chartSize) => (
+              <>
+              {!chartsReady || (loading && flowData.length === 0) ? (
                 <div className="h-full w-full animate-pulse bg-[var(--sg-panel-2)]" />
               ) : flowData.length === 0 ? (
                 <div className="flex h-full w-full items-center justify-center">
@@ -445,7 +577,7 @@ export function DashboardClientContent({
                   </span>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%" debounce={200}>
+                <ResponsiveContainer width={chartSize.width} height={chartSize.height} minWidth={0} minHeight={1} debounce={200}>
                   <BarChart data={flowData} barCategoryGap={8}>
                     <CartesianGrid
                       stroke="rgba(196,192,180,0.06)"
@@ -535,7 +667,9 @@ export function DashboardClientContent({
               {loading && flowData.length > 0 ? (
                 <div className="pointer-events-none absolute inset-0 border border-[var(--sg-line)] bg-[rgba(10,12,11,0.22)]" />
               ) : null}
-            </div>
+              </>
+              )}
+            </ClientChartFrame>
 
             <div className="mt-4 flex flex-wrap gap-5 border-t border-[var(--sg-line)] pt-4">
               {[
@@ -776,7 +910,9 @@ export function DashboardClientContent({
             </div>
           </div>
 
-          {(() => {
+          {!chartsReady ? (
+            <div className="h-[200px] w-full animate-pulse bg-[var(--sg-panel-2)]" />
+          ) : (() => {
             const chartData = [
               { name: "A tiempo", value: kpis.ok, fill: "var(--sg-success)" },
               { name: "Revisión", value: kpis.warn, fill: "var(--sg-warn)" },
@@ -790,8 +926,10 @@ export function DashboardClientContent({
 
             return (
               <>
-                <div className="relative h-[200px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <ClientChartFrame className="relative h-[200px] w-full">
+                  {(chartSize) => (
+                  <>
+                  <ResponsiveContainer width={chartSize.width} height={chartSize.height} minWidth={0} minHeight={1}>
                     <PieChart>
                       <Pie
                         data={chartData}
@@ -839,7 +977,9 @@ export function DashboardClientContent({
                       A tiempo
                     </span>
                   </div>
-                </div>
+                  </>
+                  )}
+                </ClientChartFrame>
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {chartData.map((item) => {
@@ -975,6 +1115,8 @@ export function DashboardClientContent({
           </div>
         </section>
       </div>
+      </>
+      ) : null}
 
       {(flowDetailLoading || flowDetail || flowDetailError) ? (
         <FlowDetailModal

@@ -371,7 +371,7 @@ export function HistorialContent({
             </div>
           ) : null}
 
-          <table className="sg-table min-w-[360px] sm:min-w-[700px] lg:min-w-[1200px]">
+          <table className="sg-table min-w-[360px] sm:min-w-[700px] lg:min-w-[1100px]">
             <thead>
               <tr>
                 <th className="hidden sm:table-cell">ID</th>
@@ -450,16 +450,16 @@ export function HistorialContent({
                     <td className="sg-mono hidden text-[11px] text-[var(--sg-muted)] sm:table-cell">
                       #{record.id}
                     </td>
-                    <td className="sg-mono text-[11px] text-[var(--sg-copy)]">
+                    <td className="sg-mono whitespace-nowrap text-[11px] text-[var(--sg-copy)]">
                       {record.fecha}
                     </td>
-                    <td className="sg-mono hidden text-[11px] text-[var(--sg-copy)] lg:table-cell">
+                    <td className="sg-mono hidden whitespace-nowrap text-[11px] text-[var(--sg-copy)] lg:table-cell">
                       {record.h_registro?.substring(0, 5) || "--:--"}
                     </td>
-                    <td className="sg-mono hidden text-[11px] text-[var(--sg-muted)] lg:table-cell">
+                    <td className="sg-mono hidden whitespace-nowrap text-[11px] text-[var(--sg-muted)] lg:table-cell">
                       {record.h_atencion?.substring(0, 5) || "—"}
                     </td>
-                    <td className="sg-mono hidden text-[11px] text-[var(--sg-muted)] lg:table-cell">
+                    <td className="sg-mono hidden whitespace-nowrap text-[11px] text-[var(--sg-muted)] lg:table-cell">
                       {record.h_dev_docs?.substring(0, 5) || "—"}
                     </td>
                     <td>

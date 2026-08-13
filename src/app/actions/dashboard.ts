@@ -4,6 +4,13 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserContext } from "@/utils/supabase/user";
 import { normalizeGateAssignments, plantsForSite, formatGateLabelFromPlant } from "@/lib/gates";
 import { nowLima, daysAgoLima, logError, dateRange } from "./_helpers";
+import { fetchPagedRows } from "./_pagination";
+import {
+  getDashboardIntervalExpression,
+  normalizeDashboardFilters,
+  refineDashboardDateRange,
+  type DashboardFilters,
+} from "@/lib/dashboardFilters";
 import type {
   DashboardKpis,
   DashboardFlowDetail,
@@ -38,6 +45,37 @@ type DashboardMetricRow = {
 
 function effectiveDelay(row: Pick<DashboardMetricRow, "demora_cita_min" | "espera_min">): number | null {
   return row.demora_cita_min ?? row.espera_min ?? null;
+}
+
+function getDashboardDateRange(timeframe: string, filters?: DashboardFilters) {
+  return refineDashboardDateRange(timeframe, filters, dateRange(timeframe));
+}
+
+// The concrete Supabase builder generic differs between authenticated and
+// service-role clients, while both expose the same filter methods.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyDashboardDataFilters<T extends { or: (value: string) => any; eq: (column: string, value: unknown) => any }>(
+  query: T,
+  filters?: DashboardFilters,
+): T {
+  const normalized = normalizeDashboardFilters(filters);
+  const intervalExpression = getDashboardIntervalExpression(normalized.interval);
+  let filtered = query;
+  if (intervalExpression) filtered = filtered.or(intervalExpression);
+  if (normalized.observation) filtered = filtered.eq("motivo_demora", normalized.observation);
+  return filtered;
+}
+
+function previousDashboardRange(range: { from: string; to: string }): { from: string; to: string } {
+  const from = new Date(`${range.from}T12:00:00Z`);
+  const to = new Date(`${range.to}T12:00:00Z`);
+  const durationDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1);
+  const previousTo = new Date(from.getTime() - 86_400_000);
+  const previousFrom = new Date(previousTo.getTime() - (durationDays - 1) * 86_400_000);
+  return {
+    from: previousFrom.toISOString().slice(0, 10),
+    to: previousTo.toISOString().slice(0, 10),
+  };
 }
 
 function flowBucketKey(row: DashboardMetricRow, timeframe: string): string {
@@ -87,6 +125,30 @@ function formatFlowBucketSubtitle(bucket: string, timeframe: string): string {
   return "Detalle operativo del segmento seleccionado.";
 }
 
+function createDashboardFlowRow(h: string): DashboardFlowRow {
+  return {
+    h,
+    ok: 0,
+    warn: 0,
+    deny: 0,
+    pending: 0,
+    delayTotal: 0,
+    delaySamples: 0,
+    avgWait: 0,
+  };
+}
+
+function finalizeDashboardFlowRows(
+  flowMap: Record<string, DashboardFlowRow>,
+): DashboardFlowRow[] {
+  return Object.values(flowMap)
+    .map((row) => ({
+      ...row,
+      avgWait: row.delaySamples > 0 ? Math.round((row.delayTotal / row.delaySamples) * 10) / 10 : 0,
+    }))
+    .sort((a, b) => a.h.localeCompare(b.h));
+}
+
 function padFlowData(
   flowMap: Record<string, DashboardFlowRow>,
   timeframe: string,
@@ -95,12 +157,12 @@ function padFlowData(
   if (timeframe === "Semana") {
     for (let i = 0; i < 7; i++) {
       const k = String(i);
-      if (!padded[k]) padded[k] = { h: k, ok: 0, warn: 0, deny: 0 };
+      if (!padded[k]) padded[k] = createDashboardFlowRow(k);
     }
   } else if (timeframe === "Mes") {
     for (let i = 1; i <= 4; i++) {
       const k = String(i);
-      if (!padded[k]) padded[k] = { h: k, ok: 0, warn: 0, deny: 0 };
+      if (!padded[k]) padded[k] = createDashboardFlowRow(k);
     }
   }
   return padded;
@@ -148,8 +210,11 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
 
   const events: DashboardEvent[] = rows
     .slice()
-    .sort((a, b) => (b.h_registro ?? "").localeCompare(a.h_registro ?? ""))
-    .slice(0, 6)
+    .sort((a, b) =>
+      `${b.fecha ?? ""}T${b.h_registro ?? ""}`.localeCompare(
+        `${a.fecha ?? ""}T${a.h_registro ?? ""}`,
+      ))
+    .slice(0, 12)
     .map((row) => {
       const delay = effectiveDelay(row);
       let status: DashboardEvent["status"] = "ok";
@@ -169,6 +234,9 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
         status,
         label,
         info: row.empresa || "Sin empresa",
+        date: row.fecha,
+        observation: row.motivo_demora,
+        detail: row.observacion ?? row.tipo_operacion,
         gate: row.planta || "Sin planta",
         time: row.h_registro ? row.h_registro.substring(0, 5) : "--:--",
         espera_min: delay,
@@ -189,11 +257,14 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
   const flowMap: Record<string, DashboardFlowRow> = {};
   rows.forEach((row) => {
     const key = flowBucketKey(row, timeframe);
-    if (!flowMap[key]) flowMap[key] = { h: key, ok: 0, warn: 0, deny: 0 };
+    if (!flowMap[key]) flowMap[key] = createDashboardFlowRow(key);
     const delay = effectiveDelay(row);
-    if (delay != null && delay >= 45) flowMap[key].deny++;
-    else if (delay != null && delay >= 30) flowMap[key].warn++;
-    else flowMap[key].ok++;
+    const status = classifyDashboardStatus(delay);
+    flowMap[key][status] += 1;
+    if (delay != null) {
+      flowMap[key].delayTotal += delay;
+      flowMap[key].delaySamples++;
+    }
   });
   const paddedFlowMap = padFlowData(flowMap, timeframe);
 
@@ -224,7 +295,7 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
     events,
     alerts,
     topProvider,
-    flowData: Object.values(paddedFlowMap).sort((a, b) => a.h.localeCompare(b.h)),
+    flowData: finalizeDashboardFlowRows(paddedFlowMap),
     delayReasons: Object.entries(reasonMap)
       .map(([motivo, count]) => ({ motivo, count }))
       .sort((a, b) => b.count - a.count),
@@ -334,9 +405,12 @@ function mergeDashboardStats(results: DashboardStatsResult[]): DashboardStatsRes
 
   for (const result of results) {
     for (const row of result.flowData) {
-      if (!flowMap[row.h]) flowMap[row.h] = { h: row.h, ok: 0, warn: 0, deny: 0 };
+      if (!flowMap[row.h]) flowMap[row.h] = createDashboardFlowRow(row.h);
       flowMap[row.h].ok += row.ok;
       flowMap[row.h].warn += row.warn;
+      flowMap[row.h].pending += row.pending;
+      flowMap[row.h].delayTotal += row.delayTotal;
+      flowMap[row.h].delaySamples += row.delaySamples;
       flowMap[row.h].deny += row.deny;
     }
     for (const [plant, value] of Object.entries(result.breakdown)) {
@@ -373,22 +447,31 @@ function mergeDashboardStats(results: DashboardStatsResult[]): DashboardStatsRes
 
   return {
     kpis,
-    events: results.flatMap((result) => result.events).slice(0, 6),
+    events: results
+      .flatMap((result) => result.events)
+      .sort((a, b) =>
+        `${b.date ?? ""}T${b.time}`.localeCompare(`${a.date ?? ""}T${a.time}`),
+      )
+      .slice(0, 12),
     alerts: results.flatMap((result) => result.alerts).slice(0, 3),
     breakdown,
     zones,
     topProvider,
-    flowData: Object.values(flowMap).sort((a, b) => a.h.localeCompare(b.h)),
+    flowData: finalizeDashboardFlowRows(flowMap),
     delayReasons: Object.entries(delayReasonMap)
       .map(([motivo, count]) => ({ motivo, count }))
       .sort((a, b) => b.count - a.count),
   };
 }
 
-export async function getDashboardStats(plant: string = "Todos", timeframe: string = "Día"): Promise<DashboardStatsResult> {
+export async function getDashboardStats(
+  plant: string = "Todos",
+  timeframe: string = "Día",
+  filters?: DashboardFilters,
+): Promise<DashboardStatsResult> {
   const supabase = await createClient();
   const ctx = await getUserContext();
-  const { from, to } = dateRange(timeframe);
+  const { from, to } = getDashboardDateRange(timeframe, filters);
 
   if (!ctx) {
     return {
@@ -402,12 +485,12 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
     if (sitePlants.length === 0) {
       return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
     }
-    const results = await Promise.all(sitePlants.map((sitePlant) => getDashboardStats(sitePlant, timeframe)));
+    const results = await Promise.all(sitePlants.map((sitePlant) => getDashboardStats(sitePlant, timeframe, filters)));
     return mergeDashboardStats(results);
   }
 
   if (ctx.isAdmin && !ctx.companyId) {
-    return getDashboardStatsAdmin(plant, from, to, timeframe);
+    return getDashboardStatsAdmin(plant, from, to, timeframe, filters);
   }
 
   const companyId = ctx.companyId!;
@@ -418,14 +501,13 @@ export async function getDashboardStats(plant: string = "Todos", timeframe: stri
       .select("fecha, razon_social, empresa, planta, h_registro, h_atencion, hora_cita, espera_min, demora_cita_min, motivo_demora")
       .eq("company_id", companyId)
       .gte("fecha", from)
-      .lte("fecha", to)
-      .limit(5000);
+      .lte("fecha", to);
     if (plant !== "Todos") query = query.eq("planta", plant);
     const aliases = guardAgentAliases(ctx);
     if (aliases.length > 0) query = query.in("agente", aliases);
-    const { data, error } = await query;
-    if (error || !data) throw error ?? new Error("Sin datos de dashboard");
-    return buildDashboardStatsFromRows(data as DashboardMetricRow[], timeframe);
+    query = applyDashboardDataFilters(query, filters);
+    const data = await fetchPagedRows<DashboardMetricRow>(query);
+    return buildDashboardStatsFromRows(data, timeframe);
   } catch (err) {
     logError("getDashboardStats", err);
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
@@ -436,11 +518,12 @@ export async function getDashboardFlowSegmentDetail(
   plant: string = "Todos",
   timeframe: string = "Mes",
   bucket: string,
+  filters?: DashboardFilters,
 ): Promise<DashboardFlowDetail | null> {
   const ctx = await getUserContext();
   if (!ctx) return null;
 
-  const { from, to } = dateRange(timeframe);
+  const { from, to } = getDashboardDateRange(timeframe, filters);
 
   try {
     if (ctx.isAdmin && !ctx.companyId) {
@@ -452,17 +535,16 @@ export async function getDashboardFlowSegmentDetail(
         .from("atenciones")
         .select("id, fecha, razon_social, empresa, planta, tipo, h_registro, h_atencion, h_dev_docs, hora_cita, espera_min, demora_cita_min, tiempo_total_min, motivo_demora, tipo_operacion, observacion")
         .gte("fecha", from)
-        .lte("fecha", to)
-        .limit(5000);
+        .lte("fecha", to);
       if (sitePlants) {
         if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
         query = query.in("planta", sitePlants);
       } else if (plant !== "Todos") {
         query = query.eq("planta", plant);
       }
-      const { data, error } = await query;
-      if (error || !data) throw error ?? new Error("Sin detalle disponible");
-      return buildFlowSegmentDetail(data as DashboardMetricRow[], timeframe, bucket);
+      query = applyDashboardDataFilters(query, filters);
+      const data = await fetchPagedRows<DashboardMetricRow>(query);
+      return buildFlowSegmentDetail(data, timeframe, bucket);
     }
 
     const supabase = await createClient();
@@ -474,8 +556,7 @@ export async function getDashboardFlowSegmentDetail(
       .select("id, fecha, razon_social, empresa, planta, tipo, h_registro, h_atencion, h_dev_docs, hora_cita, espera_min, demora_cita_min, tiempo_total_min, motivo_demora, tipo_operacion, observacion")
       .eq("company_id", companyId)
       .gte("fecha", from)
-      .lte("fecha", to)
-      .limit(5000);
+      .lte("fecha", to);
 
     if (sitePlants) {
       if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
@@ -486,10 +567,10 @@ export async function getDashboardFlowSegmentDetail(
 
     const aliases = guardAgentAliases(ctx);
     if (aliases.length > 0) query = query.in("agente", aliases);
+    query = applyDashboardDataFilters(query, filters);
 
-    const { data, error } = await query;
-    if (error || !data) throw error ?? new Error("Sin detalle disponible");
-    return buildFlowSegmentDetail(data as DashboardMetricRow[], timeframe, bucket);
+    const data = await fetchPagedRows<DashboardMetricRow>(query);
+    return buildFlowSegmentDetail(data, timeframe, bucket);
   } catch (err) {
     logError("getDashboardFlowSegmentDetail", err, { plant, timeframe, bucket });
     return null;
@@ -503,22 +584,24 @@ async function getDashboardStatsAdmin(
   from: string,
   to: string,
   timeframe = "Día",
+  filters?: DashboardFilters,
 ): Promise<DashboardStatsResult> {
   const { createAdminClient } = await import("@/utils/supabase/admin");
   const admin = createAdminClient();
 
   let query = admin.from("atenciones").select("*")
-    .gte("fecha", from).lte("fecha", to)
-    .limit(5000);
+    .gte("fecha", from).lte("fecha", to);
   if (plant !== "Todos") query = query.eq("planta", plant);
+  query = applyDashboardDataFilters(query, filters);
 
-  const { data, error } = await query;
-
-  if (error || !data) {
+  let data: DashboardMetricRow[];
+  try {
+    data = await fetchPagedRows<DashboardMetricRow>(query);
+  } catch {
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
   }
 
-  return buildDashboardStatsFromRows(data as DashboardMetricRow[], timeframe);
+  return buildDashboardStatsFromRows(data, timeframe);
 }
 
 // ─── TREND COMPARISON ─────────────────────────────────────────────────────────
@@ -534,7 +617,11 @@ export interface TrendResult {
   prevPuntualidad: number | null;
 }
 
-export async function getDashboardTrends(plant: string = "Todos", timeframe: string = "Día"): Promise<TrendResult> {
+export async function getDashboardTrends(
+  plant: string = "Todos",
+  timeframe: string = "Día",
+  filters?: DashboardFilters,
+): Promise<TrendResult> {
   const empty: TrendResult = {
     kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 },
     trend: { ok: null, deny: null, total: null, puntualidad: null },
@@ -546,16 +633,9 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
     if (!ctx?.companyId) return empty;
 
     const supabase = await createClient();
-    const { from, to } = dateRange(timeframe);
+    const { from, to } = getDashboardDateRange(timeframe, filters);
     const companyId = ctx.companyId;
-
-    const days = timeframe === "Día" ? 1
-      : timeframe === "Semana" ? 7
-      : timeframe === "Mes" ? 30
-      : /^\d{4}$/.test(timeframe) ? 365
-      : 30;
-    const prevFrom = daysAgoLima(days * 2);
-    const prevTo   = daysAgoLima(days + 1);
+    const { from: prevFrom, to: prevTo } = previousDashboardRange({ from, to });
     const sitePlants = await resolveSitePlants(supabase, ctx, plant);
 
     const fetchKpis = async (fromDate: string, toDate: string) => {
@@ -564,14 +644,16 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
         .select("espera_min, demora_cita_min")
         .eq("company_id", companyId)
         .gte("fecha", fromDate)
-        .lte("fecha", toDate)
-        .limit(5000);
+        .lte("fecha", toDate);
       if (sitePlants) query = query.in("planta", sitePlants);
       else if (plant !== "Todos") query = query.eq("planta", plant);
       const aliases = guardAgentAliases(ctx);
       if (aliases.length > 0) query = query.in("agente", aliases);
-      const { data } = await query;
-      const rows = (data ?? []) as Array<{ espera_min: number | null; demora_cita_min: number | null }>;
+      query = applyDashboardDataFilters(query, filters);
+      const rows = await fetchPagedRows<{
+        espera_min: number | null;
+        demora_cita_min: number | null;
+      }>(query);
       return [{
         ok: rows.filter((row) => {
           const delay = row.demora_cita_min ?? row.espera_min;
@@ -633,22 +715,29 @@ export async function getDashboardTrends(plant: string = "Todos", timeframe: str
 // ─── HEATMAP DE DEMORAS ───────────────────────────────────────────────────────
 // Agrega atenciones de los últimos 180 días por día-de-semana × hora.
 
-export async function getDashboardHeatmap(plant: string = "Todos"): Promise<HeatmapCell[]> {
+export async function getDashboardHeatmap(
+  plant: string = "Todos",
+  timeframe: string = "Mes",
+  filters?: DashboardFilters,
+): Promise<HeatmapCell[]> {
   try {
     const ctx = await getUserContext();
     if (!ctx?.companyId) return [];
 
     const supabase = await createClient();
     const sitePlants = await resolveSitePlants(supabase, ctx, plant);
-    const sixMonthsAgo = daysAgoLima(180);
-    const { date: today } = nowLima();
+    const normalizedFilters = normalizeDashboardFilters(filters);
+    const hasHistoricalDateFilter = /^\d{4}$/.test(timeframe) && normalizedFilters.month !== null;
+    const range = hasHistoricalDateFilter
+      ? getDashboardDateRange(timeframe, filters)
+      : { from: daysAgoLima(180), to: nowLima().date };
 
     let query = supabase
       .from("atenciones")
       .select("h_registro, fecha, espera_min, demora_cita_min")
       .eq("company_id", ctx.companyId)
-      .gte("fecha", sixMonthsAgo)
-      .lte("fecha", today)
+      .gte("fecha", range.from)
+      .lte("fecha", range.to)
       .not("h_registro", "is", null)
       .not("fecha", "is", null);
 
@@ -660,12 +749,18 @@ export async function getDashboardHeatmap(plant: string = "Todos"): Promise<Heat
     }
     const aliases = guardAgentAliases(ctx);
     if (aliases.length > 0) query = query.in("agente", aliases);
+    query = applyDashboardDataFilters(query, filters);
 
-    const { data } = await query.limit(5000);
-    if (!data?.length) return [];
+    const data = await fetchPagedRows<{
+      h_registro: string;
+      fecha: string;
+      espera_min: number | null;
+      demora_cita_min: number | null;
+    }>(query);
+    if (!data.length) return [];
 
     const hmMap: Record<string, { total: number; delayed: number }> = {};
-    (data as { h_registro: string; fecha: string; espera_min: number | null; demora_cita_min: number | null }[]).forEach((d) => {
+    data.forEach((d) => {
       const hour = parseInt(d.h_registro.substring(0, 2));
       if (isNaN(hour)) return;
       const parts = d.fecha.split("-").map(Number);

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardList,
   Clock,
+  Database,
   Monitor,
   MonitorSmartphone,
   Package,
@@ -789,6 +790,7 @@ export function RegistroClientContent({
   deletingIds,
   userRole,
   isKiosk,
+  onOpenImport,
   onToggleKiosk,
   onSubmit,
   onPlantChange,
@@ -843,6 +845,7 @@ export function RegistroClientContent({
   deletingIds: Set<number>;
   userRole: string | null;
   isKiosk: boolean;
+  onOpenImport: () => void;
   onToggleKiosk: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onPlantChange: (value: string) => void;
@@ -876,6 +879,16 @@ export function RegistroClientContent({
           </span>
         </div>
         <div className="flex items-center gap-3">
+          {!isKiosk && userRole !== "guardia" ? (
+            <button
+              onClick={onOpenImport}
+              className="sg-btn sg-btn-accent sg-btn-sm"
+              title="Cargar registros desde Excel, CSV o imagen"
+            >
+              <Database className="h-3.5 w-3.5" />
+              Cargar datos
+            </button>
+          ) : null}
           <button
             onClick={onToggleKiosk}
             className="sg-font-mono flex items-center gap-2 border border-[var(--sg-line)] bg-[var(--sg-panel-2)] px-3 py-1.5 text-[10px] uppercase tracking-widest text-[var(--sg-muted)] transition-colors hover:border-[var(--sg-accent)] hover:text-[var(--sg-accent)]"

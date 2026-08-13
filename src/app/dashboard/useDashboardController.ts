@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getActivePersonnel,
   getDashboardHeatmap,
@@ -8,6 +8,7 @@ import {
   getDashboardTrends,
 } from "@/app/actions";
 import { formatGateLabelFromPlant, groupGatesBySite } from "@/lib/gates";
+import type { DashboardFilters, DashboardIntervalFilter } from "@/lib/dashboardFilters";
 import type { ActivePersonnelRow, DashboardAlert, DashboardEvent, DashboardFlowRow, DashboardKpis, DashboardTopProvider, DashboardZone, HeatmapCell } from "@/types/dashboard";
 import type {
   DashboardClientProps,
@@ -37,6 +38,30 @@ export function useDashboardController({
   );
   const [selectedPlant, setSelectedPlant] = useState<string>(initialPlant);
   const [selectedSite, setSelectedSite] = useState<string>("Todos");
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedWeekOfMonth, setSelectedWeekOfMonth] = useState<number | null>(null);
+  const [selectedInterval, setSelectedInterval] =
+    useState<DashboardIntervalFilter>("all");
+  const [selectedObservation, setSelectedObservation] = useState<string | null>(null);
+  const [observationOptions, setObservationOptions] = useState<string[]>(() =>
+    Array.from(
+      new Set(
+        (initialStats.delayReasons ?? [])
+          .map(({ motivo }) => motivo.trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, "es"))
+  );
+  const dashboardFilters = useMemo<DashboardFilters>(
+    () => ({
+      month: selectedMonth,
+      weekOfMonth: selectedWeekOfMonth,
+      interval: selectedInterval,
+      observation: selectedObservation,
+    }),
+    [selectedInterval, selectedMonth, selectedObservation, selectedWeekOfMonth]
+  );
+
   const [kpis, setKpis] = useState<DashboardKpis>(initialStats.kpis);
   const [recentEvents, setRecentEvents] = useState<DashboardEvent[]>(
     initialStats.events
@@ -69,10 +94,52 @@ export function useDashboardController({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reqIdRef = useRef(0);
   const statsBootstrappedRef = useRef(false);
-  const heatmapPlantRef = useRef<string>(initialPlant);
+  const setDashboardTimeframe = useCallback(
+    (value: string) => {
+      if (!initialAvailableYears.includes(value)) {
+        setSelectedMonth(null);
+        setSelectedWeekOfMonth(null);
+      }
+      setSelectedTimeframe(value);
+    },
+    [initialAvailableYears]
+  );
+
+  const handleMonthFilterChange = useCallback(
+    (month: number | null) => {
+      setSelectedMonth(month);
+      if (month === null) {
+        setSelectedWeekOfMonth(null);
+        return;
+      }
+
+      if (!initialAvailableYears.includes(selectedTimeframe)) {
+        const targetYear =
+          lastSelectedYear || initialAvailableYears.at(-1) || "";
+        if (targetYear) {
+          setLastSelectedYear(targetYear);
+          setSelectedTimeframe(targetYear);
+        }
+      }
+    },
+    [initialAvailableYears, lastSelectedYear, selectedTimeframe]
+  );
+
+  const clearDashboardFilters = useCallback(() => {
+    setSelectedMonth(null);
+    setSelectedWeekOfMonth(null);
+    setSelectedInterval("all");
+    setSelectedObservation(null);
+  }, []);
 
   const fetchStats = useCallback(
-    async (plant: string, timeframe: string, silent = false, id: number) => {
+    async (
+      plant: string,
+      timeframe: string,
+      filters: DashboardFilters,
+      silent = false,
+      id: number
+    ) => {
       if (silent) {
         setRefreshing(true);
       } else {
@@ -83,8 +150,10 @@ export function useDashboardController({
       try {
         const [statsResult, trendsResult, personnelResult] =
           await Promise.allSettled([
-            getDashboardStats(plant, timeframe),
-            silent ? Promise.resolve(null) : getDashboardTrends(plant, timeframe),
+            getDashboardStats(plant, timeframe, filters),
+            silent
+              ? Promise.resolve(null)
+              : getDashboardTrends(plant, timeframe, filters),
             initialUserRole === "guardia"
               ? Promise.resolve(null)
               : getActivePersonnel(),
@@ -101,6 +170,14 @@ export function useDashboardController({
           setAlerts(data.alerts);
           setDelayReasons(data.delayReasons ?? []);
           setTopProvider(data.topProvider ?? null);
+          const reasons = (data.delayReasons ?? [])
+            .map(({ motivo }) => motivo.trim())
+            .filter(Boolean);
+          setObservationOptions((current) =>
+            Array.from(new Set([...current, ...reasons])).sort((a, b) =>
+              a.localeCompare(b, "es")
+            )
+          );
         } else {
           throw statsResult.status === "rejected"
             ? statsResult.reason
@@ -156,25 +233,22 @@ export function useDashboardController({
       statsBootstrappedRef.current = true;
     } else {
       const id = ++reqIdRef.current;
-      void fetchStats(selectedPlant, selectedTimeframe, false, id);
-      if (heatmapPlantRef.current !== selectedPlant) {
-        heatmapPlantRef.current = selectedPlant;
-        void getDashboardHeatmap(selectedPlant)
-          .then(setHeatmapData)
-          .catch(() => {});
-      }
+      void fetchStats(selectedPlant, selectedTimeframe, dashboardFilters, false, id);
+      void getDashboardHeatmap(selectedPlant, selectedTimeframe, dashboardFilters)
+        .then(setHeatmapData)
+        .catch(() => {});
     }
 
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       const silentId = ++reqIdRef.current;
-      void fetchStats(selectedPlant, selectedTimeframe, true, silentId);
+      void fetchStats(selectedPlant, selectedTimeframe, dashboardFilters, true, silentId);
     }, 60_000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [selectedPlant, selectedTimeframe, fetchStats]);
+  }, [dashboardFilters, fetchStats, selectedPlant, selectedTimeframe]);
 
   const puntualidad = kpis.total > 0 ? Math.round((kpis.ok / kpis.total) * 100) : null;
   const sites = groupGatesBySite(
@@ -202,53 +276,49 @@ export function useDashboardController({
     0
   );
   const personnelSummary = activePersonnel.slice(0, 5);
+  const waitSamples = flowData.reduce((sum, row) => sum + row.delaySamples, 0);
+  const averageWait = waitSamples > 0
+    ? Math.round(flowData.reduce((sum, row) => sum + row.delayTotal, 0) / waitSamples)
+    : 0;
   const kpiCards = [
-    {
-      label: "A tiempo",
-      value: kpis.ok,
-      accent: "var(--sg-success)",
-      sub: "< 30 min",
-      trend: trends.ok,
-    },
-    {
-      label: "En revisión",
-      value: kpis.warn,
-      accent: "var(--sg-warn)",
-      sub: "30 - 45 min",
-    },
-    {
-      label: "Con demora",
-      value: kpis.deny,
-      accent: "var(--sg-danger)",
-      sub: "> 45 min",
-      trend: trends.deny,
-      trendInverse: true,
-    },
-    {
-      label: "En proceso",
-      value: kpis.pending,
-      accent: "#4f8df7",
-      sub: "Sin atención",
-    },
-    {
-      label: "Anticipado",
-      value: kpis.anticipado ?? 0,
-      accent: "transparent",
-      sub: "Antes de cita",
-    },
     {
       label: "Total atenciones",
       value: kpis.total,
-      accent: "transparent",
-      sub: `${puntualidad ?? 0}% a tiempo`,
+      accent: "var(--sg-accent)",
+      sub: "Registros del período",
       trend: trends.total,
+      trendSuffix: "%",
+      trendLabel: "vs. período anterior",
+    },
+    {
+      label: "Puntualidad",
+      value: puntualidad ?? 0,
+      suffix: "%",
+      accent: "var(--sg-success)",
+      sub: "Meta operativa: 90%",
+      trend: trends.puntualidad,
+      trendSuffix: " pts",
+      trendLabel: "vs. período anterior",
+    },
+    {
+      label: "Espera promedio",
+      value: averageWait,
+      suffix: " min",
+      accent: "var(--sg-info)",
+      sub: "Tiempo medio de atención",
+    },
+    {
+      label: "Alertas activas",
+      value: alerts.length,
+      accent: "var(--sg-danger)",
+      sub: alerts.length === 1 ? "Requiere atención" : "Requieren atención",
     },
   ];
 
   return {
     liveTime,
     selectedTimeframe,
-    setSelectedTimeframe,
+    setSelectedTimeframe: setDashboardTimeframe,
     lastSelectedYear,
     setLastSelectedYear,
     selectedPlant,
@@ -258,6 +328,13 @@ export function useDashboardController({
     plants: initialPlants,
     gateOptions: initialGateOptions,
     availableYears: initialAvailableYears,
+    dashboardFilters,
+    observationOptions,
+    onMonthFilterChange: handleMonthFilterChange,
+    onWeekFilterChange: setSelectedWeekOfMonth,
+    onIntervalFilterChange: setSelectedInterval,
+    onObservationFilterChange: setSelectedObservation,
+    clearDashboardFilters,
     kpis,
     recentEvents,
     flowData,

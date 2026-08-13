@@ -2,6 +2,7 @@
 
 import AppLayout from "@/components/AppLayout";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -24,6 +25,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatGateLabelFromPlant } from "@/lib/gates";
+import ClientChartFrame from "@/components/ClientChartFrame";
 import type {
   AlertDetail,
   AlertHistoryPoint,
@@ -54,6 +56,7 @@ export function AlertasContent({
   totalLogPages,
   currentLogsPage,
   onLogsPageChange,
+  asOfDate,
 }: {
   loading: boolean;
   refreshing: boolean;
@@ -76,7 +79,15 @@ export function AlertasContent({
   totalLogPages: number;
   currentLogsPage: number;
   onLogsPageChange: (page: number) => void;
+  asOfDate: string | null;
 }) {
+  const [chartsReady, setChartsReady] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setChartsReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const guardiaEventSummary = guardiaEventos?.summary ?? {
     total: 0,
     urgentes: 0,
@@ -194,7 +205,9 @@ export function AlertasContent({
                 Sin incidentes hoy
               </p>
               <p className="mt-1 text-[12px] opacity-60">
-                Todos los vehículos dentro de tiempo normal
+                {asOfDate
+                  ? `Datos disponibles hasta ${asOfDate.split("-").reverse().join("/")}.`
+                  : "No hay registros disponibles para la fecha actual."}
               </p>
             </div>
           ) : (
@@ -310,9 +323,11 @@ export function AlertasContent({
                 Click en barra
               </span>
             </div>
-            <div className="h-[160px]">
-              {histChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%" debounce={200}>
+            <ClientChartFrame className="h-[160px]">
+              {(chartSize) => (
+              <>
+              {chartsReady && histChart.length > 0 ? (
+                <ResponsiveContainer width={chartSize.width} height={chartSize.height} minWidth={0} minHeight={1} debounce={200}>
                   <BarChart data={histChart} barCategoryGap={6}>
                     <CartesianGrid
                       stroke="rgba(196,192,180,0.06)"
@@ -366,12 +381,16 @@ export function AlertasContent({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : (
+              ) : chartsReady ? (
                 <div className="flex h-full items-center justify-center text-[11px] text-[var(--sg-muted)]">
                   Sin datos históricos
                 </div>
+              ) : (
+                <div className="h-full w-full animate-pulse bg-[var(--sg-panel-2)]" />
               )}
-            </div>
+              </>
+              )}
+            </ClientChartFrame>
           </div>
 
           <div className="sg-panel-soft p-4">
@@ -498,7 +517,7 @@ export function AlertasContent({
                         <span className="sg-font-mono text-[9px] text-[var(--sg-muted)]">
                           {new Date(event.created_at).toLocaleTimeString(
                             "es-PE",
-                            { hour: "2-digit", minute: "2-digit" }
+                            { hour: "2-digit", minute: "2-digit", timeZone: "America/Lima" }
                           )}
                         </span>
                       </div>
@@ -561,6 +580,7 @@ export function AlertasContent({
                         month: "short",
                         hour: "2-digit",
                         minute: "2-digit",
+                        timeZone: "America/Lima",
                       })}
                     </td>
                     <td className="hidden sm:table-cell">
