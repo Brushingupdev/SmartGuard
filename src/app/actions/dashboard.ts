@@ -6,9 +6,12 @@ import { normalizeGateAssignments, plantsForSite, formatGateLabelFromPlant } fro
 import { nowLima, daysAgoLima, logError, dateRange } from "./_helpers";
 import { fetchPagedRows } from "./_pagination";
 import {
+  getDashboardMonthWeekBucket,
+  getDashboardMonthWeekBuckets,
   getDashboardIntervalExpression,
   matchesDashboardDateFilter,
   normalizeDashboardFilters,
+  parseDashboardMonthWeekBucket,
   refineDashboardDateRange,
   type DashboardFilters,
 } from "@/lib/dashboardFilters";
@@ -79,7 +82,13 @@ function previousDashboardRange(range: { from: string; to: string }): { from: st
   };
 }
 
-function flowBucketKey(row: DashboardMetricRow, timeframe: string): string {
+function flowBucketKey(
+  row: DashboardMetricRow,
+  timeframe: string,
+  filters?: DashboardFilters,
+): string {
+  const monthWeekBucket = getDashboardMonthWeekBucket(row.fecha, timeframe, filters);
+  if (monthWeekBucket) return monthWeekBucket;
   if (timeframe === "Día") return row.h_registro ? row.h_registro.substring(0, 2) : "00";
   if (!row.fecha) return "1";
   const d = new Date(row.fecha + "T12:00:00");
@@ -97,6 +106,14 @@ function classifyDashboardStatus(delay: number | null): DashboardEvent["status"]
 }
 
 function formatFlowBucketLabel(bucket: string, timeframe: string): string {
+  const monthWeek = parseDashboardMonthWeekBucket(bucket);
+  if (monthWeek) {
+    const MONTHS = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+    ];
+    return `${MONTHS[monthWeek.month - 1] ?? bucket} · Semana ${monthWeek.week}`;
+  }
   if (timeframe === "Día") return `${bucket}:00 - ${bucket}:59`;
   if (timeframe === "Semana") {
     const DAYS_LONG = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -114,6 +131,14 @@ function formatFlowBucketLabel(bucket: string, timeframe: string): string {
 }
 
 function formatFlowBucketSubtitle(bucket: string, timeframe: string): string {
+  const monthWeek = parseDashboardMonthWeekBucket(bucket);
+  if (monthWeek) {
+    const startDay = (monthWeek.week - 1) * 7 + 1;
+    const year = Number(timeframe);
+    const lastDay = new Date(Date.UTC(year, monthWeek.month, 0)).getUTCDate();
+    const endDay = Math.min(monthWeek.week * 7, lastDay);
+    return `Vehículos registrados entre los días ${startDay} y ${endDay} del mes seleccionado.`;
+  }
   if (timeframe === "Mes") {
     const week = Number(bucket);
     const startDay = (week - 1) * 7 + 1;
@@ -153,9 +178,15 @@ function finalizeDashboardFlowRows(
 function padFlowData(
   flowMap: Record<string, DashboardFlowRow>,
   timeframe: string,
+  filters?: DashboardFilters,
 ): Record<string, DashboardFlowRow> {
   const padded = { ...flowMap };
-  if (timeframe === "Semana") {
+  const monthWeekBuckets = getDashboardMonthWeekBuckets(timeframe, filters);
+  if (monthWeekBuckets.length > 0) {
+    for (const bucket of monthWeekBuckets) {
+      if (!padded[bucket]) padded[bucket] = createDashboardFlowRow(bucket);
+    }
+  } else if (timeframe === "Semana") {
     for (let i = 0; i < 7; i++) {
       const k = String(i);
       if (!padded[k]) padded[k] = createDashboardFlowRow(k);
@@ -169,7 +200,11 @@ function padFlowData(
   return padded;
 }
 
-function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "Día"): Omit<DashboardStatsResult, "delayReasons"> & { delayReasons: { motivo: string; count: number }[] } {
+function buildDashboardStatsFromRows(
+  rows: DashboardMetricRow[],
+  timeframe = "Día",
+  filters?: DashboardFilters,
+): Omit<DashboardStatsResult, "delayReasons"> & { delayReasons: { motivo: string; count: number }[] } {
   const kpis: DashboardKpis = {
     ok: rows.filter((row) => {
       const delay = effectiveDelay(row);
@@ -257,7 +292,7 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
 
   const flowMap: Record<string, DashboardFlowRow> = {};
   rows.forEach((row) => {
-    const key = flowBucketKey(row, timeframe);
+    const key = flowBucketKey(row, timeframe, filters);
     if (!flowMap[key]) flowMap[key] = createDashboardFlowRow(key);
     const delay = effectiveDelay(row);
     const status = classifyDashboardStatus(delay);
@@ -267,7 +302,7 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
       flowMap[key].delaySamples++;
     }
   });
-  const paddedFlowMap = padFlowData(flowMap, timeframe);
+  const paddedFlowMap = padFlowData(flowMap, timeframe, filters);
 
   const reasonMap: Record<string, number> = {};
   rows.filter((row) => row.motivo_demora).forEach((row) => {
@@ -303,9 +338,14 @@ function buildDashboardStatsFromRows(rows: DashboardMetricRow[], timeframe = "D�
   };
 }
 
-function buildFlowSegmentDetail(rows: DashboardMetricRow[], timeframe: string, bucket: string): DashboardFlowDetail {
-  const scopedRows = rows.filter((row) => flowBucketKey(row, timeframe) === bucket);
-  const stats = buildDashboardStatsFromRows(scopedRows, timeframe);
+function buildFlowSegmentDetail(
+  rows: DashboardMetricRow[],
+  timeframe: string,
+  bucket: string,
+  filters?: DashboardFilters,
+): DashboardFlowDetail {
+  const scopedRows = rows.filter((row) => flowBucketKey(row, timeframe, filters) === bucket);
+  const stats = buildDashboardStatsFromRows(scopedRows, timeframe, filters);
   const records: DashboardFlowDetailRecord[] = scopedRows
     .slice()
     .sort((a, b) => {
@@ -511,6 +551,7 @@ export async function getDashboardStats(
     return buildDashboardStatsFromRows(
       data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
       timeframe,
+      filters,
     );
   } catch (err) {
     logError("getDashboardStats", err);
@@ -541,7 +582,7 @@ export async function getDashboardFlowSegmentDetail(
         .gte("fecha", from)
         .lte("fecha", to);
       if (sitePlants) {
-        if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
+        if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket, filters);
         query = query.in("planta", sitePlants);
       } else if (plant !== "Todos") {
         query = query.eq("planta", plant);
@@ -552,6 +593,7 @@ export async function getDashboardFlowSegmentDetail(
         data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
         timeframe,
         bucket,
+        filters,
       );
     }
 
@@ -567,7 +609,7 @@ export async function getDashboardFlowSegmentDetail(
       .lte("fecha", to);
 
     if (sitePlants) {
-      if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket);
+      if (sitePlants.length === 0) return buildFlowSegmentDetail([], timeframe, bucket, filters);
       query = query.in("planta", sitePlants);
     } else if (plant !== "Todos") {
       query = query.eq("planta", plant);
@@ -582,6 +624,7 @@ export async function getDashboardFlowSegmentDetail(
       data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
       timeframe,
       bucket,
+      filters,
     );
   } catch (err) {
     logError("getDashboardFlowSegmentDetail", err, { plant, timeframe, bucket });
@@ -616,6 +659,7 @@ async function getDashboardStatsAdmin(
   return buildDashboardStatsFromRows(
     data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
     timeframe,
+    filters,
   );
 }
 

@@ -31,6 +31,7 @@ import {
 import { formatGateLabelFromPlant, type GateAssignment } from "@/lib/gates";
 import {
   countDashboardFilters,
+  usesDashboardMonthWeekBuckets,
   type DashboardFilters,
   type DashboardIntervalFilter,
 } from "@/lib/dashboardFilters";
@@ -500,6 +501,7 @@ export function DashboardClientContent({
 
       <DashboardPowerBiOverview
         selectedTimeframe={selectedTimeframe}
+        useMonthWeekFlow={usesDashboardMonthWeekBuckets(selectedTimeframe, dashboardFilters)}
         selectedLabel={selectedLabel}
         flowData={flowData}
         kpis={kpis}

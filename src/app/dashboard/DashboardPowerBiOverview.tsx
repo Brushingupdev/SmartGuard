@@ -47,6 +47,7 @@ type DashboardTab = "operation" | "delays" | "activity";
 
 interface DashboardExecutiveOverviewProps {
   selectedTimeframe: string;
+  useMonthWeekFlow: boolean;
   selectedLabel: string;
   flowData: DashboardFlowRow[];
   kpis: DashboardKpis;
@@ -135,6 +136,7 @@ function statusTone(status: DashboardEvent["status"]) {
 
 export default function DashboardPowerBiOverview({
   selectedTimeframe,
+  useMonthWeekFlow,
   selectedLabel,
   flowData,
   kpis,
@@ -150,7 +152,9 @@ export default function DashboardPowerBiOverview({
 }: DashboardExecutiveOverviewProps) {
   const [chartsReady, setChartsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>("operation");
-  const chartPeriodUnit = selectedTimeframe === "Día"
+  const chartPeriodUnit = useMonthWeekFlow
+    ? "semana"
+    : selectedTimeframe === "Día"
     ? "hora"
     : selectedTimeframe === "Semana"
       ? "día"

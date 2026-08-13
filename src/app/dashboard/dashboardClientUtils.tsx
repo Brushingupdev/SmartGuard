@@ -1,4 +1,5 @@
 import type { DashboardAlert } from "@/types/dashboard";
+import { parseDashboardMonthWeekBucket } from "@/lib/dashboardFilters";
 import type { ChartTooltipProps } from "./dashboardClientTypes";
 
 const MONTHS = [
@@ -28,6 +29,8 @@ const DAYS_LONG = [
 ];
 
 export function formatXLabel(value: string, timeframe: string): string {
+  const monthWeek = parseDashboardMonthWeekBucket(value);
+  if (monthWeek) return `${MONTHS[monthWeek.month - 1] ?? value} S${monthWeek.week}`;
   if (timeframe === "Día") return `${value}h`;
   if (timeframe === "Semana") return DAYS_SHORT[parseInt(value)] ?? value;
   if (timeframe === "Mes") return `S${value}`;
@@ -36,6 +39,8 @@ export function formatXLabel(value: string, timeframe: string): string {
 }
 
 export function formatTooltipLabel(label: string, timeframe: string): string {
+  const monthWeek = parseDashboardMonthWeekBucket(label);
+  if (monthWeek) return `${MONTHS[monthWeek.month - 1] ?? label} · Semana ${monthWeek.week}`;
   if (timeframe === "Día") return `${label}:00 – ${label}:59`;
   if (timeframe === "Semana") return DAYS_LONG[parseInt(label)] ?? label;
   if (timeframe === "Mes") return `Semana ${label}`;

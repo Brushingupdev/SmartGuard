@@ -27,6 +27,8 @@ export const DASHBOARD_MONTH_OPTIONS = [
   { value: 12, label: "Diciembre" },
 ] as const;
 
+const MONTH_WEEK_BUCKET_PATTERN = /^(\d{2})-W([1-5])$/;
+
 export const DASHBOARD_INTERVAL_OPTIONS: ReadonlyArray<{
   value: DashboardIntervalFilter;
   label: string;
@@ -125,6 +127,57 @@ export function matchesDashboardDateFilter(
   const startDay = (normalized.weekOfMonth - 1) * 7 + 1;
   const endDay = normalized.weekOfMonth * 7;
   return day >= startDay && day <= endDay;
+}
+
+export function usesDashboardMonthWeekBuckets(
+  timeframe: string,
+  filters?: DashboardFilters | null,
+): boolean {
+  return /^\d{4}$/.test(timeframe) && normalizeDashboardFilters(filters).months.length > 0;
+}
+
+export function getDashboardMonthWeekBucket(
+  date: string | null | undefined,
+  timeframe: string,
+  filters?: DashboardFilters | null,
+): string | null {
+  if (!usesDashboardMonthWeekBuckets(timeframe, filters)) return null;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  const normalized = normalizeDashboardFilters(filters);
+  if (!normalized.months.includes(month)) return null;
+
+  const week = Math.ceil(day / 7);
+  if (normalized.weekOfMonth && week !== normalized.weekOfMonth) return null;
+  return `${String(month).padStart(2, "0")}-W${week}`;
+}
+
+export function getDashboardMonthWeekBuckets(
+  timeframe: string,
+  filters?: DashboardFilters | null,
+): string[] {
+  if (!usesDashboardMonthWeekBuckets(timeframe, filters)) return [];
+
+  const year = Number(timeframe);
+  const normalized = normalizeDashboardFilters(filters);
+  return normalized.months.flatMap((month) => {
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const maxWeek = Math.ceil(lastDay / 7);
+    const weeks = normalized.weekOfMonth
+      ? [normalized.weekOfMonth].filter((week) => week <= maxWeek)
+      : Array.from({ length: maxWeek }, (_, index) => index + 1);
+    return weeks.map((week) => `${String(month).padStart(2, "0")}-W${week}`);
+  });
+}
+
+export function parseDashboardMonthWeekBucket(
+  bucket: string,
+): { month: number; week: number } | null {
+  const match = MONTH_WEEK_BUCKET_PATTERN.exec(bucket);
+  if (!match) return null;
+  return { month: Number(match[1]), week: Number(match[2]) };
 }
 
 export function getDashboardIntervalExpression(

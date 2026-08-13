@@ -184,6 +184,9 @@ export default function DashboardAdvancedFilters({
   const activeCount = countDashboardFilters(filters);
   const months = filters.months ?? [];
   const week = months.length > 0 ? filters.weekOfMonth ?? null : null;
+  const selectedMonthLabel = months.length === 1
+    ? DASHBOARD_MONTH_OPTIONS.find((option) => option.value === months[0])?.label
+    : null;
 
   return (
     <section
@@ -230,7 +233,10 @@ export default function DashboardAdvancedFilters({
           pluralLabel="meses seleccionados"
         />
 
-        <SelectShell id="dashboard-week" label="Semana del mes">
+        <SelectShell
+          id="dashboard-week"
+          label={selectedMonthLabel ? `Semana de ${selectedMonthLabel}` : "Semana de los meses"}
+        >
           <select
             id="dashboard-week"
             value={week ?? ""}

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   countDashboardFilters,
+  getDashboardMonthWeekBucket,
+  getDashboardMonthWeekBuckets,
   getDashboardIntervalExpression,
   matchesDashboardDateFilter,
   normalizeDashboardFilters,
   refineDashboardDateRange,
+  parseDashboardMonthWeekBucket,
 } from "../dashboardFilters";
 
 describe("dashboardFilters", () => {
@@ -46,6 +49,17 @@ describe("dashboardFilters", () => {
     expect(matchesDashboardDateFilter("2026-01-10", "2026", filters)).toBe(true);
     expect(matchesDashboardDateFilter("2026-02-10", "2026", filters)).toBe(false);
     expect(matchesDashboardDateFilter("2026-03-20", "2026", filters)).toBe(false);
+  });
+
+  it("genera todas las semanas de cada mes seleccionado para el flujo", () => {
+    expect(getDashboardMonthWeekBuckets("2026", { months: [7] })).toEqual([
+      "07-W1", "07-W2", "07-W3", "07-W4", "07-W5",
+    ]);
+    expect(getDashboardMonthWeekBuckets("2026", { months: [2, 7], weekOfMonth: 5 }))
+      .toEqual(["07-W5"]);
+    expect(getDashboardMonthWeekBucket("2026-07-23", "2026", { months: [7] }))
+      .toBe("07-W4");
+    expect(parseDashboardMonthWeekBucket("07-W4")).toEqual({ month: 7, week: 4 });
   });
 
   it("genera expresiones para los intervalos de espera", () => {
