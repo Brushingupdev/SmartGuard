@@ -11,12 +11,12 @@ describe("dashboardFilters", () => {
     expect(normalizeDashboardFilters({
       month: 14,
       weekOfMonth: 3,
-      interval: "invalid" as never,
+      intervals: ["warn", "invalid" as never, "warn"],
       observation: "  ",
     })).toEqual({
       month: null,
       weekOfMonth: null,
-      interval: "all",
+      intervals: ["warn"],
       observation: null,
     });
   });
@@ -37,15 +37,16 @@ describe("dashboardFilters", () => {
   });
 
   it("genera expresiones para los intervalos de espera", () => {
-    expect(getDashboardIntervalExpression("critical")).toContain("gte.90");
-    expect(getDashboardIntervalExpression("all")).toBeNull();
+    expect(getDashboardIntervalExpression(["critical"])).toContain("gte.90");
+    expect(getDashboardIntervalExpression(["ok", "warn"])).toContain("gte.30");
+    expect(getDashboardIntervalExpression([])).toBeNull();
   });
 
   it("cuenta solo filtros activos", () => {
     expect(countDashboardFilters({
       month: 6,
       weekOfMonth: 2,
-      interval: "warn",
+      intervals: ["warn", "critical"],
       observation: "Proveedor llegó tarde",
     })).toBe(4);
   });

@@ -1,5 +1,4 @@
 export type DashboardIntervalFilter =
-  | "all"
   | "ok"
   | "warn"
   | "delay"
@@ -9,7 +8,7 @@ export type DashboardIntervalFilter =
 export interface DashboardFilters {
   month?: number | null;
   weekOfMonth?: number | null;
-  interval?: DashboardIntervalFilter;
+  intervals?: DashboardIntervalFilter[];
   observation?: string | null;
 }
 
@@ -32,7 +31,6 @@ export const DASHBOARD_INTERVAL_OPTIONS: ReadonlyArray<{
   value: DashboardIntervalFilter;
   label: string;
 }> = [
-  { value: "all", label: "Todos los intervalos" },
   { value: "ok", label: "A tiempo · < 30 min" },
   { value: "warn", label: "En revisión · 30–44 min" },
   { value: "delay", label: "Con demora · 45–89 min" },
@@ -54,19 +52,23 @@ export function normalizeDashboardFilters(
 ): {
   month: number | null;
   weekOfMonth: number | null;
-  interval: DashboardIntervalFilter;
+  intervals: DashboardIntervalFilter[];
   observation: string | null;
 } {
   const month = validInteger(filters?.month, 1, 12);
   const weekOfMonth = month ? validInteger(filters?.weekOfMonth, 1, 5) : null;
-  const interval = VALID_INTERVALS.has(filters?.interval ?? "all")
-    ? (filters?.interval ?? "all")
-    : "all";
+  const intervals = Array.from(
+    new Set(
+      Array.isArray(filters?.intervals)
+        ? filters.intervals.filter((interval) => VALID_INTERVALS.has(interval))
+        : [],
+    ),
+  );
   const observation = typeof filters?.observation === "string"
     ? filters.observation.trim().slice(0, 180) || null
     : null;
 
-  return { month, weekOfMonth, interval, observation };
+  return { month, weekOfMonth, intervals, observation };
 }
 
 export function refineDashboardDateRange(
@@ -94,24 +96,30 @@ export function refineDashboardDateRange(
 }
 
 export function getDashboardIntervalExpression(
-  interval: DashboardIntervalFilter,
+  intervals: readonly DashboardIntervalFilter[],
 ): string | null {
+  if (intervals.length === 0) return null;
+
+  const expressions = intervals.flatMap((interval) => {
   if (interval === "ok") {
-    return "demora_cita_min.lt.30,and(demora_cita_min.is.null,espera_min.lt.30)";
+      return ["demora_cita_min.lt.30", "and(demora_cita_min.is.null,espera_min.lt.30)"];
   }
   if (interval === "warn") {
-    return "and(demora_cita_min.gte.30,demora_cita_min.lt.45),and(demora_cita_min.is.null,and(espera_min.gte.30,espera_min.lt.45))";
+      return ["and(demora_cita_min.gte.30,demora_cita_min.lt.45)", "and(demora_cita_min.is.null,and(espera_min.gte.30,espera_min.lt.45))"];
   }
   if (interval === "delay") {
-    return "and(demora_cita_min.gte.45,demora_cita_min.lt.90),and(demora_cita_min.is.null,and(espera_min.gte.45,espera_min.lt.90))";
+      return ["and(demora_cita_min.gte.45,demora_cita_min.lt.90)", "and(demora_cita_min.is.null,and(espera_min.gte.45,espera_min.lt.90))"];
   }
   if (interval === "critical") {
-    return "demora_cita_min.gte.90,and(demora_cita_min.is.null,espera_min.gte.90)";
+      return ["demora_cita_min.gte.90", "and(demora_cita_min.is.null,espera_min.gte.90)"];
   }
   if (interval === "pending") {
-    return "and(demora_cita_min.is.null,espera_min.is.null)";
+      return ["and(demora_cita_min.is.null,espera_min.is.null)"];
   }
-  return null;
+    return [];
+  });
+
+  return expressions.length > 0 ? expressions.join(",") : null;
 }
 
 export function countDashboardFilters(filters?: DashboardFilters | null): number {
@@ -119,7 +127,7 @@ export function countDashboardFilters(filters?: DashboardFilters | null): number
   return [
     normalized.month,
     normalized.weekOfMonth,
-    normalized.interval !== "all" ? normalized.interval : null,
+    normalized.intervals.length > 0 ? normalized.intervals : null,
     normalized.observation,
   ].filter(Boolean).length;
 }

@@ -59,7 +59,7 @@ function applyDashboardDataFilters<T extends { or: (value: string) => any; eq: (
   filters?: DashboardFilters,
 ): T {
   const normalized = normalizeDashboardFilters(filters);
-  const intervalExpression = getDashboardIntervalExpression(normalized.interval);
+  const intervalExpression = getDashboardIntervalExpression(normalized.intervals);
   let filtered = query;
   if (intervalExpression) filtered = filtered.or(intervalExpression);
   if (normalized.observation) filtered = filtered.eq("motivo_demora", normalized.observation);

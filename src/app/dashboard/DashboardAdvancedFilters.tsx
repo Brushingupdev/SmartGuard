@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, Filter, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Filter, RotateCcw } from "lucide-react";
 import {
   DASHBOARD_INTERVAL_OPTIONS,
   DASHBOARD_MONTH_OPTIONS,
@@ -15,7 +16,7 @@ interface DashboardAdvancedFiltersProps {
   observations: string[];
   onMonthChange: (month: number | null) => void;
   onWeekChange: (week: number | null) => void;
-  onIntervalChange: (interval: DashboardIntervalFilter) => void;
+  onIntervalChange: (intervals: DashboardIntervalFilter[]) => void;
   onObservationChange: (observation: string | null) => void;
   onClear: () => void;
 }
@@ -47,6 +48,118 @@ function SelectShell({
 
 const SELECT_CLASS =
   "h-9 w-full min-w-0 appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel)] pl-3 pr-8 text-[11px] font-medium text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-line-strong)] focus:border-[var(--sg-accent)] disabled:cursor-not-allowed disabled:opacity-40";
+
+function IntervalMultiSelect({
+  selected,
+  onChange,
+}: {
+  selected: DashboardIntervalFilter[];
+  onChange: (intervals: DashboardIntervalFilter[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  const toggle = (interval: DashboardIntervalFilter) => {
+    const next = selected.includes(interval)
+      ? selected.filter((value) => value !== interval)
+      : DASHBOARD_INTERVAL_OPTIONS
+          .map((option) => option.value)
+          .filter((value) => value === interval || selected.includes(value));
+    onChange(next);
+  };
+
+  const summary = selected.length === 0
+    ? "Todos los intervalos"
+    : selected.length === 1
+      ? DASHBOARD_INTERVAL_OPTIONS.find((option) => option.value === selected[0])?.label
+      : `${selected.length} intervalos seleccionados`;
+
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <span
+        id="dashboard-interval-label"
+        className="mb-1.5 block sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]"
+      >
+        Intervalo de espera
+      </span>
+      <button
+        type="button"
+        aria-labelledby="dashboard-interval-label dashboard-interval-summary"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls="dashboard-interval-options"
+        onClick={() => setOpen((current) => !current)}
+        className={`${SELECT_CLASS} flex items-center justify-between gap-2 text-left`}
+      >
+        <span id="dashboard-interval-summary" className="min-w-0 truncate">
+          {summary}
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-[var(--sg-muted)] transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open ? (
+        <div
+          id="dashboard-interval-options"
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute z-40 mt-1 w-full min-w-[260px] border border-[var(--sg-line-strong)] bg-[var(--sg-panel)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={selected.length === 0}
+            onClick={() => onChange([])}
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] text-[var(--sg-ink)] transition-colors hover:bg-[var(--sg-panel-2)] focus:bg-[var(--sg-panel-2)] focus:outline-none"
+          >
+            <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${selected.length === 0 ? "border-[var(--sg-accent)] bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "border-[var(--sg-line-strong)]"}`}>
+              {selected.length === 0 ? <Check className="h-3 w-3" /> : null}
+            </span>
+            Todos los intervalos
+          </button>
+
+          <div className="my-1 border-t border-[var(--sg-line)]" />
+
+          {DASHBOARD_INTERVAL_OPTIONS.map((option) => {
+            const checked = selected.includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={checked}
+                onClick={() => toggle(option.value)}
+                className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] text-[var(--sg-ink)] transition-colors hover:bg-[var(--sg-panel-2)] focus:bg-[var(--sg-panel-2)] focus:outline-none"
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${checked ? "border-[var(--sg-accent)] bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "border-[var(--sg-line-strong)]"}`}>
+                  {checked ? <Check className="h-3 w-3" /> : null}
+                </span>
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function DashboardAdvancedFilters({
   filters,
@@ -130,20 +243,10 @@ export default function DashboardAdvancedFilters({
           </select>
         </SelectShell>
 
-        <SelectShell id="dashboard-interval" label="Intervalo de espera">
-          <select
-            id="dashboard-interval"
-            value={filters.interval ?? "all"}
-            onChange={(event) => onIntervalChange(event.target.value as DashboardIntervalFilter)}
-            className={SELECT_CLASS}
-          >
-            {DASHBOARD_INTERVAL_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SelectShell>
+        <IntervalMultiSelect
+          selected={filters.intervals ?? []}
+          onChange={onIntervalChange}
+        />
 
         <SelectShell id="dashboard-observation" label="Registro / causa de observación">
           <select

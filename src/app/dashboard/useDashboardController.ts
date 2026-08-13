@@ -40,8 +40,8 @@ export function useDashboardController({
   const [selectedSite, setSelectedSite] = useState<string>("Todos");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedWeekOfMonth, setSelectedWeekOfMonth] = useState<number | null>(null);
-  const [selectedInterval, setSelectedInterval] =
-    useState<DashboardIntervalFilter>("all");
+  const [selectedIntervals, setSelectedIntervals] =
+    useState<DashboardIntervalFilter[]>([]);
   const [selectedObservation, setSelectedObservation] = useState<string | null>(null);
   const [observationOptions, setObservationOptions] = useState<string[]>(() =>
     Array.from(
@@ -56,10 +56,10 @@ export function useDashboardController({
     () => ({
       month: selectedMonth,
       weekOfMonth: selectedWeekOfMonth,
-      interval: selectedInterval,
+      intervals: selectedIntervals,
       observation: selectedObservation,
     }),
-    [selectedInterval, selectedMonth, selectedObservation, selectedWeekOfMonth]
+    [selectedIntervals, selectedMonth, selectedObservation, selectedWeekOfMonth]
   );
 
   const [kpis, setKpis] = useState<DashboardKpis>(initialStats.kpis);
@@ -128,7 +128,7 @@ export function useDashboardController({
   const clearDashboardFilters = useCallback(() => {
     setSelectedMonth(null);
     setSelectedWeekOfMonth(null);
-    setSelectedInterval("all");
+    setSelectedIntervals([]);
     setSelectedObservation(null);
   }, []);
 
@@ -332,7 +332,7 @@ export function useDashboardController({
     observationOptions,
     onMonthFilterChange: handleMonthFilterChange,
     onWeekFilterChange: setSelectedWeekOfMonth,
-    onIntervalFilterChange: setSelectedInterval,
+    onIntervalFilterChange: setSelectedIntervals,
     onObservationFilterChange: setSelectedObservation,
     clearDashboardFilters,
     kpis,

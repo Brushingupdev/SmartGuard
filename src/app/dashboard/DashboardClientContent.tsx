@@ -168,7 +168,7 @@ export function DashboardClientContent({
   observationOptions: string[];
   onMonthFilterChange: (month: number | null) => void;
   onWeekFilterChange: (week: number | null) => void;
-  onIntervalFilterChange: (interval: DashboardIntervalFilter) => void;
+  onIntervalFilterChange: (intervals: DashboardIntervalFilter[]) => void;
   onObservationFilterChange: (observation: string | null) => void;
   clearDashboardFilters: () => void;
 }) {
@@ -434,9 +434,9 @@ export function DashboardClientContent({
             closeFlowDetail();
             onWeekFilterChange(week);
           }}
-          onIntervalChange={(interval) => {
+          onIntervalChange={(intervals) => {
             closeFlowDetail();
-            onIntervalFilterChange(interval);
+            onIntervalFilterChange(intervals);
           }}
           onObservationChange={(observation) => {
             closeFlowDetail();
