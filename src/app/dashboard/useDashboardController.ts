@@ -38,7 +38,7 @@ export function useDashboardController({
   );
   const [selectedPlant, setSelectedPlant] = useState<string>(initialPlant);
   const [selectedSite, setSelectedSite] = useState<string>("Todos");
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedWeekOfMonth, setSelectedWeekOfMonth] = useState<number | null>(null);
   const [selectedIntervals, setSelectedIntervals] =
     useState<DashboardIntervalFilter[]>([]);
@@ -54,12 +54,12 @@ export function useDashboardController({
   );
   const dashboardFilters = useMemo<DashboardFilters>(
     () => ({
-      month: selectedMonth,
+      months: selectedMonths,
       weekOfMonth: selectedWeekOfMonth,
       intervals: selectedIntervals,
       observation: selectedObservation,
     }),
-    [selectedIntervals, selectedMonth, selectedObservation, selectedWeekOfMonth]
+    [selectedIntervals, selectedMonths, selectedObservation, selectedWeekOfMonth]
   );
 
   const [kpis, setKpis] = useState<DashboardKpis>(initialStats.kpis);
@@ -97,7 +97,7 @@ export function useDashboardController({
   const setDashboardTimeframe = useCallback(
     (value: string) => {
       if (!initialAvailableYears.includes(value)) {
-        setSelectedMonth(null);
+        setSelectedMonths([]);
         setSelectedWeekOfMonth(null);
       }
       setSelectedTimeframe(value);
@@ -106,9 +106,9 @@ export function useDashboardController({
   );
 
   const handleMonthFilterChange = useCallback(
-    (month: number | null) => {
-      setSelectedMonth(month);
-      if (month === null) {
+    (months: number[]) => {
+      setSelectedMonths(months);
+      if (months.length === 0) {
         setSelectedWeekOfMonth(null);
         return;
       }
@@ -126,7 +126,7 @@ export function useDashboardController({
   );
 
   const clearDashboardFilters = useCallback(() => {
-    setSelectedMonth(null);
+    setSelectedMonths([]);
     setSelectedWeekOfMonth(null);
     setSelectedIntervals([]);
     setSelectedObservation(null);

@@ -6,7 +6,7 @@ export type DashboardIntervalFilter =
   | "pending";
 
 export interface DashboardFilters {
-  month?: number | null;
+  months?: number[];
   weekOfMonth?: number | null;
   intervals?: DashboardIntervalFilter[];
   observation?: string | null;
@@ -50,13 +50,23 @@ function validInteger(value: unknown, min: number, max: number): number | null {
 export function normalizeDashboardFilters(
   filters?: DashboardFilters | null,
 ): {
-  month: number | null;
+  months: number[];
   weekOfMonth: number | null;
   intervals: DashboardIntervalFilter[];
   observation: string | null;
 } {
-  const month = validInteger(filters?.month, 1, 12);
-  const weekOfMonth = month ? validInteger(filters?.weekOfMonth, 1, 5) : null;
+  const months = Array.from(
+    new Set(
+      Array.isArray(filters?.months)
+        ? filters.months
+            .map((month) => validInteger(month, 1, 12))
+            .filter((month): month is number => month !== null)
+        : [],
+    ),
+  ).sort((a, b) => a - b);
+  const weekOfMonth = months.length > 0
+    ? validInteger(filters?.weekOfMonth, 1, 5)
+    : null;
   const intervals = Array.from(
     new Set(
       Array.isArray(filters?.intervals)
@@ -68,7 +78,7 @@ export function normalizeDashboardFilters(
     ? filters.observation.trim().slice(0, 180) || null
     : null;
 
-  return { month, weekOfMonth, intervals, observation };
+  return { months, weekOfMonth, intervals, observation };
 }
 
 export function refineDashboardDateRange(
@@ -77,22 +87,44 @@ export function refineDashboardDateRange(
   baseRange: { from: string; to: string },
 ): { from: string; to: string } {
   const normalized = normalizeDashboardFilters(filters);
-  if (!/^\d{4}$/.test(timeframe) || !normalized.month) return baseRange;
+  if (!/^\d{4}$/.test(timeframe) || normalized.months.length === 0) return baseRange;
 
   const year = Number(timeframe);
-  const lastDay = new Date(Date.UTC(year, normalized.month, 0)).getUTCDate();
+  const firstMonth = normalized.months[0];
+  const lastMonth = normalized.months.at(-1) ?? firstMonth;
+  const firstMonthLastDay = new Date(Date.UTC(year, firstMonth, 0)).getUTCDate();
+  const lastMonthLastDay = new Date(Date.UTC(year, lastMonth, 0)).getUTCDate();
   const startDay = normalized.weekOfMonth
-    ? Math.min((normalized.weekOfMonth - 1) * 7 + 1, lastDay)
+    ? Math.min((normalized.weekOfMonth - 1) * 7 + 1, firstMonthLastDay)
     : 1;
   const endDay = normalized.weekOfMonth
-    ? Math.min(normalized.weekOfMonth * 7, lastDay)
-    : lastDay;
+    ? Math.min(normalized.weekOfMonth * 7, lastMonthLastDay)
+    : lastMonthLastDay;
   const pad = (value: number) => String(value).padStart(2, "0");
 
   return {
-    from: `${year}-${pad(normalized.month)}-${pad(startDay)}`,
-    to: `${year}-${pad(normalized.month)}-${pad(endDay)}`,
+    from: `${year}-${pad(firstMonth)}-${pad(startDay)}`,
+    to: `${year}-${pad(lastMonth)}-${pad(endDay)}`,
   };
+}
+
+export function matchesDashboardDateFilter(
+  date: string | null | undefined,
+  timeframe: string,
+  filters?: DashboardFilters | null,
+): boolean {
+  const normalized = normalizeDashboardFilters(filters);
+  if (!/^\d{4}$/.test(timeframe) || normalized.months.length === 0) return true;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+
+  const month = Number(date.slice(5, 7));
+  if (!normalized.months.includes(month)) return false;
+  if (!normalized.weekOfMonth) return true;
+
+  const day = Number(date.slice(8, 10));
+  const startDay = (normalized.weekOfMonth - 1) * 7 + 1;
+  const endDay = normalized.weekOfMonth * 7;
+  return day >= startDay && day <= endDay;
 }
 
 export function getDashboardIntervalExpression(
@@ -101,21 +133,21 @@ export function getDashboardIntervalExpression(
   if (intervals.length === 0) return null;
 
   const expressions = intervals.flatMap((interval) => {
-  if (interval === "ok") {
+    if (interval === "ok") {
       return ["demora_cita_min.lt.30", "and(demora_cita_min.is.null,espera_min.lt.30)"];
-  }
-  if (interval === "warn") {
+    }
+    if (interval === "warn") {
       return ["and(demora_cita_min.gte.30,demora_cita_min.lt.45)", "and(demora_cita_min.is.null,and(espera_min.gte.30,espera_min.lt.45))"];
-  }
-  if (interval === "delay") {
+    }
+    if (interval === "delay") {
       return ["and(demora_cita_min.gte.45,demora_cita_min.lt.90)", "and(demora_cita_min.is.null,and(espera_min.gte.45,espera_min.lt.90))"];
-  }
-  if (interval === "critical") {
+    }
+    if (interval === "critical") {
       return ["demora_cita_min.gte.90", "and(demora_cita_min.is.null,espera_min.gte.90)"];
-  }
-  if (interval === "pending") {
+    }
+    if (interval === "pending") {
       return ["and(demora_cita_min.is.null,espera_min.is.null)"];
-  }
+    }
     return [];
   });
 
@@ -125,7 +157,7 @@ export function getDashboardIntervalExpression(
 export function countDashboardFilters(filters?: DashboardFilters | null): number {
   const normalized = normalizeDashboardFilters(filters);
   return [
-    normalized.month,
+    normalized.months.length > 0 ? normalized.months : null,
     normalized.weekOfMonth,
     normalized.intervals.length > 0 ? normalized.intervals : null,
     normalized.observation,

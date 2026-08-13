@@ -2,19 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   countDashboardFilters,
   getDashboardIntervalExpression,
+  matchesDashboardDateFilter,
   normalizeDashboardFilters,
   refineDashboardDateRange,
 } from "../dashboardFilters";
 
 describe("dashboardFilters", () => {
-  it("normaliza valores inválidos y no permite semana sin mes", () => {
+  it("descarta meses inválidos y no permite semana sin meses válidos", () => {
     expect(normalizeDashboardFilters({
-      month: 14,
+      months: [14, 0],
       weekOfMonth: 3,
       intervals: ["warn", "invalid" as never, "warn"],
       observation: "  ",
     })).toEqual({
-      month: null,
+      months: [],
       weekOfMonth: null,
       intervals: ["warn"],
       observation: null,
@@ -22,7 +23,7 @@ describe("dashboardFilters", () => {
   });
 
   it("acota el rango a un mes y semana concretos del año", () => {
-    expect(refineDashboardDateRange("2024", { month: 2, weekOfMonth: 5 }, {
+    expect(refineDashboardDateRange("2024", { months: [2], weekOfMonth: 5 }, {
       from: "2024-01-01",
       to: "2024-12-31",
     })).toEqual({
@@ -33,7 +34,18 @@ describe("dashboardFilters", () => {
 
   it("mantiene el rango base para períodos relativos", () => {
     const base = { from: "2026-06-01", to: "2026-06-19" };
-    expect(refineDashboardDateRange("Mes", { month: 5 }, base)).toEqual(base);
+    expect(refineDashboardDateRange("Mes", { months: [5] }, base)).toEqual(base);
+  });
+
+  it("filtra meses no consecutivos y aplica la semana a cada mes", () => {
+    const filters = { months: [1, 3], weekOfMonth: 2 };
+    expect(refineDashboardDateRange("2026", filters, {
+      from: "2026-01-01",
+      to: "2026-12-31",
+    })).toEqual({ from: "2026-01-08", to: "2026-03-14" });
+    expect(matchesDashboardDateFilter("2026-01-10", "2026", filters)).toBe(true);
+    expect(matchesDashboardDateFilter("2026-02-10", "2026", filters)).toBe(false);
+    expect(matchesDashboardDateFilter("2026-03-20", "2026", filters)).toBe(false);
   });
 
   it("genera expresiones para los intervalos de espera", () => {
@@ -44,7 +56,7 @@ describe("dashboardFilters", () => {
 
   it("cuenta solo filtros activos", () => {
     expect(countDashboardFilters({
-      month: 6,
+      months: [6, 7],
       weekOfMonth: 2,
       intervals: ["warn", "critical"],
       observation: "Proveedor llegó tarde",

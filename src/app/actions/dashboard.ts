@@ -7,6 +7,7 @@ import { nowLima, daysAgoLima, logError, dateRange } from "./_helpers";
 import { fetchPagedRows } from "./_pagination";
 import {
   getDashboardIntervalExpression,
+  matchesDashboardDateFilter,
   normalizeDashboardFilters,
   refineDashboardDateRange,
   type DashboardFilters,
@@ -507,7 +508,10 @@ export async function getDashboardStats(
     if (aliases.length > 0) query = query.in("agente", aliases);
     query = applyDashboardDataFilters(query, filters);
     const data = await fetchPagedRows<DashboardMetricRow>(query);
-    return buildDashboardStatsFromRows(data, timeframe);
+    return buildDashboardStatsFromRows(
+      data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
+      timeframe,
+    );
   } catch (err) {
     logError("getDashboardStats", err);
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
@@ -544,7 +548,11 @@ export async function getDashboardFlowSegmentDetail(
       }
       query = applyDashboardDataFilters(query, filters);
       const data = await fetchPagedRows<DashboardMetricRow>(query);
-      return buildFlowSegmentDetail(data, timeframe, bucket);
+      return buildFlowSegmentDetail(
+        data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
+        timeframe,
+        bucket,
+      );
     }
 
     const supabase = await createClient();
@@ -570,7 +578,11 @@ export async function getDashboardFlowSegmentDetail(
     query = applyDashboardDataFilters(query, filters);
 
     const data = await fetchPagedRows<DashboardMetricRow>(query);
-    return buildFlowSegmentDetail(data, timeframe, bucket);
+    return buildFlowSegmentDetail(
+      data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
+      timeframe,
+      bucket,
+    );
   } catch (err) {
     logError("getDashboardFlowSegmentDetail", err, { plant, timeframe, bucket });
     return null;
@@ -601,7 +613,10 @@ async function getDashboardStatsAdmin(
     return { events: [], kpis: { ok: 0, deny: 0, warn: 0, pending: 0, total: 0 }, breakdown: {}, flowData: [], zones: [], alerts: [], delayReasons: [] };
   }
 
-  return buildDashboardStatsFromRows(data, timeframe);
+  return buildDashboardStatsFromRows(
+    data.filter((row) => matchesDashboardDateFilter(row.fecha, timeframe, filters)),
+    timeframe,
+  );
 }
 
 // ─── TREND COMPARISON ─────────────────────────────────────────────────────────
@@ -635,13 +650,21 @@ export async function getDashboardTrends(
     const supabase = await createClient();
     const { from, to } = getDashboardDateRange(timeframe, filters);
     const companyId = ctx.companyId;
-    const { from: prevFrom, to: prevTo } = previousDashboardRange({ from, to });
+    const normalizedFilters = normalizeDashboardFilters(filters);
+    const historicalMonthSelection = /^\d{4}$/.test(timeframe) && normalizedFilters.months.length > 0;
+    const previousRange = historicalMonthSelection
+      ? {
+          from: `${Number(timeframe) - 1}${from.slice(4)}`,
+          to: `${Number(timeframe) - 1}${to.slice(4)}`,
+        }
+      : previousDashboardRange({ from, to });
+    const { from: prevFrom, to: prevTo } = previousRange;
     const sitePlants = await resolveSitePlants(supabase, ctx, plant);
 
     const fetchKpis = async (fromDate: string, toDate: string) => {
       let query = supabase
         .from("atenciones")
-        .select("espera_min, demora_cita_min")
+        .select("fecha, espera_min, demora_cita_min")
         .eq("company_id", companyId)
         .gte("fecha", fromDate)
         .lte("fecha", toDate);
@@ -651,24 +674,28 @@ export async function getDashboardTrends(
       if (aliases.length > 0) query = query.in("agente", aliases);
       query = applyDashboardDataFilters(query, filters);
       const rows = await fetchPagedRows<{
+        fecha: string | null;
         espera_min: number | null;
         demora_cita_min: number | null;
       }>(query);
+      const scopedRows = rows.filter((row) =>
+        matchesDashboardDateFilter(row.fecha, timeframe, filters),
+      );
       return [{
-        ok: rows.filter((row) => {
+        ok: scopedRows.filter((row) => {
           const delay = row.demora_cita_min ?? row.espera_min;
           return delay != null && delay < 30;
         }).length,
-        deny: rows.filter((row) => {
+        deny: scopedRows.filter((row) => {
           const delay = row.demora_cita_min ?? row.espera_min;
           return delay != null && delay >= 45;
         }).length,
-        warn: rows.filter((row) => {
+        warn: scopedRows.filter((row) => {
           const delay = row.demora_cita_min ?? row.espera_min;
           return delay != null && delay >= 30 && delay < 45;
         }).length,
-        pending: rows.filter((row) => (row.demora_cita_min ?? row.espera_min) == null).length,
-        total: rows.length,
+        pending: scopedRows.filter((row) => (row.demora_cita_min ?? row.espera_min) == null).length,
+        total: scopedRows.length,
       }];
     };
 
@@ -727,7 +754,7 @@ export async function getDashboardHeatmap(
     const supabase = await createClient();
     const sitePlants = await resolveSitePlants(supabase, ctx, plant);
     const normalizedFilters = normalizeDashboardFilters(filters);
-    const hasHistoricalDateFilter = /^\d{4}$/.test(timeframe) && normalizedFilters.month !== null;
+    const hasHistoricalDateFilter = /^\d{4}$/.test(timeframe) && normalizedFilters.months.length > 0;
     const range = hasHistoricalDateFilter
       ? getDashboardDateRange(timeframe, filters)
       : { from: daysAgoLima(180), to: nowLima().date };
@@ -757,10 +784,13 @@ export async function getDashboardHeatmap(
       espera_min: number | null;
       demora_cita_min: number | null;
     }>(query);
-    if (!data.length) return [];
+    const scopedData = data.filter((row) =>
+      matchesDashboardDateFilter(row.fecha, timeframe, filters),
+    );
+    if (!scopedData.length) return [];
 
     const hmMap: Record<string, { total: number; delayed: number }> = {};
-    data.forEach((d) => {
+    scopedData.forEach((d) => {
       const hour = parseInt(d.h_registro.substring(0, 2));
       if (isNaN(hour)) return;
       const parts = d.fecha.split("-").map(Number);

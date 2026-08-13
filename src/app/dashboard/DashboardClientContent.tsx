@@ -166,7 +166,7 @@ export function DashboardClientContent({
   }[];
   dashboardFilters: DashboardFilters;
   observationOptions: string[];
-  onMonthFilterChange: (month: number | null) => void;
+  onMonthFilterChange: (months: number[]) => void;
   onWeekFilterChange: (week: number | null) => void;
   onIntervalFilterChange: (intervals: DashboardIntervalFilter[]) => void;
   onObservationFilterChange: (observation: string | null) => void;
@@ -426,9 +426,9 @@ export function DashboardClientContent({
           filters={dashboardFilters}
           selectedYear={lastSelectedYear || "este año"}
           observations={observationOptions}
-          onMonthChange={(month) => {
+          onMonthChange={(months) => {
             closeFlowDetail();
-            onMonthFilterChange(month);
+            onMonthFilterChange(months);
           }}
           onWeekChange={(week) => {
             closeFlowDetail();

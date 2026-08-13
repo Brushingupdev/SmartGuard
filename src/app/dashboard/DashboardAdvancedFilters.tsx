@@ -14,7 +14,7 @@ interface DashboardAdvancedFiltersProps {
   filters: DashboardFilters;
   selectedYear: string;
   observations: string[];
-  onMonthChange: (month: number | null) => void;
+  onMonthChange: (months: number[]) => void;
   onWeekChange: (week: number | null) => void;
   onIntervalChange: (intervals: DashboardIntervalFilter[]) => void;
   onObservationChange: (observation: string | null) => void;
@@ -49,12 +49,22 @@ function SelectShell({
 const SELECT_CLASS =
   "h-9 w-full min-w-0 appearance-none border border-[var(--sg-line)] bg-[var(--sg-panel)] pl-3 pr-8 text-[11px] font-medium text-[var(--sg-ink)] outline-none transition-colors hover:border-[var(--sg-line-strong)] focus:border-[var(--sg-accent)] disabled:cursor-not-allowed disabled:opacity-40";
 
-function IntervalMultiSelect({
+function FilterMultiSelect<T extends string | number>({
+  id,
+  label,
   selected,
   onChange,
+  options,
+  allLabel,
+  pluralLabel,
 }: {
-  selected: DashboardIntervalFilter[];
-  onChange: (intervals: DashboardIntervalFilter[]) => void;
+  id: string;
+  label: string;
+  selected: T[];
+  onChange: (values: T[]) => void;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  allLabel: string;
+  pluralLabel: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -75,39 +85,39 @@ function IntervalMultiSelect({
     };
   }, [open]);
 
-  const toggle = (interval: DashboardIntervalFilter) => {
-    const next = selected.includes(interval)
-      ? selected.filter((value) => value !== interval)
-      : DASHBOARD_INTERVAL_OPTIONS
+  const toggle = (selectedValue: T) => {
+    const next = selected.includes(selectedValue)
+      ? selected.filter((value) => value !== selectedValue)
+      : options
           .map((option) => option.value)
-          .filter((value) => value === interval || selected.includes(value));
+          .filter((value) => value === selectedValue || selected.includes(value));
     onChange(next);
   };
 
   const summary = selected.length === 0
-    ? "Todos los intervalos"
+    ? allLabel
     : selected.length === 1
-      ? DASHBOARD_INTERVAL_OPTIONS.find((option) => option.value === selected[0])?.label
-      : `${selected.length} intervalos seleccionados`;
+      ? options.find((option) => option.value === selected[0])?.label
+      : `${selected.length} ${pluralLabel}`;
 
   return (
     <div ref={rootRef} className="relative min-w-0">
       <span
-        id="dashboard-interval-label"
+        id={`${id}-label`}
         className="mb-1.5 block sg-font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--sg-muted)]"
       >
-        Intervalo de espera
+        {label}
       </span>
       <button
         type="button"
-        aria-labelledby="dashboard-interval-label dashboard-interval-summary"
+        aria-labelledby={`${id}-label ${id}-summary`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls="dashboard-interval-options"
+        aria-controls={`${id}-options`}
         onClick={() => setOpen((current) => !current)}
         className={`${SELECT_CLASS} flex items-center justify-between gap-2 text-left`}
       >
-        <span id="dashboard-interval-summary" className="min-w-0 truncate">
+        <span id={`${id}-summary`} className="min-w-0 truncate">
           {summary}
         </span>
         <ChevronDown
@@ -117,7 +127,7 @@ function IntervalMultiSelect({
 
       {open ? (
         <div
-          id="dashboard-interval-options"
+          id={`${id}-options`}
           role="listbox"
           aria-multiselectable="true"
           className="absolute z-40 mt-1 w-full min-w-[260px] border border-[var(--sg-line-strong)] bg-[var(--sg-panel)] p-1 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
@@ -132,12 +142,12 @@ function IntervalMultiSelect({
             <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${selected.length === 0 ? "border-[var(--sg-accent)] bg-[var(--sg-accent)] text-[var(--sg-canvas)]" : "border-[var(--sg-line-strong)]"}`}>
               {selected.length === 0 ? <Check className="h-3 w-3" /> : null}
             </span>
-            Todos los intervalos
+            {allLabel}
           </button>
 
           <div className="my-1 border-t border-[var(--sg-line)]" />
 
-          {DASHBOARD_INTERVAL_OPTIONS.map((option) => {
+          {options.map((option) => {
             const checked = selected.includes(option.value);
             return (
               <button
@@ -172,8 +182,8 @@ export default function DashboardAdvancedFilters({
   onClear,
 }: DashboardAdvancedFiltersProps) {
   const activeCount = countDashboardFilters(filters);
-  const month = filters.month ?? null;
-  const week = month ? filters.weekOfMonth ?? null : null;
+  const months = filters.months ?? [];
+  const week = months.length > 0 ? filters.weekOfMonth ?? null : null;
 
   return (
     <section
@@ -210,28 +220,22 @@ export default function DashboardAdvancedFilters({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SelectShell id="dashboard-month" label={`Mes de ${selectedYear}`}>
-          <select
-            id="dashboard-month"
-            value={month ?? ""}
-            onChange={(event) => onMonthChange(event.target.value ? Number(event.target.value) : null)}
-            className={SELECT_CLASS}
-          >
-            <option value="">Todos los meses de {selectedYear}</option>
-            {DASHBOARD_MONTH_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </SelectShell>
+        <FilterMultiSelect
+          id="dashboard-month"
+          label={`Meses de ${selectedYear}`}
+          selected={months}
+          onChange={onMonthChange}
+          options={DASHBOARD_MONTH_OPTIONS}
+          allLabel={`Todos los meses de ${selectedYear}`}
+          pluralLabel="meses seleccionados"
+        />
 
         <SelectShell id="dashboard-week" label="Semana del mes">
           <select
             id="dashboard-week"
             value={week ?? ""}
             onChange={(event) => onWeekChange(event.target.value ? Number(event.target.value) : null)}
-            disabled={!month}
+            disabled={months.length === 0}
             className={SELECT_CLASS}
           >
             <option value="">Todas las semanas</option>
@@ -243,9 +247,14 @@ export default function DashboardAdvancedFilters({
           </select>
         </SelectShell>
 
-        <IntervalMultiSelect
+        <FilterMultiSelect<DashboardIntervalFilter>
+          id="dashboard-interval"
+          label="Intervalo de espera"
           selected={filters.intervals ?? []}
           onChange={onIntervalChange}
+          options={DASHBOARD_INTERVAL_OPTIONS}
+          allLabel="Todos los intervalos"
+          pluralLabel="intervalos seleccionados"
         />
 
         <SelectShell id="dashboard-observation" label="Registro / causa de observación">
